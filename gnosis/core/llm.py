@@ -44,6 +44,7 @@ class LLMClient:
         self.listener = listener
         self._clients: dict[str, AsyncOpenAI] = {}
         self._offline_until = 0.0
+        self._embed_down_until = 0.0
 
     @property
     def online(self) -> bool:
@@ -99,3 +100,18 @@ class LLMClient:
                 raise
             self._offline_until = time.monotonic() + _OFFLINE_RETRY_S
             return await self._call(fallback, messages, tools, **kwargs)
+
+    async def embed(self, texts: list[str]) -> list[list[float]] | None:
+        """Embeds text with the on-device embedding model, or returns None if there isn't one running.
+
+        Memory is personal, so embeddings never use a cloud model.
+        """
+        route = self.router.embedding_route()
+        if route is None or not texts or time.monotonic() < self._embed_down_until:
+            return None
+        try:
+            resp = await self._client(route).embeddings.create(model=route.model, input=texts)
+        except (openai.APIError, openai.APIConnectionError):
+            self._embed_down_until = time.monotonic() + _OFFLINE_RETRY_S
+            return None
+        return [d.embedding for d in sorted(resp.data, key=lambda d: d.index)]

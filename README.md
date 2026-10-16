@@ -4,7 +4,7 @@
 
 Built for Track 03 (Personal AI) of the Nebius x NVIDIA Global AI Hackathon.
 
-> **Status:** build step 1 of 10. The brain, the cloud and local model router, the policy gate, the audit log and a dashboard text chat are working. Voice, desktop control, memory, phone and the coding agent come next. See [the design](docs/architecture.md).
+> **Status:** build step 2 of 10. Working now: the brain, the cloud and local model router, the policy gate, the audit log, the dashboard chat, and long-term memory with a memory map. Voice, desktop control, phone and the coding agent come next. See [the design](docs/architecture.md).
 
 ## How it works
 
@@ -25,6 +25,7 @@ You (voice · text · files · phone)
 - **The model proposes and the policy decides.** Every tool call is checked against [`config/policy.yaml`](config/policy.yaml). Anything irreversible or outward-facing (sending a message, deleting a file, deploying) waits for your approval on the dashboard or phone.
 - **Private by default where it matters.** Requests marked private, and any task that has touched your files, screen or personal memory, are routed to the local model. Secrets are masked before anything goes to the cloud.
 - **Every action is recorded** in an append-only local audit log you can browse.
+- **It remembers you, on your laptop.** After each task Gnosis saves what happened and picks out lasting facts ("you prefer TypeScript", "your mother is Lakshmi"). It recalls the relevant ones before the next task. Sensitive facts, such as phone numbers or health details, are only used when the task stays on the local model. The dashboard's **Memory** tab shows everything it knows as a map, where you can pin or forget any fact.
 
 ## Quick start (Windows)
 
@@ -55,6 +56,12 @@ llama-server -m nemotron-nano-q4.gguf --port 8081
 
 Without it, Gnosis still works and private requests fail with a clear message instead of going to the cloud.
 
+For smarter memory search, also run a small embedding model (memory search falls back to keyword search without it):
+
+```powershell
+llama-server -m nomic-embed-text-v1.5.Q8_0.gguf --embeddings --port 8082
+```
+
 ## Development
 
 ```bash
@@ -65,7 +72,8 @@ python -m venv .venv && .venv/bin/pip install -e ".[dev]"
 | Path | What's there |
 |---|---|
 | `gnosis/core/` | Orchestrator, model router, LLM client, policy gate, audit log, event bus, tool registry |
-| `gnosis/skills/` | Tools Gnosis can use (built-ins today; desktop, phone, coder and more next) |
+| `gnosis/memory/` | Long-term memory: facts, episodes, keyword and vector search, learning, memory map |
+| `gnosis/skills/` | Tools Gnosis can use (built-ins and memory today; desktop, phone, coder and more next) |
 | `gnosis/server/` | Local FastAPI + WebSocket API |
 | `web/dashboard/` | Dashboard |
 | `config/` | Settings, model routing and policy |

@@ -22,13 +22,25 @@ class FakeLLM:
 
     online = True
 
-    def __init__(self, script):
+    def __init__(self, script, facts=None, embeddings=None):
         self.script = list(script)
+        self.facts = facts or []          # What fact extraction returns
+        self.embeddings = embeddings      # text -> vector, or None for "no embedder running"
         self.calls = []
 
+    async def embed(self, texts):
+        if self.embeddings is None:
+            return None
+        return [self.embeddings(t) for t in texts]
+
     async def chat(self, role, messages, tools=None, tags=(), **kw):
-        self.calls.append({"role": role, "messages": [dict(m) for m in messages], "tags": set(tags)})
-        msg = self.script.pop(0)
+        call = {"role": role, "messages": [dict(m) for m in messages], "tags": set(tags)}
+        if "long-term memory" in messages[0]["content"]:
+            self.extraction_calls = getattr(self, "extraction_calls", []) + [call]
+            msg = reply(json.dumps({"facts": self.facts}))
+        else:
+            self.calls.append(call)
+            msg = self.script.pop(0)
         route = Route(role, "fake", "fake-model", "", None, False, "default")
         return SimpleNamespace(message=msg, route=route, redactions=0, latency_ms=1)
 

@@ -40,7 +40,7 @@ class ModelRouter:
             model=spec["model"],
             base_url=provider["base_url"],
             api_key=os.environ.get(key_env) if key_env else None,
-            is_local=spec["provider"] == "local",
+            is_local=bool(provider.get("on_device", False)),
             reason=reason,
         )
 
@@ -53,6 +53,16 @@ class ModelRouter:
                 return self._route_for("local", "offline")
             raise RuntimeError(f"The '{role}' model needs the internet and Gnosis is offline")
         return self._route_for(role, "default")
+
+    def embedding_route(self) -> Route | None:
+        """The embedding model for memory search. Only an on-device provider is accepted."""
+        spec = self.roles.get("embed")
+        if not spec:
+            return None
+        route = self._route_for("embed", "memory search")
+        if not route.is_local:
+            raise ValueError("models.yaml: the 'embed' role must use an on_device provider (memory is private)")
+        return route
 
     def fallback(self, route: Route) -> Route | None:
         """The local route to try when a cloud call fails, if this role allows it."""

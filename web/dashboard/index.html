@@ -20,7 +20,7 @@
   main { display: grid; grid-template-columns: 1fr 380px; gap: 16px; padding: 16px 20px; height: calc(100vh - 56px); }
   section { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; display: flex; flex-direction: column; min-height: 0; }
   h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); margin: 0; padding: 12px 14px; border-bottom: 1px solid var(--line); }
-  #chat { flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+  #chat { flex: 1; min-height: 0; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
   .msg { max-width: 80%; padding: 9px 13px; border-radius: 12px; white-space: pre-wrap; }
   .you { align-self: flex-end; background: #1d3557; }
   .gnosis { align-self: flex-start; background: #17212c; border: 1px solid var(--line); }
@@ -42,6 +42,26 @@
   .cloud { background: #12384a; color: var(--accent); }
   .local { background: #2b1d4a; color: var(--local); }
   .allow { color: var(--ok); } .ask { color: var(--warn); } .deny { color: var(--bad); }
+  .tabs { display: flex; gap: 4px; padding: 6px 8px 0; border-bottom: 1px solid var(--line); }
+  .tab { background: transparent; color: var(--muted); border-radius: 6px 6px 0 0; padding: 8px 12px; font-size: 13px; }
+  .tab.active { color: var(--text); background: var(--bg); }
+  .view { display: none; flex: 1; min-height: 0; flex-direction: column; }
+  .view.active { display: flex; }
+  #map { flex: 1; min-height: 280px; }
+  #map text { fill: var(--text); font-size: 11px; }
+  #map .subject circle { fill: #12384a; stroke: var(--accent); }
+  #map .owner circle { fill: var(--accent); }
+  #map .owner text { fill: #001018; font-weight: 700; }
+  #map .fact circle { fill: #1b2430; stroke: var(--muted); }
+  #map .fact.pinned circle { stroke: var(--ok); }
+  #map .fact.sensitive circle { stroke: var(--bad); }
+  #map line { stroke: var(--line); stroke-width: 1.5; }
+  #facts { max-height: 40%; overflow-y: auto; border-top: 1px solid var(--line); padding: 8px 14px; font-size: 13px; }
+  #facts:empty::after { content: "Gnosis doesn't remember anything yet. Tell it something about you."; color: var(--muted); }
+  .fact-row { display: flex; gap: 8px; align-items: center; padding: 4px 0; }
+  .fact-row span { flex: 1; }
+  .fact-row.hl { background: #17212c; }
+  .fact-row button { padding: 3px 8px; font-size: 12px; }
   @media (max-width: 800px) { main { grid-template-columns: 1fr; height: auto; } #chat { min-height: 50vh; } }
 </style>
 </head>
@@ -53,13 +73,22 @@
 </header>
 <main>
   <section>
-    <h2>Conversation</h2>
-    <div id="chat"></div>
-    <form id="form">
-      <input type="text" id="text" placeholder="Ask Gnosis anything…" autocomplete="off" autofocus>
-      <label title="Keep this request on the local model"><input type="checkbox" id="private"> Private</label>
-      <button>Send</button>
-    </form>
+    <div class="tabs">
+      <button class="tab active" data-view="talk">Conversation</button>
+      <button class="tab" data-view="memory">Memory</button>
+    </div>
+    <div class="view active" id="view-talk">
+      <div id="chat"></div>
+      <form id="form">
+        <input type="text" id="text" placeholder="Ask Gnosis anything…" autocomplete="off" autofocus>
+        <label title="Keep this request on the local model"><input type="checkbox" id="private"> Private</label>
+        <button>Send</button>
+      </form>
+    </div>
+    <div class="view" id="view-memory">
+      <svg id="map" viewBox="-400 -300 800 600" preserveAspectRatio="xMidYMid meet"></svg>
+      <div id="facts"></div>
+    </div>
   </section>
   <aside>
     <section><h2>Needs your approval</h2><div id="approvals"></div></section>
@@ -113,6 +142,14 @@ function onEvent(ev) {
       break;
     case "approval_needed": addApproval(ev); break;
     case "approval_resolved": $("ap-" + ev.approval_id)?.remove(); break;
+    case "memory_recalled":
+      if (ev.facts.length || ev.episodes.length)
+        activity(`◆ recalled ${ev.facts.length} facts, ${ev.episodes.length} past tasks`);
+      break;
+    case "task_finished":
+      // Learning runs just after the answer; refresh the map shortly after.
+      if ($("view-memory").classList.contains("active")) setTimeout(loadMemory, 1500);
+      break;
   }
 }
 
@@ -136,6 +173,98 @@ $("form").onsubmit = async (e) => {
     r.ok ? say("gnosis", data.answer) : say("err", data.detail || "Something went wrong.");
   } catch (err) { say("err", "Can't reach Gnosis: " + err); }
 };
+
+
+// ---- Memory map ---------------------------------------------------------
+document.querySelectorAll(".tab").forEach((t) => t.onclick = () => {
+  document.querySelectorAll(".tab").forEach((x) => x.classList.toggle("active", x === t));
+  document.querySelectorAll(".view").forEach((v) => v.classList.toggle("active", v.id === "view-" + t.dataset.view));
+  if (t.dataset.view === "memory") loadMemory();
+});
+
+const short = (s, n = 22) => s.length > n ? s.slice(0, n - 1) + "…" : s;
+const SVG = "http://www.w3.org/2000/svg";
+function el(tag, attrs, parent) {
+  const e = document.createElementNS(SVG, tag);
+  for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+  parent.appendChild(e);
+  return e;
+}
+
+function layout(graph) {
+  // You at the centre, your own facts on an inner ring, other people/things on an outer ring
+  // with their facts clustered around them.
+  const pos = {"s:owner": [0, 0]};
+  const children = {};
+  graph.edges.forEach((e) => { if (e.to.startsWith("f:")) (children[e.from] ||= []).push(e.to); });
+  const others = graph.nodes.filter((n) => n.kind === "subject" && n.id !== "s:owner");
+  others.forEach((n, i) => {
+    const a = (2 * Math.PI * i) / Math.max(others.length, 1) - Math.PI / 2;
+    pos[n.id] = [250 * Math.cos(a), 200 * Math.sin(a)];
+  });
+  for (const [subject, facts] of Object.entries(children)) {
+    const [cx, cy] = pos[subject] || [0, 0];
+    const r = subject === "s:owner" ? 130 : 70;
+    const base = Math.atan2(cy, cx);
+    facts.forEach((f, i) => {
+      const a = subject === "s:owner" ? (2 * Math.PI * i) / facts.length + Math.PI / 4
+                                      : base + ((i - (facts.length - 1) / 2) * 0.7);
+      pos[f] = [cx + r * Math.cos(a), cy + r * Math.sin(a)];
+    });
+  }
+  return pos;
+}
+
+function drawMap(graph) {
+  const svg = $("map");
+  svg.innerHTML = "";
+  const pos = layout(graph);
+  const lines = el("g", {}, svg), dots = el("g", {}, svg);
+  graph.edges.forEach((e) => {
+    if (!pos[e.from] || !pos[e.to]) return;
+    el("line", {x1: pos[e.from][0], y1: pos[e.from][1], x2: pos[e.to][0], y2: pos[e.to][1]}, lines);
+  });
+  graph.nodes.forEach((n) => {
+    const [x, y] = pos[n.id] || [0, 0];
+    const cls = n.id === "s:owner" ? "owner" : n.kind + (n.pinned ? " pinned" : "") + (n.sensitive ? " sensitive" : "");
+    const g = el("g", {class: cls, transform: `translate(${x},${y})`, style: "cursor:pointer"}, dots);
+    el("circle", {r: n.kind === "subject" ? 26 : 7}, g);
+    const t = el("text", {"text-anchor": "middle", y: n.kind === "subject" ? 4 : 20}, g);
+    t.textContent = short(n.label, n.kind === "subject" ? 10 : 24);
+    el("title", {}, g).textContent = n.label;
+    if (n.fact_id) g.onclick = () => {
+      document.querySelectorAll(".fact-row").forEach((r) => r.classList.toggle("hl", r.dataset.id == n.fact_id));
+      document.querySelector(`.fact-row[data-id="${n.fact_id}"]`)?.scrollIntoView({block: "nearest"});
+    };
+  });
+}
+
+async function factAction(id, method, body) {
+  await fetch(`/api/memory/facts/${id}`, {method, headers: {"Content-Type": "application/json"},
+    body: body ? JSON.stringify(body) : undefined});
+  loadMemory();
+}
+
+async function loadMemory() {
+  const [graph, mem] = await Promise.all([
+    fetch("/api/memory/graph").then((r) => r.json()),
+    fetch("/api/memory").then((r) => r.json()),
+  ]);
+  drawMap(graph);
+  $("facts").innerHTML = "";
+  mem.facts.forEach((f) => {
+    const row = document.createElement("div");
+    row.className = "fact-row";
+    row.dataset.id = f.id;
+    const who = f.subject === "owner" ? "You" : f.subject;
+    row.innerHTML = `<span>${f.sensitive ? "🔒 " : ""}<b>${esc(who)}</b> · ${esc(f.predicate.replaceAll("_", " "))}: ${esc(f.value)}</span>
+      <button class="no">${f.pinned ? "Unpin" : "Pin"}</button><button class="no">Forget</button>`;
+    const [pin, forget] = row.querySelectorAll("button");
+    pin.onclick = () => factAction(f.id, "PATCH", {pinned: !f.pinned});
+    forget.onclick = () => confirm(`Forget "${who} ${f.predicate.replaceAll("_", " ")}: ${f.value}"?`) && factAction(f.id, "DELETE");
+    $("facts").appendChild(row);
+  });
+}
 
 fetch("/api/approvals").then((r) => r.json()).then((list) =>
   list.forEach((a) => addApproval({approval_id: a.id, ...a})));

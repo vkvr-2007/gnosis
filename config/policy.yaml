@@ -7,6 +7,8 @@ tools:
   get_time: allow
   system_info: allow
   remember: allow
+  search_memory: allow
+  forget: allow              # Your own data; the dashboard also lets you forget anything
   open_app: allow
   close_app: allow
   read_file: allow
