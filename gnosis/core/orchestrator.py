@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+import inspect
 import json
 import uuid
 from collections import defaultdict
@@ -10,7 +12,7 @@ from typing import Any
 from gnosis.core.audit import AuditLog
 from gnosis.core.events import EventBus
 from gnosis.core.llm import LLMClient
-from gnosis.core.policy import ALLOW, DENY, ApprovalManager, Policy
+from gnosis.core.policy import ALLOW, ASK, DENY, ApprovalManager, Decision, Grants, Policy
 from gnosis.core.tools import ToolRegistry
 from gnosis.memory.memory import Memory
 
@@ -41,8 +43,10 @@ def _assistant_dict(msg: Any) -> dict[str, Any]:
 class Orchestrator:
     def __init__(self, llm: LLMClient, tools: ToolRegistry, policy: Policy,
                  approvals: ApprovalManager, audit: AuditLog, events: EventBus,
-                 memory: Memory | None = None, max_steps: int = 8, approval_timeout_s: float = 120.0):
+                 memory: Memory | None = None, grants: Grants | None = None,
+                 max_steps: int = 8, approval_timeout_s: float = 120.0):
         self.llm = llm
+        self.grants = grants or Grants()
         self.memory = memory
         self.tools = tools
         self.policy = policy
@@ -52,11 +56,38 @@ class Orchestrator:
         self.max_steps = max_steps
         self.approval_timeout_s = approval_timeout_s
         self._history: dict[str, list[dict[str, Any]]] = defaultdict(list)
+        self._running: dict[str, asyncio.Task] = {}
 
     async def handle(self, text: str, session_id: str = "default",
                      tags: set[str] | None = None, owner: bool = True) -> str:
-        """Runs one request. `owner=False` is guest mode: voice ID didn't recognise the speaker."""
+        """Runs one request. `owner=False` is guest mode: voice ID didn't recognise the speaker.
+
+        The work runs as its own task so the kill switch can cancel it and still give an answer.
+        """
         task_id = uuid.uuid4().hex[:12]
+        inner = asyncio.create_task(self._handle(task_id, text, session_id, tags, owner))
+        self._running[task_id] = inner
+        try:
+            return await inner
+        except asyncio.CancelledError:
+            current = asyncio.current_task()
+            if current is not None and current.cancelling():
+                raise  # The caller itself was cancelled, not just this task
+            self.audit.write("stopped", task_id=task_id)
+            await self.events.publish("task_finished", task_id=task_id, answer="Stopped.", session=session_id)
+            return "Stopped."
+        finally:
+            self._running.pop(task_id, None)
+
+    def cancel_all(self) -> int:
+        """Kill switch: stops every running task between actions. Returns how many were stopped."""
+        tasks = [t for t in self._running.values() if not t.done()]
+        for t in tasks:
+            t.cancel()
+        return len(tasks)
+
+    async def _handle(self, task_id: str, text: str, session_id: str, tags: set[str] | None,
+                      owner: bool) -> str:
         tags = set(tags or ())
         if not owner:
             session_id = f"guest:{session_id}"  # Guests never see the owner's conversation history.
@@ -114,6 +145,22 @@ class Orchestrator:
             return json.dumps({"error": f"Invalid arguments: {e}"})
 
         decision = self.policy.decide(name, args, owner=owner)
+        scope = None
+        if decision.action == ALLOW and tool.escalate:
+            try:
+                risk = tool.escalate(args)
+            except Exception:
+                risk = None
+            if risk:
+                decision = Decision(ASK, risk)
+        elif decision.action == ASK and decision.once:
+            scope = tool.approval_scope(args) if tool.approval_scope else name
+            if inspect.isawaitable(scope):
+                scope = await scope
+            if self.grants.has(name, scope):
+                decision = Decision(ALLOW, f"you allowed '{name}' for {scope} before")
+            else:
+                decision = Decision(ASK, f"{decision.reason} (for {scope})", once=True)
         self.audit.write("tool_decision", task_id=task_id, tool=name, args=args,
                          decision=decision.action, reason=decision.reason)
         await self.events.publish("tool_call", task_id=task_id, tool=name, args=args,
@@ -130,6 +177,8 @@ class Orchestrator:
             await self.events.publish("approval_resolved", approval_id=approval.id, approved=approved)
             if not approved:
                 return json.dumps({"error": "The owner declined this action (or didn't answer in time)."})
+            if decision.once and scope is not None:
+                self.grants.add(name, scope)
 
         try:
             value = await tool.run(**args)

@@ -15,7 +15,7 @@ if (-not (Test-Path ".venv")) {
     Invoke-Python -m venv .venv
 }
 & .\.venv\Scripts\python -m pip install --upgrade pip
-& .\.venv\Scripts\python -m pip install -e ".[dev]" psutil
+& .\.venv\Scripts\python -m pip install -e ".[dev,desktop]"
 
 if (-not (Test-Path "config\gnosis.yaml")) {
     Copy-Item "config\gnosis.example.yaml" "config\gnosis.yaml"

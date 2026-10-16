@@ -15,7 +15,15 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "numpy>=1.26"]
+dev = ["pytest>=8", "numpy>=1.26", "pillow>=10", "rapidfuzz>=3"]
+# Opening, closing and operating Windows apps.
+desktop = [
+    "uiautomation>=2.0.20; sys_platform == 'win32'",
+    "psutil>=5.9",
+    "mss>=9",
+    "pillow>=10",
+    "rapidfuzz>=3",
+]
 # Wake word, speech recognition and spoken replies, all on-device.
 voice = [
     "numpy>=1.26",

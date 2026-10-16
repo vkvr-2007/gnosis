@@ -4,7 +4,7 @@
 
 Built for Track 03 (Personal AI) of the Nebius x NVIDIA Global AI Hackathon.
 
-> **Status:** build step 3 of 10. Working now: the brain, the cloud and local model router, the policy gate, the audit log, the dashboard chat, long-term memory with a memory map, and voice (wake word, speech recognition, spoken replies, voice ID). Desktop control, phone and the coding agent come next. See [the design](docs/architecture.md).
+> **Status:** build step 4 of 10. Working now: the brain, cloud and local model routing, the policy gate and audit log, the dashboard, long-term memory with a memory map, voice with voice ID, and desktop control (open, close and operate Windows apps, with a screenshot fallback and a kill switch). Parallel tasks, reminders, the phone and the coding agent come next. See [the design](docs/architecture.md).
 
 ## How it works
 
@@ -26,6 +26,15 @@ You (voice · text · files · phone)
 - **Private by default where it matters.** Requests marked private, and any task that has touched your files, screen or personal memory, are routed to the local model. Secrets are masked before anything goes to the cloud.
 - **Every action is recorded** in an append-only local audit log you can browse.
 - **It remembers you, on your laptop.** After each task Gnosis saves what happened and picks out lasting facts ("you prefer TypeScript", "your mother is Lakshmi"). It recalls the relevant ones before the next task. Sensitive facts, such as phone numbers or health details, are only used when the task stays on the local model. The dashboard's **Memory** tab shows everything it knows as a map, where you can pin or forget any fact.
+
+## Desktop control
+
+Gnosis opens apps by name ("open Spotify", "open Valorant", "open VS Code"), closes them, and works inside them. It reads each window's buttons and fields through Windows UI Automation, so it clicks things by name rather than guessing pixels. When an app doesn't expose its controls (games, video, canvases), it takes a screenshot, marks it with numbered boxes and asks the vision model which one to click.
+
+- **Asks before acting on your behalf.** Clicking a button such as Send, Buy, Pay or Delete needs your OK, even though clicking is otherwise allowed.
+- **Screenshots are opt-in per app.** The first time Gnosis wants to send a screenshot of an app to the cloud vision model, it asks; your answer is remembered for that app. Reading a window's text (`read_screen`) stays on your laptop.
+- **Kill switch.** Press **Ctrl+Alt+J**, click **Stop** on the dashboard, or say "stop" to halt everything Gnosis is doing.
+- If an app isn't installed, Gnosis opens its website instead (Spotify, WhatsApp, YouTube, Gmail and more).
 
 ## Quick start (Windows)
 
@@ -92,6 +101,7 @@ python -m venv .venv && .venv/bin/pip install -e ".[dev]"
 |---|---|
 | `gnosis/core/` | Orchestrator, model router, LLM client, policy gate, audit log, event bus, tool registry |
 | `gnosis/memory/` | Long-term memory: facts, episodes, keyword and vector search, learning, memory map |
+| `gnosis/skills/desktop/` | App finder and launcher, UI Automation (read, click, type, shortcuts), screenshot fallback, Spotify |
 | `gnosis/voice/` | Microphone and speaker, wake word, end-of-speech detection, speech-to-text, text-to-speech, voice ID, the voice loop |
 | `gnosis/skills/` | Tools Gnosis can use (built-ins and memory today; desktop, phone, coder and more next) |
 | `gnosis/server/` | Local FastAPI + WebSocket API |

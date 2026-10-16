@@ -70,6 +70,8 @@
   <div class="dot" id="dot"></div>
   <h1>GNOSIS</h1>
   <span id="status">connecting…</span>
+  <button id="stop" class="no" style="margin-left:auto;border-color:var(--bad);color:var(--bad)"
+          title="Stops everything Gnosis is doing (also Ctrl+Alt+J)">■ Stop</button>
 </header>
 <main>
   <section>
@@ -154,6 +156,9 @@ function onEvent(ev) {
       $("status").textContent = "online · " + (labels[ev.state] || ev.state);
       break;
     }
+    case "stopped":
+      activity(`<span class="deny">■ stopped ${ev.tasks} task(s)</span>`);
+      break;
     case "voice_heard":
       say("you", "🎙 " + ev.text + (ev.owner ? "" : "  (guest voice)"));
       break;
@@ -174,6 +179,8 @@ function connect() {
   ws.onclose = () => { $("dot").classList.remove("on"); $("status").textContent = "reconnecting…"; setTimeout(connect, 2000); };
   ws.onmessage = (m) => onEvent(JSON.parse(m.data));
 }
+
+$("stop").onclick = () => fetch("/api/stop", {method: "POST"});
 
 $("form").onsubmit = async (e) => {
   e.preventDefault();

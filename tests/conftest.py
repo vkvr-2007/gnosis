@@ -49,4 +49,5 @@ class FakeLLM:
 def settings(tmp_path: Path) -> Settings:
     load = lambda p: yaml.safe_load((REPO_ROOT / p).read_text())
     return Settings(data_dir=tmp_path, models=load("config/models.yaml"),
-                    policy=load("config/policy.yaml"), approval_timeout_s=2)
+                    policy=load("config/policy.yaml"), approval_timeout_s=2,
+                    desktop=False)  # Tests plug in a fake desktop where they need one

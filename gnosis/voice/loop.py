@@ -28,7 +28,8 @@ class VoiceConfig:
 class VoiceLoop:
     def __init__(self, *, wake: Any, stt: Any, tts: Any, speaker: Any, orchestrator: Any, events: Any,
                  detector: Callable[[np.ndarray], bool], voice_id: Any | None = None,
-                 config: VoiceConfig | None = None, on_audio_drain: Callable[[], None] | None = None):
+                 config: VoiceConfig | None = None, on_audio_drain: Callable[[], None] | None = None,
+                 on_stop_command: Callable[[], Any] | None = None):
         self.wake = wake
         self.stt = stt
         self.tts = tts
@@ -39,6 +40,7 @@ class VoiceLoop:
         self.voice_id = voice_id
         self.config = config or VoiceConfig()
         self.on_audio_drain = on_audio_drain
+        self.on_stop_command = on_stop_command  # "Stop" also halts running tasks, like the kill switch
         self.state = "idle"
         self._endpointer: Endpointer | None = None
         self._busy = asyncio.Lock()
@@ -90,6 +92,10 @@ class VoiceLoop:
                 return
             if _STOP_WORDS.match(text):
                 self.speaker.stop()
+                if self.on_stop_command:
+                    result = self.on_stop_command()
+                    if asyncio.iscoroutine(result):
+                        await result
                 await self.events.publish("voice_heard", text=text, owner=True, score=None)
                 await self._set_state("idle")
                 return

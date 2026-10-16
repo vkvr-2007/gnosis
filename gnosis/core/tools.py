@@ -17,6 +17,11 @@ class Tool:
     func: ToolFunc
     # Privacy tags on the tool's output; tagged results keep the rest of the task on the local model.
     tags: tuple[str, ...] = field(default_factory=tuple)
+    # For "ask_once" tools: what an approval covers, e.g. the app a screenshot would show.
+    approval_scope: Callable[[dict[str, Any]], str | Awaitable[str]] | None = None
+    # Lets an allowed call ask anyway when this particular use is risky (e.g. clicking "Send").
+    # Returns the reason to ask, or None.
+    escalate: Callable[[dict[str, Any]], str | None] | None = None
 
     def schema(self) -> dict[str, Any]:
         return {
@@ -46,12 +51,12 @@ class ToolRegistry:
         return tool
 
     def tool(self, name: str, description: str, parameters: dict[str, Any] | None = None,
-             tags: tuple[str, ...] = ()):
+             tags: tuple[str, ...] = (), approval_scope=None, escalate=None):
         """Decorator form of register()."""
         def wrap(func: ToolFunc) -> ToolFunc:
             self.register(Tool(name, description,
                                parameters or {"type": "object", "properties": {}},
-                               func, tags))
+                               func, tags, approval_scope, escalate))
             return func
         return wrap
 

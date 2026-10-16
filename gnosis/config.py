@@ -32,6 +32,8 @@ class Settings:
     max_steps: int = 8
     approval_timeout_s: float = 120.0
     voice: dict[str, Any] = field(default_factory=dict)
+    kill_switch: str = "ctrl+alt+j"
+    desktop: bool = True  # Register desktop control tools (Windows only)
 
     @property
     def db_path(self) -> Path:
@@ -56,6 +58,7 @@ def load_settings(config_path: str | Path | None = None) -> Settings:
         max_steps=int(orch.get("max_steps", 8)),
         approval_timeout_s=float(orch.get("approval_timeout_s", 120)),
         voice=raw.get("voice") or {},
+        kill_switch=str(raw.get("kill_switch", "ctrl+alt+j")),
     )
     settings.data_dir.mkdir(parents=True, exist_ok=True)
     return settings

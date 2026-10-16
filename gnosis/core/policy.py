@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 import uuid
 from dataclasses import dataclass, field
@@ -10,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 ALLOW, ASK, DENY = "allow", "ask", "deny"
+ASK_ONCE = "ask_once"  # Ask the first time for each scope (e.g. each app), then remember the answer
 
 # Tools whose `path` argument is checked against the filesystem rules.
 _READ_TOOLS = {"read_file", "list_dir"}
@@ -20,6 +22,7 @@ _WRITE_TOOLS = {"write_file", "delete_file", "move_file"}
 class Decision:
     action: str  # allow | ask | deny
     reason: str
+    once: bool = False  # An approval can be remembered for this tool and scope
 
 
 def _norm(p: str | Path) -> str:
@@ -45,7 +48,7 @@ class Policy:
         # Tools anyone may use by voice, even when voice ID doesn't recognise them as the owner.
         self.guest_tools: set[str] = set(cfg.get("guest_tools", []))
         for name, action in self.tools.items():
-            if action not in (ALLOW, ASK, DENY):
+            if action not in (ALLOW, ASK, ASK_ONCE, DENY):
                 raise ValueError(f"policy.yaml: tool '{name}' has invalid action '{action}'")
 
     def decide(self, tool: str, args: dict[str, Any] | None = None, owner: bool = True) -> Decision:
@@ -67,7 +70,39 @@ class Policy:
 
         if action == ALLOW:
             return Decision(ALLOW, "allowed by policy")
+        if action == ASK_ONCE:
+            return Decision(ASK, f"'{tool}' needs your approval the first time", once=True)
         return Decision(ASK, f"'{tool}' needs your approval")
+
+
+class Grants:
+    """Remembered "ask once" approvals, saved so they survive restarts."""
+
+    def __init__(self, path: Path | None = None):
+        self.path = path
+        self._grants: set[str] = set()
+        if path and path.exists():
+            try:
+                self._grants = set(json.loads(path.read_text(encoding="utf-8")))
+            except (ValueError, OSError):
+                self._grants = set()
+
+    @staticmethod
+    def _key(tool: str, scope: str) -> str:
+        return f"{tool}::{scope.lower()}"
+
+    def has(self, tool: str, scope: str) -> bool:
+        return self._key(tool, scope) in self._grants
+
+    def add(self, tool: str, scope: str) -> None:
+        self._grants.add(self._key(tool, scope))
+        if self.path:
+            self.path.write_text(json.dumps(sorted(self._grants)), encoding="utf-8")
+
+    def revoke_all(self) -> None:
+        self._grants.clear()
+        if self.path and self.path.exists():
+            self.path.unlink()
 
 
 @dataclass
@@ -97,6 +132,12 @@ class ApprovalManager:
             return False
         approval.future.set_result(approved)
         return True
+
+    def reject_all(self) -> int:
+        ids = list(self.pending)
+        for approval_id in ids:
+            self.resolve(approval_id, False)
+        return len(ids)
 
     async def wait(self, approval: Approval, timeout: float) -> bool:
         try:

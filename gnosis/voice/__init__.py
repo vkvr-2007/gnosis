@@ -47,10 +47,11 @@ async def run_voice(g: "Gnosis") -> None:
 
     mic = Microphone(cfg.get("input_device"))
     speaker = Speaker(cfg.get("output_device"))
+    g.on_stop.append(speaker.stop)
     loop = VoiceLoop(wake=wake, stt=stt, tts=tts, speaker=speaker, orchestrator=g.orchestrator,
                      events=g.events, detector=default_detector(), voice_id=voice_id,
                      config=VoiceConfig(follow_up_s=float(cfg.get("follow_up_s", 4))),
-                     on_audio_drain=mic.drain)
+                     on_audio_drain=mic.drain, on_stop_command=g.stop_all)
     mic.start()
     await g.events.publish("voice_state", state="idle", wake_word=wake.label)
     try:

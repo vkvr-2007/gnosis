@@ -56,6 +56,10 @@ def create_app(g: Gnosis) -> FastAPI:
             raise HTTPException(502, f"Gnosis couldn't reach a model: {type(e).__name__}: {e}")
         return {"answer": answer}
 
+    @app.post("/api/stop")
+    async def stop() -> dict:
+        return {"stopped": await g.stop_all()}
+
     @app.get("/api/approvals")
     async def approvals() -> list[dict]:
         return [{"id": a.id, "tool": a.tool, "args": a.args, "reason": a.reason}

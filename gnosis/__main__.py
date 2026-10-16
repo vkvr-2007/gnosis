@@ -27,8 +27,12 @@ def _serve(args: argparse.Namespace) -> None:
     server = uvicorn.Server(uvicorn.Config(create_app(g), host=settings.host, port=settings.port,
                                            log_level="warning"))
     print(f"Gnosis dashboard: http://{settings.host}:{settings.port}")
+    print(f"Kill switch: {settings.kill_switch} stops everything Gnosis is doing")
 
     async def main() -> None:
+        from gnosis import killswitch
+
+        killswitch.start(g.stop_all, settings.kill_switch)
         if not getattr(args, "voice", False):
             await server.serve()
             return

@@ -8,6 +8,8 @@ data_dir: ~/.gnosis            # On Windows this resolves to %USERPROFILE%\.gnos
 models_file: config/models.yaml
 policy_file: config/policy.yaml
 
+kill_switch: ctrl+alt+j        # Global hotkey that stops everything Gnosis is doing
+
 orchestrator:
   max_steps: 8                 # Tool-call rounds per request before Gnosis stops and reports
   approval_timeout_s: 120      # How long an "ask" waits for your answer before it's treated as "no"
