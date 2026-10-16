@@ -15,7 +15,18 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8"]
+dev = ["pytest>=8", "numpy>=1.26"]
+# Wake word, speech recognition and spoken replies, all on-device.
+voice = [
+    "numpy>=1.26",
+    "sounddevice>=0.4.6",
+    "openwakeword>=0.6",
+    "faster-whisper>=1.0",
+    "webrtcvad-wheels>=2.0.11",
+    "piper-tts>=1.3",
+]
+# Voice ID (speaker recognition). Pulls in PyTorch (CPU), about 1 GB.
+voiceid = ["speechbrain>=1.0", "torch>=2.2"]
 
 [project.scripts]
 gnosis = "gnosis.__main__:main"

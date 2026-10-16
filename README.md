@@ -4,7 +4,7 @@
 
 Built for Track 03 (Personal AI) of the Nebius x NVIDIA Global AI Hackathon.
 
-> **Status:** build step 2 of 10. Working now: the brain, the cloud and local model router, the policy gate, the audit log, the dashboard chat, and long-term memory with a memory map. Voice, desktop control, phone and the coding agent come next. See [the design](docs/architecture.md).
+> **Status:** build step 3 of 10. Working now: the brain, the cloud and local model router, the policy gate, the audit log, the dashboard chat, long-term memory with a memory map, and voice (wake word, speech recognition, spoken replies, voice ID). Desktop control, phone and the coding agent come next. See [the design](docs/architecture.md).
 
 ## How it works
 
@@ -62,6 +62,25 @@ For smarter memory search, also run a small embedding model (memory search falls
 llama-server -m nomic-embed-text-v1.5.Q8_0.gguf --embeddings --port 8082
 ```
 
+### Voice
+
+Everything voice-related runs on your laptop: your audio never leaves it.
+
+```powershell
+.\.venv\Scripts\python -m pip install -e ".[voice]"
+.\scripts\get_voice.ps1                         # Downloads the Piper voice (optional; otherwise the Windows voice is used)
+.\.venv\Scripts\python -m gnosis serve --voice
+```
+
+Say **"Hey Jarvis"** (the bundled wake word until you [train "Hey Gnosis"](docs/wake-word.md)), wait for the chime, and speak. After Gnosis answers it keeps listening for a few seconds, so you can follow up without the wake word. Say the wake word while it's talking to interrupt it, or say "stop".
+
+**Voice ID** makes sure only you can give owner-level commands by voice. Anyone else gets guest mode: music, the time and opening apps, but nothing personal.
+
+```powershell
+.\.venv\Scripts\python -m pip install -e ".[voiceid]"   # Adds PyTorch (CPU), about 1 GB
+.\.venv\Scripts\python -m gnosis enroll                 # Read a short script for 30 seconds
+```
+
 ## Development
 
 ```bash
@@ -73,6 +92,7 @@ python -m venv .venv && .venv/bin/pip install -e ".[dev]"
 |---|---|
 | `gnosis/core/` | Orchestrator, model router, LLM client, policy gate, audit log, event bus, tool registry |
 | `gnosis/memory/` | Long-term memory: facts, episodes, keyword and vector search, learning, memory map |
+| `gnosis/voice/` | Microphone and speaker, wake word, end-of-speech detection, speech-to-text, text-to-speech, voice ID, the voice loop |
 | `gnosis/skills/` | Tools Gnosis can use (built-ins and memory today; desktop, phone, coder and more next) |
 | `gnosis/server/` | Local FastAPI + WebSocket API |
 | `web/dashboard/` | Dashboard |

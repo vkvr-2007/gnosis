@@ -42,12 +42,16 @@ class Policy:
         self.read_roots: list[str] = fs.get("read", [])
         self.write_roots: list[str] = fs.get("write", [])
         self.deny_roots: list[str] = fs.get("deny", [])
+        # Tools anyone may use by voice, even when voice ID doesn't recognise them as the owner.
+        self.guest_tools: set[str] = set(cfg.get("guest_tools", []))
         for name, action in self.tools.items():
             if action not in (ALLOW, ASK, DENY):
                 raise ValueError(f"policy.yaml: tool '{name}' has invalid action '{action}'")
 
-    def decide(self, tool: str, args: dict[str, Any] | None = None) -> Decision:
+    def decide(self, tool: str, args: dict[str, Any] | None = None, owner: bool = True) -> Decision:
         args = args or {}
+        if not owner and tool not in self.guest_tools:
+            return Decision(DENY, "only the owner can ask for that, and I didn't recognise your voice")
         action = self.tools.get(tool, self.default)
         if action == DENY:
             return Decision(DENY, f"'{tool}' is never allowed by policy")

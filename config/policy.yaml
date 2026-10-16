@@ -22,6 +22,9 @@ tools:
   purchase: deny
   edit_policy: deny
 
+# What someone other than the owner may ask for by voice (voice ID didn't match).
+guest_tools: [get_time, open_app, close_app, play_music, set_volume]
+
 filesystem:
   read:  ["~/Documents", "~/Desktop", "~/Downloads", "~/.gnosis/workspace"]
   write: ["~/Documents/Gnosis", "~/.gnosis/workspace"]

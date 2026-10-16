@@ -11,3 +11,14 @@ policy_file: config/policy.yaml
 orchestrator:
   max_steps: 8                 # Tool-call rounds per request before Gnosis stops and reports
   approval_timeout_s: 120      # How long an "ask" waits for your answer before it's treated as "no"
+
+voice:
+  wake_model: null             # Path to a custom hey_gnosis.onnx; null uses the bundled "hey jarvis" model
+  wake_threshold: 0.5          # Raise if it wakes by accident, lower if it misses you
+  stt_model: small.en          # base.en is faster on slower laptops, small.en is more accurate
+  piper_voice: ~/.gnosis/voices/en_GB-alan-medium.onnx   # Missing file = built-in Windows voice
+  voice_id: true               # Only the enrolled owner can give owner-level commands by voice
+  voice_id_threshold: 0.30
+  follow_up_s: 4               # Keep listening this long after answering, without the wake word
+  input_device: null           # null = default microphone
+  output_device: null

@@ -1,8 +1,10 @@
 """Command line entry point.
 
-    python -m gnosis serve     Start Gnosis and its dashboard on http://127.0.0.1:8765
-    python -m gnosis chat      Talk to Gnosis in the terminal
-    python -m gnosis models    List the Nemotron models your Nebius key can use
+    python -m gnosis serve           Start Gnosis and its dashboard on http://127.0.0.1:8765
+    python -m gnosis serve --voice   ...and listen for "Hey Gnosis" on the microphone
+    python -m gnosis chat            Talk to Gnosis in the terminal
+    python -m gnosis enroll          Teach Gnosis your voice (voice ID)
+    python -m gnosis models          List the Nemotron models your Nebius key can use
 """
 
 from __future__ import annotations
@@ -21,9 +23,35 @@ def _serve(args: argparse.Namespace) -> None:
     from gnosis.server.api import create_app
 
     settings = load_settings(args.config)
-    app = create_app(build(settings))
+    g = build(settings)
+    server = uvicorn.Server(uvicorn.Config(create_app(g), host=settings.host, port=settings.port,
+                                           log_level="warning"))
     print(f"Gnosis dashboard: http://{settings.host}:{settings.port}")
-    uvicorn.run(app, host=settings.host, port=settings.port, log_level="warning")
+
+    async def main() -> None:
+        if not getattr(args, "voice", False):
+            await server.serve()
+            return
+        from gnosis.voice import run_voice
+
+        voice = asyncio.create_task(run_voice(g))
+        voice.add_done_callback(lambda t: t.cancelled() or not t.exception() or
+                                print(f"Voice stopped: {type(t.exception()).__name__}: {t.exception()}"))
+        try:
+            await server.serve()
+        finally:
+            voice.cancel()
+
+    asyncio.run(main())
+
+
+def _enroll(args: argparse.Namespace) -> None:
+    from gnosis.app import build
+    from gnosis.config import load_settings
+    from gnosis.voice import enroll
+
+    chunks = enroll(build(load_settings(args.config)))
+    print(f"Done. Gnosis learned your voice from {chunks} clips.")
 
 
 def _chat(args: argparse.Namespace) -> None:
@@ -77,7 +105,10 @@ def main() -> None:
     parser = argparse.ArgumentParser(prog="gnosis")
     parser.add_argument("--config", help="Path to gnosis.yaml")
     sub = parser.add_subparsers(dest="cmd")
-    sub.add_parser("serve").set_defaults(func=_serve)
+    serve = sub.add_parser("serve")
+    serve.add_argument("--voice", action="store_true", help='Listen for "Hey Gnosis" on the microphone')
+    serve.set_defaults(func=_serve)
+    sub.add_parser("enroll").set_defaults(func=_enroll)
     sub.add_parser("chat").set_defaults(func=_chat)
     sub.add_parser("models").set_defaults(func=_models)
     args = parser.parse_args()

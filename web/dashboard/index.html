@@ -97,6 +97,7 @@
 </main>
 <script>
 const $ = (id) => document.getElementById(id);
+let wakeWord = "hey gnosis";
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 
 function say(cls, text) {
@@ -146,7 +147,21 @@ function onEvent(ev) {
       if (ev.facts.length || ev.episodes.length)
         activity(`◆ recalled ${ev.facts.length} facts, ${ev.episodes.length} past tasks`);
       break;
+    case "voice_state": {
+      if (ev.wake_word) wakeWord = ev.wake_word.replaceAll("_", " ");
+      const labels = {loading: "loading voice…", idle: `say "${wakeWord}"`, listening: "listening…",
+                      thinking: "thinking…", speaking: "speaking…"};
+      $("status").textContent = "online · " + (labels[ev.state] || ev.state);
+      break;
+    }
+    case "voice_heard":
+      say("you", "🎙 " + ev.text + (ev.owner ? "" : "  (guest voice)"));
+      break;
+    case "voice_error":
+      say("err", ev.error);
+      break;
     case "task_finished":
+      if (String(ev.session).endsWith("voice")) say("gnosis", ev.answer);
       // Learning runs just after the answer; refresh the map shortly after.
       if ($("view-memory").classList.contains("active")) setTimeout(loadMemory, 1500);
       break;

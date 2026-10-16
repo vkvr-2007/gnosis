@@ -31,6 +31,7 @@ class Settings:
     policy: dict[str, Any] = field(default_factory=dict)
     max_steps: int = 8
     approval_timeout_s: float = 120.0
+    voice: dict[str, Any] = field(default_factory=dict)
 
     @property
     def db_path(self) -> Path:
@@ -54,6 +55,7 @@ def load_settings(config_path: str | Path | None = None) -> Settings:
         policy=_read_yaml(resolve(raw.get("policy_file", "config/policy.yaml"))),
         max_steps=int(orch.get("max_steps", 8)),
         approval_timeout_s=float(orch.get("approval_timeout_s", 120)),
+        voice=raw.get("voice") or {},
     )
     settings.data_dir.mkdir(parents=True, exist_ok=True)
     return settings
