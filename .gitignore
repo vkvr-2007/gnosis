@@ -1,0 +1,12 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+config/gnosis.yaml
+data/
+user_skills/
+*.db
+.env
+node_modules/
+dist/
+*.egg-info/

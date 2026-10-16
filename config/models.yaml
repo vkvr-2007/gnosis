@@ -1,0 +1,26 @@
+# Model routing for Gnosis.
+# Model IDs change; run `python -m gnosis models` to list the Nemotron models your Nebius key can use,
+# then paste the exact IDs below.
+
+providers:
+  nebius:
+    # Nebius Token Factory, OpenAI-compatible.
+    base_url: https://api.tokenfactory.nebius.com/v1/
+    api_key_env: NEBIUS_API_KEY
+  local:
+    # llama.cpp server (Vulkan build on Intel Iris), started with:
+    #   llama-server -m nemotron-nano-q4.gguf --port 8081
+    base_url: http://127.0.0.1:8081/v1/
+    api_key_env: null
+
+roles:
+  planner:   { provider: nebius, model: nvidia/nemotron-3-super }   # Long plans, tool calling
+  fast:      { provider: nebius, model: nvidia/nemotron-3-nano }    # Routing, short replies
+  vision:    { provider: nebius, model: nvidia/nemotron-nano-vl }   # Screenshots and images
+  local:     { provider: local,  model: nemotron-nano-local }       # Private and offline work
+
+routing:
+  # Requests tagged with any of these never leave the laptop.
+  private_tags: [private, personal_memory, screen_text, voice_id, local_files]
+  # Roles that may fall back to the local model when Nebius is unreachable.
+  offline_fallback: [planner, fast]

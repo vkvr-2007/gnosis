@@ -1,0 +1,75 @@
+import asyncio
+import json
+
+from conftest import FakeLLM, reply, tool_call
+from gnosis.app import build
+
+
+def run(g, text, approve=None):
+    async def go():
+        if approve is not None:
+            q = g.events.subscribe()
+            async def answer():
+                while True:
+                    ev = await q.get()
+                    if ev["type"] == "approval_needed":
+                        g.approvals.resolve(ev["approval_id"], approve)
+            task = asyncio.create_task(answer())
+            try:
+                return await g.orchestrator.handle(text)
+            finally:
+                task.cancel()
+        return await g.orchestrator.handle(text)
+    return asyncio.run(go())
+
+
+def test_uses_tool_then_answers(settings):
+    llm = FakeLLM([reply(calls=[tool_call("get_time", {})]), reply("It's Friday.")])
+    g = build(settings, llm=llm)
+    assert run(g, "what day is it?") == "It's Friday."
+    tool_msg = llm.calls[1]["messages"][-1]
+    assert tool_msg["role"] == "tool" and tool_msg["tool_call_id"] == "c1"
+    kinds = [e["kind"] for e in g.audit.recent()]
+    assert {"request", "tool_decision", "tool_result", "answer"} <= set(kinds)
+
+
+def test_denied_tool_is_reported_to_model(settings):
+    g = build(settings, llm=FakeLLM([reply(calls=[tool_call("purchase", {})]), reply("I can't buy things.")]))
+    g.tools.tool("purchase", "Buy something")(lambda: "bought")
+    assert run(g, "buy a phone") == "I can't buy things."
+    tool_msg = g.llm.calls[1]["messages"][-1]
+    assert "Denied by policy" in tool_msg["content"]
+
+
+def test_ask_waits_for_owner(settings):
+    sent = []
+    for approve, expected in [(True, ["hi"]), (False, [])]:
+        sent.clear()
+        g = build(settings, llm=FakeLLM([reply(calls=[tool_call("send_message", {"text": "hi"})]), reply("ok")]))
+        g.tools.tool("send_message", "Send", {"type": "object", "properties": {"text": {"type": "string"}}})(
+            lambda text: sent.append(text) or "sent")
+        run(g, "message mom", approve=approve)
+        assert sent == expected
+
+
+def test_private_tool_output_keeps_task_local(settings, tmp_path):
+    f = tmp_path / "note.txt"
+    f.write_text("secret plans")
+    g = build(settings, llm=FakeLLM([reply(calls=[tool_call("read_file", {"path": str(f)})]), reply("done")]))
+    run(g, "read my note", approve=True)
+    assert "local_files" in g.llm.calls[1]["tags"]
+
+
+def test_bad_arguments_and_tool_errors_go_back_to_model(settings):
+    bad = tool_call("read_file", {})
+    bad.function.arguments = "{not json"
+    g = build(settings, llm=FakeLLM([reply(calls=[bad, tool_call("nope", {}, "c2")]), reply("sorry")]))
+    assert run(g, "x") == "sorry"
+    outs = [m for m in g.llm.calls[1]["messages"] if m["role"] == "tool"]
+    assert "Invalid arguments" in outs[0]["content"] and "No tool named" in outs[1]["content"]
+
+
+def test_step_limit(settings):
+    settings.max_steps = 2
+    g = build(settings, llm=FakeLLM([reply(calls=[tool_call("get_time", {})])] * 2))
+    assert "step limit" in run(g, "loop forever")

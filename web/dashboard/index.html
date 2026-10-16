@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gnosis</title>
+<style>
+  :root {
+    --bg: #0b0f14; --panel: #121821; --line: #1f2a37; --text: #e6edf3; --muted: #8b98a8;
+    --accent: #4cc9f0; --ok: #3ddc97; --warn: #f4a261; --bad: #ef476f; --local: #b388ff;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  header { display: flex; align-items: center; gap: 12px; padding: 14px 20px; border-bottom: 1px solid var(--line); }
+  header h1 { font-size: 18px; margin: 0; letter-spacing: .08em; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--muted); }
+  .dot.on { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
+  #status { color: var(--muted); font-size: 13px; }
+  main { display: grid; grid-template-columns: 1fr 380px; gap: 16px; padding: 16px 20px; height: calc(100vh - 56px); }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; display: flex; flex-direction: column; min-height: 0; }
+  h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); margin: 0; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+  #chat { flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+  .msg { max-width: 80%; padding: 9px 13px; border-radius: 12px; white-space: pre-wrap; }
+  .you { align-self: flex-end; background: #1d3557; }
+  .gnosis { align-self: flex-start; background: #17212c; border: 1px solid var(--line); }
+  .err { align-self: flex-start; color: var(--bad); }
+  form { display: flex; gap: 8px; padding: 12px; border-top: 1px solid var(--line); align-items: center; }
+  input[type=text] { flex: 1; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; font: inherit; }
+  button { background: var(--accent); color: #001018; border: 0; border-radius: 8px; padding: 9px 14px; font: inherit; font-weight: 600; cursor: pointer; }
+  button.no { background: transparent; color: var(--text); border: 1px solid var(--line); }
+  label { color: var(--muted); font-size: 13px; display: flex; gap: 4px; align-items: center; }
+  aside { display: flex; flex-direction: column; gap: 16px; min-height: 0; }
+  #approvals { padding: 10px 14px; display: flex; flex-direction: column; gap: 10px; }
+  #approvals:empty::after { content: "Nothing waiting for you."; color: var(--muted); font-size: 13px; }
+  .approval { border: 1px solid var(--warn); border-radius: 8px; padding: 10px; }
+  .approval code { color: var(--warn); }
+  .approval .btns { display: flex; gap: 8px; margin-top: 8px; }
+  #activity { flex: 1; overflow-y: auto; padding: 10px 14px; font-size: 13px; display: flex; flex-direction: column; gap: 6px; }
+  .ev { color: var(--muted); }
+  .badge { display: inline-block; font-size: 11px; font-weight: 700; padding: 1px 6px; border-radius: 4px; margin-right: 6px; }
+  .cloud { background: #12384a; color: var(--accent); }
+  .local { background: #2b1d4a; color: var(--local); }
+  .allow { color: var(--ok); } .ask { color: var(--warn); } .deny { color: var(--bad); }
+  @media (max-width: 800px) { main { grid-template-columns: 1fr; height: auto; } #chat { min-height: 50vh; } }
+</style>
+</head>
+<body>
+<header>
+  <div class="dot" id="dot"></div>
+  <h1>GNOSIS</h1>
+  <span id="status">connecting…</span>
+</header>
+<main>
+  <section>
+    <h2>Conversation</h2>
+    <div id="chat"></div>
+    <form id="form">
+      <input type="text" id="text" placeholder="Ask Gnosis anything…" autocomplete="off" autofocus>
+      <label title="Keep this request on the local model"><input type="checkbox" id="private"> Private</label>
+      <button>Send</button>
+    </form>
+  </section>
+  <aside>
+    <section><h2>Needs your approval</h2><div id="approvals"></div></section>
+    <section style="flex:1"><h2>Live activity</h2><div id="activity"></div></section>
+  </aside>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+function say(cls, text) {
+  const div = document.createElement("div");
+  div.className = "msg " + cls;
+  div.textContent = text;
+  $("chat").appendChild(div);
+  $("chat").scrollTop = $("chat").scrollHeight;
+}
+
+function activity(html) {
+  const div = document.createElement("div");
+  div.className = "ev";
+  div.innerHTML = html;
+  $("activity").prepend(div);
+  while ($("activity").children.length > 200) $("activity").lastChild.remove();
+}
+
+function addApproval(ev) {
+  const div = document.createElement("div");
+  div.className = "approval";
+  div.id = "ap-" + ev.approval_id;
+  div.innerHTML = `<div><code>${esc(ev.tool)}</code> ${esc(JSON.stringify(ev.args))}</div>
+    <div class="ev">${esc(ev.reason)}</div>
+    <div class="btns"><button data-ok="1">Allow</button><button class="no" data-ok="0">Deny</button></div>`;
+  div.querySelectorAll("button").forEach((b) => b.onclick = () =>
+    fetch(`/api/approvals/${ev.approval_id}`, {method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({approved: b.dataset.ok === "1"})}));
+  $("approvals").appendChild(div);
+}
+
+function onEvent(ev) {
+  switch (ev.type) {
+    case "model_call":
+      activity(`<span class="badge ${ev.where}">${ev.where.toUpperCase()}</span>${esc(ev.model)} · ${ev.latency_ms} ms` +
+               (ev.redactions ? ` · ${ev.redactions} redacted` : "") + (ev.reason !== "default" ? ` · ${esc(ev.reason)}` : ""));
+      break;
+    case "tool_call":
+      activity(`→ <b>${esc(ev.tool)}</b> <span class="${ev.decision}">${ev.decision}</span>`);
+      break;
+    case "tool_result":
+      activity(`← ${esc(ev.tool)} ${ev.ok ? "ok" : '<span class="deny">failed</span>'}`);
+      break;
+    case "approval_needed": addApproval(ev); break;
+    case "approval_resolved": $("ap-" + ev.approval_id)?.remove(); break;
+  }
+}
+
+function connect() {
+  const ws = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws`);
+  ws.onopen = () => { $("dot").classList.add("on"); $("status").textContent = "online"; };
+  ws.onclose = () => { $("dot").classList.remove("on"); $("status").textContent = "reconnecting…"; setTimeout(connect, 2000); };
+  ws.onmessage = (m) => onEvent(JSON.parse(m.data));
+}
+
+$("form").onsubmit = async (e) => {
+  e.preventDefault();
+  const text = $("text").value.trim();
+  if (!text) return;
+  $("text").value = "";
+  say("you", text);
+  try {
+    const r = await fetch("/api/chat", {method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({text, private: $("private").checked})});
+    const data = await r.json();
+    r.ok ? say("gnosis", data.answer) : say("err", data.detail || "Something went wrong.");
+  } catch (err) { say("err", "Can't reach Gnosis: " + err); }
+};
+
+fetch("/api/approvals").then((r) => r.json()).then((list) =>
+  list.forEach((a) => addApproval({approval_id: a.id, ...a})));
+connect();
+</script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+# Copy to config/gnosis.yaml and edit. Secrets come from environment variables, never this file.
+server:
+  host: 127.0.0.1
+  port: 8765
+
+data_dir: ~/.gnosis            # On Windows this resolves to %USERPROFILE%\.gnosis
+
+models_file: config/models.yaml
+policy_file: config/policy.yaml
+
+orchestrator:
+  max_steps: 8                 # Tool-call rounds per request before Gnosis stops and reports
+  approval_timeout_s: 120      # How long an "ask" waits for your answer before it's treated as "no"

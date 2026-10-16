@@ -1,0 +1,29 @@
+# Gnosis policy: the model proposes, this file decides.
+# Decisions: allow | ask | deny. Unknown tools default to "ask".
+
+default: ask
+
+tools:
+  get_time: allow
+  system_info: allow
+  remember: allow
+  open_app: allow
+  close_app: allow
+  read_file: allow
+  write_file: ask
+  delete_file: ask
+  send_message: ask
+  run_shell_windows: ask
+  run_shell_sandbox: allow
+  git_push: ask
+  deploy: ask
+  purchase: deny
+  edit_policy: deny
+
+filesystem:
+  read:  ["~/Documents", "~/Desktop", "~/Downloads", "~/.gnosis/workspace"]
+  write: ["~/Documents/Gnosis", "~/.gnosis/workspace"]
+  deny:  ["~/.ssh", "~/.gnosis/vault", "C:/Windows"]
+
+network:
+  allow: ["*.nebius.com", "api.github.com", "*.vercel.com", "registry.npmjs.org", "pypi.org"]
