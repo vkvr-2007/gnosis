@@ -42,10 +42,13 @@ _CLAIMS_ACTION = re.compile(
     rf"\b(?:I[’']?ve|I have|I)\s+(?:just\s+|now\s+)?(?:{_DONE_VERBS})\b"
     rf"|\b(?:is|are|has been|have been|was|were)\s+(?:now\s+|been\s+)*(?:saved|stored|noted|recorded|"
     rf"remembered|scheduled|set|added|deleted|removed|updated|written|typed|sent|open|opened|closed)\b"
-    rf"|^\W*(?:(?:ok(?:ay)?|got it|sure|done)\W+)?(?:noted|saved|stored|recorded)\b", re.I)
+    rf"|^\W*(?:(?:ok(?:ay)?|got it|sure|done)\W+)?(?:noted|saved|stored|recorded)\b"
+    # A decline only happens at an approval prompt, so saying one with no tool run repeats an old task.
+    rf"|\b(?:owner|you)\s+(?:has\s+|have\s+)?(?:declined|denied|rejected|refused)\b", re.I)
 _CLAIM_CHECK = ("[Gnosis check] Your reply says you did something, but no tool has run in this task, so nothing "
-                "was done. Recalled past tasks are history: they don't count as doing it now. If the request "
-                "asks for an action, call the tool for it now. Otherwise answer without claiming an action.")
+                "was done. Recalled past tasks are history: they don't count as doing it now. The request is: "
+                "{request}\nIf it asks for an action, call the tool for it now. Otherwise answer the request "
+                "without claiming an action. Don't reply to this check itself.")
 # The re-check may think first: slower, but this only happens when a fast answer looked wrong.
 _THINK = {"extra_body": {"chat_template_kwargs": {"enable_thinking": True}}}
 _HISTORY_TURNS = 10
@@ -288,7 +291,7 @@ class Orchestrator:
                     # A fast model sometimes says "I've saved that" without calling anything. One nudge.
                     checked = True
                     self.audit.write("claim_check", task_id=task_id, answer=answer[:200])
-                    messages.append({"role": "user", "content": _CLAIM_CHECK})
+                    messages.append({"role": "user", "content": _CLAIM_CHECK.format(request=text)})
                     continue
                 break
             for call in msg.tool_calls:

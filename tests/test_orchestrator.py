@@ -106,7 +106,8 @@ def test_a_claimed_action_without_a_tool_gets_one_nudge(settings):
                    reply("Saved: your favourite snack is dosa.")])
     g = build(settings, llm=llm)
     assert run(g, "remember my favourite snack is dosa") == "Saved: your favourite snack is dosa."
-    assert "[Gnosis check]" in llm.calls[1]["messages"][-1]["content"]
+    nudge = llm.calls[1]["messages"][-1]["content"]
+    assert "[Gnosis check]" in nudge and "remember my favourite snack is dosa" in nudge  # Keeps the request in view
     assert [f.value for f in g.memory.store.facts(True)] == ["dosa"]
 
 
@@ -114,7 +115,9 @@ def test_passive_claims_are_caught_too():
     # Seen in `gnosis accept`: the model said this without calling remember.
     from gnosis.core.orchestrator import _CLAIMS_ACTION
     for said in ["Okay. Your favorite snack is now recorded as zebra4ff6.", "Noted!",
-                 "Got it, saved.", "Your reminder has been set for 9 PM.", "Spotify is open and ready. What would you like to play?", "Notepad is closed."]:
+                 "Got it, saved.", "Your reminder has been set for 9 PM.", "Spotify is open and ready. What would you like to play?", "Notepad is closed.",
+                 # Recalled from an old task's episode, with no approval prompt in this one.
+                 "The owner declined the action to open Notepad.", "You declined that earlier."]:
         assert _CLAIMS_ACTION.search(said), said
     for said in ["Your favourite snack is zebra.", "It's 22:47.", "Budget: 1500 rupees. Bananas: 6.",
                  "The word is GNOSIS, and the circle is blue.", "Done."]:
