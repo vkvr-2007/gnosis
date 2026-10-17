@@ -18,6 +18,7 @@ from gnosis.memory.store import MemoryStore
 from gnosis.skills.builtin import register_builtin
 from gnosis.skills.desktop import register_desktop_tools
 from gnosis.skills.memory_tools import register_memory_tools
+from gnosis.skills.task_tools import register_task_tools
 
 
 @dataclass
@@ -66,5 +67,7 @@ def build(settings: Settings, llm: LLMClient | None = None) -> Gnosis:
     orchestrator = Orchestrator(llm, tools, policy, approvals, audit, events, memory=memory,
                                 grants=Grants(settings.data_dir / "grants.json"),
                                 max_steps=settings.max_steps,
-                                approval_timeout_s=settings.approval_timeout_s)
+                                approval_timeout_s=settings.approval_timeout_s,
+                                max_parallel=settings.max_parallel)
+    register_task_tools(tools, orchestrator)
     return Gnosis(settings, events, audit, policy, approvals, tools, llm, memory, orchestrator)

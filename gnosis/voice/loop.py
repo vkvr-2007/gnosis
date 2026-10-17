@@ -23,6 +23,7 @@ _STOP_WORDS = re.compile(r"^\W*(stop|cancel|never ?mind|be quiet|shut up|nothing
 class VoiceConfig:
     follow_up_s: float = 4.0   # How long to listen for a follow-up after answering, without the wake word
     chime: bool = True
+    background_after_s: float = 12.0  # Longer tasks carry on in the background and announce when done
 
 
 class VoiceLoop:
@@ -106,23 +107,50 @@ class VoiceLoop:
                 owner, score = verdict.is_owner, round(verdict.score, 3)
             await self.events.publish("voice_heard", text=text, owner=owner, score=score)
 
-            try:
-                answer = await self.orchestrator.handle(text, "voice", owner=owner)
-            except Exception as e:
-                answer = "Sorry, I couldn't reach my brain just now."
-                await self.events.publish("voice_error", error=f"{type(e).__name__}: {e}")
+            work = asyncio.create_task(self.orchestrator.handle(text, "voice", owner=owner))
+            done, _ = await asyncio.wait({work}, timeout=self.config.background_after_s)
+            if done:
+                answer = await self._answer_of(work)
+            else:
+                # Keep the voice free while a long task runs; it speaks up when the task finishes.
+                answer = "I'm on it. I'll tell you when it's done."
+                self._tasks.add(work)
+                work.add_done_callback(self._tasks.discard)
+                work.add_done_callback(lambda t: self._spawn(self._announce(t)))
+            await self._speak_and_follow_up(answer)
 
-            await self._set_state("speaking")
-            finished = await self.speaker.play(self.tts.synthesize(answer))
-            if self.on_audio_drain:
-                self.on_audio_drain()  # Don't treat Gnosis's own voice as the next request.
-            if finished and self.config.follow_up_s > 0 and self._endpointer is None:
-                self._listen(start_timeout_s=self.config.follow_up_s)
-                await self._set_state("listening")
-            elif self._endpointer is None:
-                await self._set_state("idle")
+    async def _answer_of(self, work: asyncio.Task) -> str:
+        try:
+            return work.result()
+        except asyncio.CancelledError:
+            return "Stopped."
+        except Exception as e:
+            await self.events.publish("voice_error", error=f"{type(e).__name__}: {e}")
+            return "Sorry, I couldn't reach my brain just now."
+
+    async def _announce(self, work: asyncio.Task) -> None:
+        """Speaks a background task's result once Gnosis isn't busy talking with the owner."""
+        answer = await self._answer_of(work)
+        while self._endpointer is not None:  # Don't talk over someone who's speaking
+            await asyncio.sleep(0.2)
+        async with self._busy:
+            await self._speak_and_follow_up(answer)
+
+    async def _speak_and_follow_up(self, answer: str) -> None:
+        await self._set_state("speaking")
+        finished = await self.speaker.play(self.tts.synthesize(answer))
+        if self.on_audio_drain:
+            self.on_audio_drain()  # Don't treat Gnosis's own voice as the next request.
+        if finished and self.config.follow_up_s > 0 and self._endpointer is None:
+            self._listen(start_timeout_s=self.config.follow_up_s)
+            await self._set_state("listening")
+        elif self._endpointer is None:
+            await self._set_state("idle")
 
     async def drain(self) -> None:
         """Waits for in-flight responses (used in tests and on shutdown)."""
         while self._tasks:
             await asyncio.gather(*list(self._tasks), return_exceptions=True)
+            # Gathering finished tasks doesn't yield; let their callbacks run (they remove them from
+            # the set, and a finished background task spawns its announcement).
+            await asyncio.sleep(0)

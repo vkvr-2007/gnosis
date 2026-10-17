@@ -60,6 +60,25 @@ def create_app(g: Gnosis) -> FastAPI:
             raise HTTPException(500, f"Gnosis hit an error: {type(e).__name__}: {e}")
         return {"answer": answer}
 
+    @app.post("/api/tasks")
+    async def start_task(req: ChatRequest) -> dict:
+        """Starts a request in the background; progress arrives as task_status events."""
+        info, task = g.orchestrator.submit(req.text, req.session_id, {"private"} if req.private else set())
+        task.add_done_callback(lambda t: t.cancelled() or t.exception())  # Failures show on the task card
+        return info.to_dict()
+
+    @app.get("/api/tasks")
+    async def tasks() -> list[dict]:
+        return [t.to_dict() for t in g.orchestrator.list_tasks()]
+
+    @app.post("/api/tasks/{task_id}/{action}")
+    async def control_task(task_id: str, action: str) -> dict:
+        if action not in ("pause", "resume", "cancel"):
+            raise HTTPException(404, "Unknown action")
+        if not getattr(g.orchestrator, action)(task_id):
+            raise HTTPException(409, f"Can't {action} that task (it may have finished)")
+        return {"ok": True}
+
     @app.post("/api/stop")
     async def stop() -> dict:
         return {"stopped": await g.stop_all()}

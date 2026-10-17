@@ -7,6 +7,7 @@ and one thread also means only one action touches the mouse and keyboard at a ti
 from __future__ import annotations
 
 import asyncio
+import functools
 import re
 import sys
 import time
@@ -73,6 +74,8 @@ def register_desktop_tools(registry: ToolRegistry, llm: Any, runner: DesktopRunn
         return False
     runner = runner or DesktopRunner()
     index = index or apps.AppIndex()
+    # Every desktop tool shares the mouse, keyboard and front window, so one task at a time uses them.
+    tool = functools.partial(registry.tool, resource="desktop")
 
     async def foreground_app(_args: dict) -> str:
         """Screenshot approvals are remembered per app."""
@@ -83,7 +86,7 @@ def register_desktop_tools(registry: ToolRegistry, llm: Any, runner: DesktopRunn
 
     # ---- apps ----------------------------------------------------------------
 
-    @registry.tool("open_app",
+    @tool("open_app",
                    "Open an app or game installed on this PC by name (e.g. 'Spotify', 'Valorant', 'VS Code'). "
                    "If it isn't installed, opens its website when there is one.",
                    {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]})
@@ -108,7 +111,7 @@ def register_desktop_tools(registry: ToolRegistry, llm: Any, runner: DesktopRunn
             return out
         return {"opened": entry.name, "note": "Started it, but its window hasn't appeared yet (games can take a while)"}
 
-    @registry.tool("close_app", "Close an app's windows gracefully (it may ask to save).",
+    @tool("close_app", "Close an app's windows gracefully (it may ask to save).",
                    {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]})
     async def close_app(name: str) -> dict:
         windows = await runner.run(lambda d: d.find_windows(name))
@@ -118,11 +121,11 @@ def register_desktop_tools(registry: ToolRegistry, llm: Any, runner: DesktopRunn
             await runner.run(lambda d, h=w["handle"]: d.close_window(h))
         return {"closed": [w["title"] for w in windows]}
 
-    @registry.tool("list_windows", "List the open windows and the app each belongs to.")
+    @tool("list_windows", "List the open windows and the app each belongs to.")
     async def list_windows() -> list[dict]:
         return [{"title": w["title"], "app": w["app"]} for w in await runner.run(lambda d: d.windows())]
 
-    @registry.tool("focus_window", "Bring an open window to the front.",
+    @tool("focus_window", "Bring an open window to the front.",
                    {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]})
     async def focus_window(name: str) -> dict:
         windows = await runner.run(lambda d: d.find_windows(name))
@@ -133,7 +136,7 @@ def register_desktop_tools(registry: ToolRegistry, llm: Any, runner: DesktopRunn
 
     # ---- inside apps -----------------------------------------------------------
 
-    @registry.tool("look_at_window",
+    @tool("look_at_window",
                    "List the buttons, fields and links in the front window, each with an [id]. "
                    "Call this before click or type_text, and again after the window changes.")
     async def look_at_window() -> dict:
@@ -146,7 +149,7 @@ def register_desktop_tools(registry: ToolRegistry, llm: Any, runner: DesktopRunn
                 return f"this presses '{e.name}', which may act on your behalf"
         return None
 
-    @registry.tool("click", "Click an element from look_at_window by its id.",
+    @tool("click", "Click an element from look_at_window by its id.",
                    {"type": "object", "properties": {
                        "element_id": {"type": "integer"},
                        "double": {"type": "boolean", "description": "Double-click"}},
@@ -163,7 +166,7 @@ def register_desktop_tools(registry: ToolRegistry, llm: Any, runner: DesktopRunn
                     or (t["type"] == "EditControl" and chars is not None and chars > 100))
         return f"this types into '{t['window']}', which already has your text in it" if has_work else None
 
-    @registry.tool("type_text",
+    @tool("type_text",
                    "Type text into the front window, or into a field from look_at_window. "
                    "Set replace=true to clear the field first.",
                    {"type": "object", "properties": {
@@ -175,14 +178,14 @@ def register_desktop_tools(registry: ToolRegistry, llm: Any, runner: DesktopRunn
     async def type_text(text: str, element_id: int | None = None, replace: bool = False) -> str:
         return await runner.run(lambda d: d.type_text(text, element_id, replace))
 
-    @registry.tool("press_keys", "Press a keyboard shortcut, e.g. 'ctrl+s', 'alt+f4', 'enter', 'ctrl+a delete'.",
+    @tool("press_keys", "Press a keyboard shortcut, e.g. 'ctrl+s', 'alt+f4', 'enter', 'ctrl+a delete'.",
                    {"type": "object", "properties": {"keys": {"type": "string"}}, "required": ["keys"]})
     async def press_keys(keys: str) -> str:
         return await runner.run(lambda d: d.press(keys))
 
     # ---- screen ----------------------------------------------------------------
 
-    @registry.tool("read_screen",
+    @tool("read_screen",
                    "Read all the text in the front window: use this for 'what's this?', 'explain this error' "
                    "or 'summarise what I'm reading'. Stays on this laptop.",
                    tags=("screen_text",))
@@ -207,7 +210,7 @@ def register_desktop_tools(registry: ToolRegistry, llm: Any, runner: DesktopRunn
 
         return await runner.run(gather)
 
-    @registry.tool("look_at_screen",
+    @tool("look_at_screen",
                    "Take a screenshot of the front window and ask the vision model about it. Use when "
                    "read_screen has no useful text (images, games, video, charts).",
                    {"type": "object", "properties": {"question": {"type": "string"}}, "required": ["question"]},
@@ -221,7 +224,7 @@ def register_desktop_tools(registry: ToolRegistry, llm: Any, runner: DesktopRunn
         # The owner approved sending this app's screenshots to the cloud vision model.
         return await vision.ask_about(llm, img, question, tags=set())
 
-    @registry.tool("vision_click",
+    @tool("vision_click",
                    "Click something described in words using a screenshot, when look_at_window doesn't list it "
                    "(e.g. 'the green play button', 'the first video thumbnail').",
                    {"type": "object", "properties": {"target": {"type": "string"}}, "required": ["target"]},
@@ -248,7 +251,7 @@ def register_desktop_tools(registry: ToolRegistry, llm: Any, runner: DesktopRunn
 
     # ---- music -----------------------------------------------------------------
 
-    @registry.tool("play_music",
+    @tool("play_music",
                    "Play a song, artist or playlist on Spotify (the app if installed, otherwise the website).",
                    {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]})
     async def play_music(query: str) -> dict:

@@ -22,6 +22,8 @@ class Tool:
     # Lets an allowed call ask anyway when this particular use is risky (e.g. clicking "Send").
     # Returns the reason to ask, or None. May be async.
     escalate: Callable[[dict[str, Any]], str | None | Awaitable[str | None]] | None = None
+    # A shared thing only one task may use at a time, e.g. "desktop" for the mouse and keyboard.
+    resource: str | None = None
 
     def schema(self) -> dict[str, Any]:
         return {
@@ -51,12 +53,12 @@ class ToolRegistry:
         return tool
 
     def tool(self, name: str, description: str, parameters: dict[str, Any] | None = None,
-             tags: tuple[str, ...] = (), approval_scope=None, escalate=None):
+             tags: tuple[str, ...] = (), approval_scope=None, escalate=None, resource=None):
         """Decorator form of register()."""
         def wrap(func: ToolFunc) -> ToolFunc:
             self.register(Tool(name, description,
                                parameters or {"type": "object", "properties": {}},
-                               func, tags, approval_scope, escalate))
+                               func, tags, approval_scope, escalate, resource))
             return func
         return wrap
 

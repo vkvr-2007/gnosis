@@ -4,7 +4,7 @@
 
 Built for Track 03 (Personal AI) of the Nebius x NVIDIA Global AI Hackathon.
 
-> **Status:** build step 4 of 10. Working now: the brain, cloud and local model routing, the policy gate and audit log, the dashboard, long-term memory with a memory map, voice with voice ID, and desktop control (open, close and operate Windows apps, with a screenshot fallback and a kill switch). Parallel tasks, reminders, the phone and the coding agent come next. See [the design](docs/architecture.md).
+> **Status:** build step 5 of 10. Working now: the brain, cloud and local model routing, the policy gate and audit log, the dashboard, long-term memory with a memory map, voice with voice ID, desktop control (open, close and operate Windows apps, with a screenshot fallback and a kill switch), and parallel tasks. Reminders, the phone and the coding agent come next. See [the design](docs/architecture.md).
 
 ## How it works
 
@@ -35,6 +35,13 @@ Gnosis opens apps by name ("open Spotify", "open Valorant", "open VS Code"), clo
 - **Screenshots are opt-in per app.** The first time Gnosis wants to send a screenshot of an app to the cloud vision model, it asks; your answer is remembered for that app. Reading a window's text (`read_screen`) stays on your laptop.
 - **Kill switch.** Press **Ctrl+Alt+J**, click **Stop** on the dashboard, or say "stop" to halt everything Gnosis is doing.
 - If an app isn't installed, Gnosis opens its website instead (Spotify, WhatsApp, YouTube, Gmail and more).
+
+## Parallel tasks
+
+Every request runs as its own task, so you can ask for the next thing while the last one is still working ("build me a landing page", then "also email Rahul I'll be late"). Each task shows as a card on the dashboard with its status and what it's doing, and you can pause, resume or cancel it there or by asking ("how's the website going?", "pause the website one").
+
+- **One task drives the screen at a time.** The mouse, keyboard and front window are shared, so the first task that uses them keeps them until it finishes and other desktop tasks wait their turn. Tasks that only use the network, memory or the coder sandbox run side by side.
+- **Voice stays free.** If a spoken request takes more than a few seconds, Gnosis says it's on it, keeps listening, and tells you when the task is done.
 
 ## Quick start (Windows)
 
@@ -101,7 +108,7 @@ python -m venv .venv && .venv/bin/pip install -e ".[dev]"
 
 | Path | What's there |
 |---|---|
-| `gnosis/core/` | Orchestrator, model router, LLM client, policy gate, audit log, event bus, tool registry |
+| `gnosis/core/` | Orchestrator, parallel tasks and resource locks, model router, LLM client, policy gate, audit log, event bus, tool registry |
 | `gnosis/memory/` | Long-term memory: facts, episodes, keyword and vector search, learning, memory map |
 | `gnosis/skills/desktop/` | App finder and launcher, UI Automation (read, click, type, shortcuts), screenshot fallback, Spotify |
 | `gnosis/voice/` | Microphone and speaker, wake word, end-of-speech detection, speech-to-text, text-to-speech, voice ID, the voice loop |

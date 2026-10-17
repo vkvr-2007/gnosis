@@ -62,6 +62,17 @@
   .fact-row span { flex: 1; }
   .fact-row.hl { background: #17212c; }
   .fact-row button { padding: 3px 8px; font-size: 12px; }
+  #tasks { padding: 10px 14px; display: flex; flex-direction: column; gap: 8px; max-height: 38vh; overflow-y: auto; }
+  #tasks:empty::after { content: "No tasks running."; color: var(--muted); font-size: 13px; }
+  .task { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font-size: 13px; }
+  .task .top { display: flex; gap: 8px; align-items: baseline; }
+  .task .top b { flex: 1; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .task .detail { color: var(--muted); }
+  .task .btns { display: flex; gap: 6px; margin-top: 6px; }
+  .task .btns button { padding: 2px 8px; font-size: 12px; }
+  .st { font-size: 11px; font-weight: 700; text-transform: uppercase; }
+  .st.running { color: var(--accent); } .st.waiting, .st.queued, .st.paused { color: var(--warn); }
+  .st.done { color: var(--ok); } .st.failed, .st.stopped { color: var(--bad); }
   @media (max-width: 800px) { main { grid-template-columns: 1fr; height: auto; } #chat { min-height: 50vh; } }
 </style>
 </head>
@@ -94,6 +105,7 @@
   </section>
   <aside>
     <section><h2>Needs your approval</h2><div id="approvals"></div></section>
+    <section><h2>Tasks</h2><div id="tasks"></div></section>
     <section style="flex:1"><h2>Live activity</h2><div id="activity"></div></section>
   </aside>
 </main>
@@ -131,6 +143,37 @@ function addApproval(ev) {
   $("approvals").appendChild(div);
 }
 
+// ---- Task cards: requests run in parallel; each shows its status here ----
+const tasks = new Map();
+const mine = new Set();  // Tasks started from this dashboard, whose answers go in the conversation
+const ACTIVE = new Set(["queued", "running", "waiting", "paused"]);
+
+function renderTasks() {
+  const list = [...tasks.values()].sort((a, b) => b.created - a.created).slice(0, 12);
+  $("tasks").innerHTML = "";
+  list.forEach((t) => {
+    const div = document.createElement("div");
+    div.className = "task";
+    const btns = !ACTIVE.has(t.status) ? "" :
+      `<div class="btns">${t.status === "paused" ? '<button class="no" data-a="resume">Resume</button>'
+                                               : '<button class="no" data-a="pause">Pause</button>'}
+       <button class="no" data-a="cancel">Cancel</button></div>`;
+    div.innerHTML = `<div class="top"><b title="${esc(t.text)}">${esc(t.text)}</b><span class="st ${t.status}">${t.status}</span></div>
+      <div class="detail">${esc(t.detail || (t.answer ? short(t.answer, 80) : ""))}</div>${btns}`;
+    div.querySelectorAll("button").forEach((b) => b.onclick = () =>
+      fetch(`/api/tasks/${t.id}/${b.dataset.a}`, {method: "POST"}));
+    $("tasks").appendChild(div);
+  });
+}
+
+function onTask(t) {
+  tasks.set(t.id, t);
+  renderTasks();
+  if (!mine.has(t.id) || ACTIVE.has(t.status)) return;
+  mine.delete(t.id);
+  t.status === "failed" ? say("err", t.answer || "That task failed.") : say("gnosis", t.answer || "Done.");
+}
+
 function onEvent(ev) {
   switch (ev.type) {
     case "model_call":
@@ -165,6 +208,7 @@ function onEvent(ev) {
     case "voice_error":
       say("err", ev.error);
       break;
+    case "task_status": onTask(ev.task); break;
     case "task_finished":
       if (String(ev.session).endsWith("voice")) say("gnosis", ev.answer);
       // Learning runs just after the answer; refresh the map shortly after.
@@ -189,10 +233,13 @@ $("form").onsubmit = async (e) => {
   $("text").value = "";
   say("you", text);
   try {
-    const r = await fetch("/api/chat", {method: "POST", headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({text, private: $("private").checked})});
+    // Runs in the background, so you can send the next request while this one works.
+    const r = await fetch("/api/tasks", {method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({text, session_id: "dashboard", private: $("private").checked})});
     const data = await r.json();
-    r.ok ? say("gnosis", data.answer) : say("err", data.detail || "Something went wrong.");
+    if (!r.ok) return say("err", data.detail || "Something went wrong.");
+    mine.add(data.id);
+    onTask(tasks.get(data.id) || data);  // Its events may already have arrived
   } catch (err) { say("err", "Can't reach Gnosis: " + err); }
 };
 
@@ -288,6 +335,7 @@ async function loadMemory() {
   });
 }
 
+fetch("/api/tasks").then((r) => r.json()).then((list) => { list.forEach((t) => tasks.set(t.id, t)); renderTasks(); });
 fetch("/api/approvals").then((r) => r.json()).then((list) =>
   list.forEach((a) => addApproval({approval_id: a.id, ...a})));
 connect();

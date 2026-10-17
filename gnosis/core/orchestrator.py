@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import inspect
 import json
+import time
 import uuid
 from collections import defaultdict
 from typing import Any
@@ -14,6 +15,8 @@ from gnosis.core.events import EventBus
 from gnosis.core.llm import LLMClient
 from gnosis.core.policy import ALLOW, ASK, DENY, ApprovalManager, Decision, Grants, Policy
 from gnosis.core.tools import ToolRegistry
+from gnosis.core.workers import (DONE, FAILED, FINISHED, PAUSED, QUEUED, RUNNING, STOPPED, WAITING,
+                                 ResourceLocks, TaskInfo, match_task)
 from gnosis.memory.memory import Memory
 
 SYSTEM_PROMPT = """You are Gnosis, a private personal assistant running on the owner's own Windows laptop.
@@ -27,6 +30,7 @@ Help with harmless things only. Never reveal anything about the owner. Politely 
 
 _MAX_TOOL_RESULT_CHARS = 8_000
 _HISTORY_TURNS = 10
+_KEEP_FINISHED = 30  # Finished task cards kept for the dashboard
 
 
 def _assistant_dict(msg: Any) -> dict[str, Any]:
@@ -44,7 +48,7 @@ class Orchestrator:
     def __init__(self, llm: LLMClient, tools: ToolRegistry, policy: Policy,
                  approvals: ApprovalManager, audit: AuditLog, events: EventBus,
                  memory: Memory | None = None, grants: Grants | None = None,
-                 max_steps: int = 8, approval_timeout_s: float = 120.0):
+                 max_steps: int = 8, approval_timeout_s: float = 120.0, max_parallel: int = 4):
         self.llm = llm
         self.grants = grants or Grants()
         self.memory = memory
@@ -57,43 +61,126 @@ class Orchestrator:
         self.approval_timeout_s = approval_timeout_s
         self._history: dict[str, list[dict[str, Any]]] = defaultdict(list)
         self._running: dict[str, asyncio.Task] = {}
+        self.tasks: dict[str, TaskInfo] = {}
+        self.locks = ResourceLocks()
+        self._slots = asyncio.Semaphore(max_parallel)
+
+    # ---- running tasks -------------------------------------------------------
 
     async def handle(self, text: str, session_id: str = "default",
                      tags: set[str] | None = None, owner: bool = True) -> str:
-        """Runs one request. `owner=False` is guest mode: voice ID didn't recognise the speaker.
+        """Runs one request and returns the answer. `owner=False` is guest mode: voice ID didn't
+        recognise the speaker."""
+        return await self._run(self._new_task(text, session_id, owner), tags)
 
-        The work runs as its own task so the kill switch can cancel it and still give an answer.
-        """
-        task_id = uuid.uuid4().hex[:12]
-        inner = asyncio.create_task(self._handle(task_id, text, session_id, tags, owner))
-        self._running[task_id] = inner
+    def submit(self, text: str, session_id: str = "default", tags: set[str] | None = None,
+               owner: bool = True) -> tuple[TaskInfo, asyncio.Task]:
+        """Starts a request in the background and returns at once, so several can run in parallel."""
+        info = self._new_task(text, session_id, owner)
+        return info, asyncio.create_task(self._run(info, tags))
+
+    def _new_task(self, text: str, session_id: str, owner: bool) -> TaskInfo:
+        if not owner:
+            session_id = f"guest:{session_id}"  # Guests never see the owner's conversation history.
+        info = TaskInfo(uuid.uuid4().hex[:12], text, session_id, owner)
+        self.tasks[info.id] = info
+        finished = [t for t in self.tasks.values() if t.status in FINISHED]
+        for old in finished[:-_KEEP_FINISHED]:
+            self.tasks.pop(old.id, None)
+        return info
+
+    async def _run(self, info: TaskInfo, tags: set[str] | None) -> str:
+        # The work runs as its own task so the kill switch can cancel it and still give an answer.
+        inner = asyncio.create_task(self._handle(info, set(tags or ())))
+        self._running[info.id] = inner
         try:
             return await inner
         except asyncio.CancelledError:
             current = asyncio.current_task()
             if current is not None and current.cancelling():
                 raise  # The caller itself was cancelled, not just this task
-            self.audit.write("stopped", task_id=task_id)
-            await self.events.publish("task_finished", task_id=task_id, answer="Stopped.", session=session_id)
+            self.audit.write("stopped", task_id=info.id)
+            info.answer = "Stopped."
+            await self._set_status(info, STOPPED, "")
+            await self.events.publish("task_finished", task_id=info.id, answer="Stopped.", session=info.session)
             return "Stopped."
+        except Exception as e:
+            info.answer = f"{type(e).__name__}: {e}"
+            await self._set_status(info, FAILED, info.answer)
+            raise
         finally:
-            self._running.pop(task_id, None)
+            self._running.pop(info.id, None)
+            for resource in list(info.held):
+                self.locks.release(resource)
+            info.held.clear()
+
+    async def _set_status(self, info: TaskInfo, status: str, detail: str | None = None) -> None:
+        info.status = status
+        if detail is not None:
+            info.detail = detail
+        if status in FINISHED:
+            info.finished = info.finished or time.time()
+        await self.events.publish("task_status", task=info.to_dict())
+
+    async def _checkpoint(self, info: TaskInfo) -> None:
+        """Between steps: wait here while the owner has the task paused."""
+        if not info.gate.is_set():
+            await self._set_status(info, PAUSED)
+            await info.gate.wait()
+            await self._set_status(info, RUNNING)
+
+    def list_tasks(self, include_finished: bool = True) -> list[TaskInfo]:
+        return [t for t in self.tasks.values() if include_finished or t.status not in FINISHED]
+
+    def find_task(self, query: str, active_only: bool = True) -> TaskInfo | None:
+        return match_task(self.list_tasks(include_finished=not active_only), query)
+
+    def cancel(self, task_id: str) -> bool:
+        task = self._running.get(task_id)
+        if task is None or task.done():
+            return False
+        task.cancel()
+        return True
+
+    def pause(self, task_id: str) -> bool:
+        info = self.tasks.get(task_id)
+        if info is None or info.status in FINISHED:
+            return False
+        info.gate.clear()
+        return True
+
+    def resume(self, task_id: str) -> bool:
+        info = self.tasks.get(task_id)
+        if info is None or info.status in FINISHED:
+            return False
+        info.gate.set()
+        return True
 
     def cancel_all(self) -> int:
         """Kill switch: stops every running task between actions. Returns how many were stopped."""
         tasks = [t for t in self._running.values() if not t.done()]
         for t in tasks:
             t.cancel()
+        for info in self.tasks.values():
+            info.gate.set()  # A paused task must wake up to see that it was cancelled
         return len(tasks)
 
-    async def _handle(self, task_id: str, text: str, session_id: str, tags: set[str] | None,
-                      owner: bool) -> str:
-        tags = set(tags or ())
-        if not owner:
-            session_id = f"guest:{session_id}"  # Guests never see the owner's conversation history.
+    async def _handle(self, info: TaskInfo, tags: set[str]) -> str:
+        task_id, text, session_id, owner = info.id, info.text, info.session, info.owner
         self.audit.write("request", task_id=task_id, session=session_id, text=text, owner=owner)
         await self.events.publish("task_started", task_id=task_id, text=text, owner=owner,
                                   session=session_id)
+        if self._slots.locked():
+            await self._set_status(info, QUEUED, "waiting for another task to finish")
+        async with self._slots:
+            await self._set_status(info, RUNNING, "thinking")
+            answer = await self._work(info, tags)
+        info.answer = answer
+        await self._set_status(info, DONE, "")
+        return answer
+
+    async def _work(self, info: TaskInfo, tags: set[str]) -> str:
+        task_id, text, session_id, owner = info.id, info.text, info.session, info.owner
 
         history = self._history[session_id]
         messages: list[dict[str, Any]] = [{"role": "system", "content": SYSTEM_PROMPT}]
@@ -113,6 +200,7 @@ class Orchestrator:
 
         answer = "I couldn't finish that within my step limit. Tell me if you want me to keep going."
         for step in range(self.max_steps):
+            await self._checkpoint(info)
             result = await self.llm.chat("planner", messages, tools=self.tools.schemas(), tags=tags)
             msg = result.message
             messages.append(_assistant_dict(msg))
@@ -120,8 +208,9 @@ class Orchestrator:
                 answer = (msg.content or "").strip() or "Done."
                 break
             for call in msg.tool_calls:
+                await self._checkpoint(info)
                 output = await self._run_tool(task_id, call.function.name, call.function.arguments,
-                                              tags, owner)
+                                              tags, owner, info)
                 messages.append({"role": "tool", "tool_call_id": call.id, "content": output})
 
         history.extend([{"role": "user", "content": text}, {"role": "assistant", "content": answer}])
@@ -133,7 +222,7 @@ class Orchestrator:
         return answer
 
     async def _run_tool(self, task_id: str, name: str, raw_args: str, tags: set[str],
-                        owner: bool = True) -> str:
+                        owner: bool = True, info: TaskInfo | None = None) -> str:
         tool = self.tools.get(name)
         if tool is None:
             return json.dumps({"error": f"No tool named '{name}'"})
@@ -182,6 +271,17 @@ class Orchestrator:
             if decision.once and scope is not None:
                 self.grants.add(name, scope)
 
+        if info is not None:
+            if tool.resource and tool.resource not in info.held:
+                holder = self.locks.holders.get(tool.resource)
+                if holder and holder != task_id:
+                    other = self.tasks.get(holder)
+                    await self._set_status(info, WAITING, f"waiting for the {tool.resource}"
+                                           + (f" ('{other.text[:40]}' is using it)" if other else ""))
+                await self.locks.acquire(tool.resource, task_id)
+                info.held.add(tool.resource)
+            info.steps += 1
+            await self._set_status(info, RUNNING, name)
         try:
             value = await tool.run(**args)
             ok = True

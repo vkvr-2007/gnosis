@@ -13,6 +13,7 @@ kill_switch: ctrl+alt+j        # Global hotkey that stops everything Gnosis is d
 orchestrator:
   max_steps: 8                 # Tool-call rounds per request before Gnosis stops and reports
   approval_timeout_s: 120      # How long an "ask" waits for your answer before it's treated as "no"
+  max_parallel: 4              # Requests that can run at the same time (desktop tasks still take turns)
 
 voice:
   wake_model: null             # Path to a custom hey_gnosis.onnx; null uses the bundled "hey jarvis" model

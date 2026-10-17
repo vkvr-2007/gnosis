@@ -184,6 +184,33 @@ def test_stop_word_and_barge_in():
     assert orch.calls == [] and loop.state == "idle"
 
 
+def test_long_task_continues_in_background_and_announces_when_done():
+    loop, speaker, orch = make_loop("build the website")
+    loop.config.background_after_s = 0.05
+    said, release = [], asyncio.Event()
+    loop.tts = type("T", (), {"synthesize": lambda self, text: said.append(text) or iter([])})()
+
+    async def slow(text, session_id="default", tags=None, owner=True):
+        await release.wait()
+        return "The website is live."
+
+    orch.handle = slow
+
+    async def go():
+        blocks = [wake_block()] + [SPEECH] * 6 + [SILENCE] * 11
+        for b in blocks:
+            await loop.feed(b)
+        while not said:
+            await asyncio.sleep(0.01)
+        assert said == ["I'm on it. I'll tell you when it's done."]
+        loop._endpointer = None  # The owner didn't follow up
+        release.set()
+        await loop.drain()
+
+    asyncio.run(go())
+    assert said[-1] == "The website is live."
+
+
 def test_speakable_strips_markdown():
     assert speakable("**Done!** See [the site](https://x.y) or https://z.com\n```py\nx=1\n```") == \
         "Done! See the site or the link (code shown on screen)"

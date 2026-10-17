@@ -9,6 +9,10 @@ tools:
   remember: allow
   search_memory: allow
   forget: allow              # Your own data; the dashboard also lets you forget anything
+  list_tasks: allow
+  pause_task: allow
+  resume_task: allow
+  cancel_task: allow
   # Desktop. Clicking a button like "Send", "Buy" or "Delete" asks first even though click is allowed.
   open_app: allow
   close_app: allow

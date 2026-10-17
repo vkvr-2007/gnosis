@@ -31,6 +31,7 @@ class Settings:
     policy: dict[str, Any] = field(default_factory=dict)
     max_steps: int = 8
     approval_timeout_s: float = 120.0
+    max_parallel: int = 4  # Tasks that may run at the same time
     voice: dict[str, Any] = field(default_factory=dict)
     kill_switch: str = "ctrl+alt+j"
     desktop: bool = True  # Register desktop control tools (Windows only)
@@ -57,6 +58,7 @@ def load_settings(config_path: str | Path | None = None) -> Settings:
         policy=_read_yaml(resolve(raw.get("policy_file", "config/policy.yaml"))),
         max_steps=int(orch.get("max_steps", 8)),
         approval_timeout_s=float(orch.get("approval_timeout_s", 120)),
+        max_parallel=int(orch.get("max_parallel", 4)),
         voice=raw.get("voice") or {},
         kill_switch=str(raw.get("kill_switch", "ctrl+alt+j")),
     )
