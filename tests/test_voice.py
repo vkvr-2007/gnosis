@@ -100,7 +100,8 @@ class FakeSpeaker:
         self.stops += 1
 
     async def play(self, chunks):
-        self.played.append(list(chunks))
+        # Like the real speaker, audio is pulled on another thread (streamed sentences wait on a queue).
+        self.played.append(await asyncio.to_thread(list, chunks))
         return True
 
 
@@ -108,9 +109,13 @@ class FakeOrchestrator:
     def __init__(self):
         self.calls = []
 
-    async def handle(self, text, session_id="default", tags=None, owner=True):
+    async def handle(self, text, session_id="default", tags=None, owner=True, on_text=None):
         self.calls.append((text, owner))
-        return f"You said {text}"
+        answer = f"You said {text}"
+        if on_text:
+            await on_text(answer[:5])
+            await on_text(answer[5:])
+        return answer
 
 
 class FakeVoiceID:
@@ -190,7 +195,7 @@ def test_long_task_continues_in_background_and_announces_when_done():
     said, release = [], asyncio.Event()
     loop.tts = type("T", (), {"synthesize": lambda self, text: said.append(text) or iter([])})()
 
-    async def slow(text, session_id="default", tags=None, owner=True):
+    async def slow(text, session_id="default", tags=None, owner=True, on_text=None):
         await release.wait()
         return "The website is live."
 
@@ -340,3 +345,33 @@ def test_a_same_breath_command_is_answered_without_a_second_listen_and_still_voi
 
     asyncio.run(go())
     assert orch.calls == [("open spotify", False)]  # Guest: voice ID still ran on the wake audio
+
+
+def test_streamed_answers_are_spoken_sentence_by_sentence():
+    from gnosis.voice.loop import _Sentences
+
+    s = _Sentences()
+    assert not s.feed("It's 9 PM in Delhi")
+    assert s.feed(". The sun set at 5.45 PM! Anything else")
+    s.feed(None)  # That last bit led to a tool call: dropped
+    s.feed("Good night.")
+    s.finish()
+    spoken = []
+    while (x := s.queue.get()) is not None:
+        spoken.append(x)
+    assert spoken == ["It's 9 PM in Delhi.", "The sun set at 5.45 PM!", "Good night."]
+
+
+def test_the_voice_starts_on_the_first_sentence_and_says_the_whole_answer():
+    loop, speaker, orch = make_loop("what time is it")
+    said = []
+    loop.tts = type("T", (), {"synthesize": lambda self, text: said.append(text) or iter([])})()
+
+    async def streaming(text, session_id="default", tags=None, owner=True, on_text=None):
+        for part in ["It's 9 PM. ", "Sleep ", "well."]:
+            await on_text(part)
+        return "It's 9 PM. Sleep well."
+
+    orch.handle = streaming
+    asyncio.run(say(loop))
+    assert said == ["It's 9 PM.", "Sleep well."]
