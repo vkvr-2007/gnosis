@@ -37,7 +37,7 @@ class Recall:
     def as_context(self, budget_chars: int = 2500) -> str | None:
         lines: list[str] = []
         if self.facts:
-            lines.append("What you remember about the owner (cite [#id] to forget or update a fact):")
+            lines.append("What you remember about the owner ([#id] is for the forget tool; never show it to the owner):")
             lines += [f"- [#{f.id}] {f.text}" for f in self.facts]
         if self.episodes:
             lines.append("Related past tasks:")

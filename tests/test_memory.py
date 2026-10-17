@@ -145,3 +145,11 @@ def test_memory_api(settings):
     assert c.delete(f"/api/memory/facts/{fact['id']}").json() == {"ok": True}
     assert c.delete(f"/api/memory/facts/{fact['id']}").status_code == 404
     assert c.get("/api/audit").json()[0]["kind"] == "memory_edit"
+
+
+def test_memory_ids_never_reach_the_owner(settings):
+    from conftest import FakeLLM, reply
+    from gnosis.app import build
+
+    g = build(settings, llm=FakeLLM([reply("You prefer TypeScript. [#1] [#12]")]))
+    assert asyncio.run(g.orchestrator.handle("which language do I like?")) == "You prefer TypeScript."

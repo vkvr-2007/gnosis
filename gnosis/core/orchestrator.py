@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import re
 import contextvars
 import inspect
 import json
@@ -231,7 +232,8 @@ class Orchestrator:
             msg = result.message
             messages.append(_assistant_dict(msg))
             if not msg.tool_calls:
-                answer = (msg.content or "").strip() or "Done."
+                # Memory ids like [#3] are for the model's tools, not for the owner (or to be read aloud).
+                answer = re.sub(r"\s*\[#\d+\]", "", msg.content or "").strip() or "Done."
                 break
             for call in msg.tool_calls:
                 await self._checkpoint(info)
