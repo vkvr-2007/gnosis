@@ -78,3 +78,23 @@ def test_step_limit(settings):
 def test_memory_ids_never_reach_the_answer(settings):
     g = build(settings, llm=FakeLLM([reply("You prefer TypeScript [#1] and dark mode. [#12]")]))
     assert run(g, "what do I like?") == "You prefer TypeScript and dark mode."
+
+
+def test_memory_search_stays_on_the_cloud_model_and_holds_back_sensitive_facts(settings):
+    llm = FakeLLM([reply(calls=[tool_call("search_memory", {"query": "mom phone language"})]), reply("ok"),
+                   reply(calls=[tool_call("search_memory", {"query": "mom phone language"})]), reply("ok")])
+    g = build(settings, llm=llm)
+    g.memory.remember("owner", "prefers_language", "TypeScript")
+    g.memory.remember("Mom", "phone_number", "+91 98450 00000", sensitive=True)
+
+    run(g, "what's mom's number and my language?")
+    result = json.loads(llm.calls[1]["messages"][-1]["content"])
+    assert [f["fact"] for f in result["facts"]] == ["owner prefers language: TypeScript"]
+    assert "1 sensitive fact" in result["note"]
+    assert not (set(llm.calls[1].get("tags") or ()) & g.memory.private_tags)  # Not forced to the local model
+
+    async def private():
+        return await g.orchestrator.handle("what's mom's number?", tags={"private"})
+    asyncio.run(private())
+    result = json.loads(llm.calls[3]["messages"][-1]["content"])
+    assert any("98450" in f["fact"] for f in result["facts"]) and "note" not in result

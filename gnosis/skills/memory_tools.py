@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from gnosis.core.orchestrator import current_tags
 from gnosis.core.tools import ToolRegistry
 from gnosis.memory.memory import Memory
 
@@ -30,11 +31,20 @@ def register_memory_tools(registry: ToolRegistry, memory: Memory) -> None:
         "search_memory",
         "Look up what you remember about something. Returns facts with their ids.",
         {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]},
-        tags=("personal_memory",),
     )
-    async def search_memory(query: str) -> list[dict]:
-        recalled = await memory.recall(query, include_sensitive=True)
-        return [{"id": f.id, "fact": f.text} for f in recalled.facts]
+    async def search_memory(query: str) -> dict:
+        # Everyday facts may go to the cloud model, as they already do in the recalled context. Sensitive
+        # ones (health, money, addresses, IDs) only come back when the task is already on the laptop.
+        private = bool(current_tags() & memory.private_tags)
+        recalled = await memory.recall(query, include_sensitive=private)
+        out: dict = {"facts": [{"id": f.id, "fact": f.text} for f in recalled.facts]}
+        if not private:
+            held = await memory.recall(query, include_sensitive=True)
+            hidden = len({f.id for f in held.facts} - {f.id for f in recalled.facts})
+            if hidden:
+                out["note"] = (f"{hidden} sensitive fact(s) also match. They're only shown in private mode, "
+                               "which keeps the conversation on the laptop.")
+        return out
 
     @registry.tool(
         "forget",

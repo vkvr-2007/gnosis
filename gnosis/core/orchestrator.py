@@ -39,6 +39,12 @@ _CURRENT: contextvars.ContextVar[tuple[TaskInfo, set[str], bool] | None] = conte
     "gnosis_task", default=None)
 
 
+def current_tags() -> set[str]:
+    """The privacy tags of the task that's running now (empty outside a task)."""
+    current = _CURRENT.get()
+    return set(current[1]) if current else set()
+
+
 def _assistant_dict(msg: Any) -> dict[str, Any]:
     out: dict[str, Any] = {"role": "assistant", "content": msg.content or ""}
     if msg.tool_calls:
