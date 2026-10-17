@@ -41,7 +41,7 @@ _DONE_VERBS = (r"saved|stored|noted|recorded|remembered|opened|closed|typed|sent
 _CLAIMS_ACTION = re.compile(
     rf"\b(?:I[’']?ve|I have|I)\s+(?:just\s+|now\s+)?(?:{_DONE_VERBS})\b"
     rf"|\b(?:is|are|has been|have been|was|were)\s+(?:now\s+|been\s+)*(?:saved|stored|noted|recorded|"
-    rf"remembered|scheduled|set|added|deleted|removed|updated|written|typed|sent|opened|closed)\b"
+    rf"remembered|scheduled|set|added|deleted|removed|updated|written|typed|sent|open|opened|closed)\b"
     rf"|^\W*(?:(?:ok(?:ay)?|got it|sure|done)\W+)?(?:noted|saved|stored|recorded)\b", re.I)
 _CLAIM_CHECK = ("[Gnosis check] Your reply says you did something, but no tool has run in this task, so nothing "
                 "was done. Recalled past tasks are history: they don't count as doing it now. If the request "

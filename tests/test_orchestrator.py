@@ -114,7 +114,7 @@ def test_passive_claims_are_caught_too():
     # Seen in `gnosis accept`: the model said this without calling remember.
     from gnosis.core.orchestrator import _CLAIMS_ACTION
     for said in ["Okay. Your favorite snack is now recorded as zebra4ff6.", "Noted!",
-                 "Got it, saved.", "Your reminder has been set for 9 PM.", "Spotify is opened."]:
+                 "Got it, saved.", "Your reminder has been set for 9 PM.", "Spotify is open and ready. What would you like to play?", "Notepad is closed."]:
         assert _CLAIMS_ACTION.search(said), said
     for said in ["Your favourite snack is zebra.", "It's 22:47.", "Budget: 1500 rupees. Bananas: 6.",
                  "The word is GNOSIS, and the circle is blue.", "Done."]:
