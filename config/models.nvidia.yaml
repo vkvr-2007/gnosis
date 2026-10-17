@@ -1,6 +1,8 @@
-# Nemotron through NVIDIA's free API (build.nvidia.com), for testing before the Nebius key arrives.
-# Use it with `models_file: config/models.nvidia.yaml` in config/gnosis.yaml, and set NVIDIA_API_KEY.
-# Model IDs change; run `python -m gnosis models` to list the ones your key can use.
+# Runs the cloud roles on NVIDIA's own API (build.nvidia.com) instead of Nebius: for testing before a
+# Nebius key arrives. Get a free key at build.nvidia.com ("Get API Key"), save it as NVIDIA_API_KEY,
+# and add this line to config/gnosis.yaml:
+#   models_file: config/models.nvidia.yaml
+# Private work still runs on the local Nemotron Nano (see models.offline.yaml for starting llama.cpp).
 
 providers:
   nvidia:
@@ -16,14 +18,19 @@ providers:
     api_key_env: null
     on_device: true
 
+# The 4B local model only gets the everyday tools (see models.offline.yaml).
+everyday_tools: &everyday_tools
+  [get_time, system_info, remember, search_memory, forget, open_app, close_app, list_windows,
+   focus_window, look_at_window, click, type_text, press_keys, read_screen, play_music,
+   set_reminder, list_reminders]
+
 roles:
-  planner:   { provider: nvidia, model: nvidia/llama-3.3-nemotron-super-49b-v1.5,
-               system_prefix: "/no_think" }                           # Answer without long reasoning
-  fast:      { provider: nvidia, model: nvidia/nvidia-nemotron-nano-9b-v2, system_prefix: "/no_think" }
-  vision:    { provider: nvidia, model: nvidia/nemotron-nano-12b-v2-vl }
-  local:     { provider: local,  model: nemotron-nano-local, system_prefix: "detailed thinking off",
-               temperature: 0 }
-  embed:     { provider: local_embed, model: nomic-embed-text }
+  planner: { provider: nvidia, model: nvidia/nemotron-3-super-120b-a12b }      # Long plans, tool calling
+  fast:    { provider: nvidia, model: nvidia/nemotron-nano-3-30b-a3b }         # Routing, short replies
+  vision:  { provider: nvidia, model: nvidia/nemotron-3.5-super-vl-120b-a12b } # Screenshots and images
+  local:   { provider: local, model: nemotron-nano-local, system_prefix: "detailed thinking off",
+             temperature: 0, tools: *everyday_tools }
+  embed:   { provider: local_embed, model: nomic-embed-text }
 
 routing:
   private_tags: [private, personal_memory, screen_text, voice_id, local_files, phone_data]
