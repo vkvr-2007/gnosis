@@ -1,0 +1,37 @@
+# Runs the cloud roles on NVIDIA's own API (build.nvidia.com) instead of Nebius: for testing before a
+# Nebius key arrives. Get a free key at build.nvidia.com ("Get API Key"), save it as NVIDIA_API_KEY,
+# and add this line to config/gnosis.yaml:
+#   models_file: config/models.nvidia.yaml
+# Private work still runs on the local Nemotron Nano (see models.offline.yaml for starting llama.cpp).
+
+providers:
+  nvidia:
+    base_url: https://integrate.api.nvidia.com/v1/
+    api_key_env: NVIDIA_API_KEY
+  local:
+    base_url: http://127.0.0.1:8081/v1/
+    api_key_env: null
+    on_device: true
+    timeout_s: 300
+  local_embed:
+    base_url: http://127.0.0.1:8082/v1/
+    api_key_env: null
+    on_device: true
+
+# The 4B local model only gets the everyday tools (see models.offline.yaml).
+everyday_tools: &everyday_tools
+  [get_time, system_info, remember, search_memory, forget, open_app, close_app, list_windows,
+   focus_window, look_at_window, click, type_text, press_keys, read_screen, play_music,
+   set_reminder, list_reminders]
+
+roles:
+  planner: { provider: nvidia, model: nvidia/nemotron-3-super-120b-a12b }      # Long plans, tool calling
+  fast:    { provider: nvidia, model: nvidia/nemotron-nano-3-30b-a3b }         # Routing, short replies
+  vision:  { provider: nvidia, model: nvidia/nemotron-3.5-super-vl-120b-a12b } # Screenshots and images
+  local:   { provider: local, model: nemotron-nano-local, system_prefix: "detailed thinking off",
+             temperature: 0, tools: *everyday_tools }
+  embed:   { provider: local_embed, model: nomic-embed-text }
+
+routing:
+  private_tags: [private, personal_memory, screen_text, voice_id, local_files, phone_data]
+  offline_fallback: [planner, fast]
