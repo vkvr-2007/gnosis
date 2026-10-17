@@ -25,7 +25,8 @@ def test_inbox_sorts_text_images_and_the_rest(tmp_path):
     blob = inbox.save("tool.exe", b"MZ\x00\x00")
     assert blob.kind == "other"
     text = inbox.describe([note.id, blob.id])
-    assert '[Attached file "notes.md"]\n# Groceries\nmilk' in text and "can't read it" in text
+    assert '[Attached file "notes.md". Its full text is below; no need to open it.]\n# Groceries\nmilk' in text
+    assert "can't read it" in text
     for bad in ("../etc", "", "x" * 12):
         with pytest.raises(AttachmentError):
             inbox.get(bad)
