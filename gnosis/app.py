@@ -30,6 +30,8 @@ from gnosis.skills.coder_tools import register_coder_tools
 from gnosis.skills.phone_tools import register_phone_tools
 from gnosis.skills.scheduler_tools import register_scheduler_tools
 from gnosis.skills.task_tools import register_task_tools
+from gnosis.skills.teach_tools import register_teach_tools, skills_context
+from gnosis.teach.skills import SkillStore
 
 
 @dataclass
@@ -124,6 +126,9 @@ def build(settings: Settings, llm: LLMClient | None = None) -> Gnosis:
                                 approval_timeout_s=settings.approval_timeout_s,
                                 max_parallel=settings.max_parallel)
     register_task_tools(tools, orchestrator)
+    skills = SkillStore(settings.data_dir / "skills")
+    register_teach_tools(tools, orchestrator, skills)
+    orchestrator.context_providers.append(skills_context(skills))
 
     g = Gnosis(settings, events, audit, policy, approvals, tools, llm, memory, orchestrator)
     proactive = settings.proactive

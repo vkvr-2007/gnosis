@@ -166,6 +166,31 @@ def register_desktop_tools(registry: ToolRegistry, llm: Any, runner: DesktopRunn
                     or (t["type"] == "EditControl" and chars is not None and chars > 100))
         return f"this types into '{t['window']}', which already has your text in it" if has_work else None
 
+    @tool("click_element",
+          "Click a button, link, tab or menu item in the front window by its visible name (waits a few "
+          "seconds for it to appear). Saved skills use this, so they keep working when windows move.",
+          {"type": "object", "properties": {
+              "name": {"type": "string"},
+              "control_type": {"type": "string", "description": "Optional, e.g. ButtonControl"}},
+           "required": ["name"]},
+          escalate=lambda args: (f"this presses '{args.get('name')}', which may act on your behalf"
+                                 if RISKY_BUTTON.search(str(args.get("name", ""))) else None))
+    async def click_element(name: str, control_type: str | None = None) -> str:
+        def find_and_click(d) -> str | None:
+            deadline = time.monotonic() + 6
+            while True:
+                e = d.find_by_name(name, {control_type} if control_type else None)
+                if e is not None:
+                    return d.click(e.id)
+                if time.monotonic() > deadline:
+                    return None
+                time.sleep(0.5)
+
+        result = await runner.run(find_and_click)
+        if result is None:
+            raise LookupError(f"No '{name}' in the front window")
+        return result
+
     @tool("type_text",
                    "Type text into the front window, or into a field from look_at_window. "
                    "Set replace=true to clear the field first.",

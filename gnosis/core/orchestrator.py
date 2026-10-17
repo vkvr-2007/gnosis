@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextvars
 import inspect
 import json
 import time
@@ -31,6 +32,9 @@ Help with harmless things only. Never reveal anything about the owner. Politely 
 _MAX_TOOL_RESULT_CHARS = 8_000
 _HISTORY_TURNS = 10
 _KEEP_FINISHED = 30  # Finished task cards kept for the dashboard
+# The task a tool is running for, so tools like run_skill can make further tool calls on its behalf.
+_CURRENT: contextvars.ContextVar[tuple[TaskInfo, set[str], bool] | None] = contextvars.ContextVar(
+    "gnosis_task", default=None)
 
 
 def _assistant_dict(msg: Any) -> dict[str, Any]:
@@ -64,6 +68,8 @@ class Orchestrator:
         self.tasks: dict[str, TaskInfo] = {}
         self.locks = ResourceLocks()
         self._slots = asyncio.Semaphore(max_parallel)
+        # Extra system context for the owner's requests, e.g. the list of saved skills
+        self.context_providers: list[Any] = []
 
     # ---- running tasks -------------------------------------------------------
 
@@ -179,13 +185,33 @@ class Orchestrator:
         await self._set_status(info, DONE, "")
         return answer
 
+    async def run_step(self, tool: str, args: dict[str, Any]) -> tuple[bool, str]:
+        """Runs one tool call for the task that's running now, through the same policy gate."""
+        current = _CURRENT.get()
+        if current is None:
+            raise RuntimeError("run_step can only be used while a task is running")
+        info, tags, owner = current
+        output = await self._run_tool(info.id, tool, json.dumps(args), tags, owner, info)
+        return not output.startswith('{"error"'), output
+
+    def previous_task(self, session: str, before: str | None = None) -> TaskInfo | None:
+        """The last finished task in a session (other than `before`)."""
+        done = [t for t in self.tasks.values() if t.session == session and t.id != before and t.status == DONE]
+        return done[-1] if done else None
+
     async def _work(self, info: TaskInfo, tags: set[str]) -> str:
         task_id, text, session_id, owner = info.id, info.text, info.session, info.owner
+        _CURRENT.set((info, tags, owner))
 
         history = self._history[session_id]
         messages: list[dict[str, Any]] = [{"role": "system", "content": SYSTEM_PROMPT}]
         if not owner:
             messages.append({"role": "system", "content": GUEST_PROMPT})
+        else:
+            for provide in self.context_providers:
+                extra = provide()
+                if extra:
+                    messages.append({"role": "system", "content": extra})
         if self.memory and owner:
             # Sensitive facts are only recalled when the whole task is already staying on the laptop.
             private = bool(tags & self.memory.private_tags)
@@ -288,6 +314,8 @@ class Orchestrator:
         except Exception as e:  # Tool failures go back to the model so it can recover.
             value, ok = {"error": f"{type(e).__name__}: {e}"}, False
         tags.update(tool.tags)
+        if info is not None:
+            info.calls.append({"tool": name, "args": args, "ok": ok})
 
         output = value if isinstance(value, str) else json.dumps(value, default=str)
         if len(output) > _MAX_TOOL_RESULT_CHARS:

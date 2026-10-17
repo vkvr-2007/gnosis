@@ -27,6 +27,14 @@ tools:
   phone_open_app: allow
   phone_notifications: allow  # Stays on the laptop (local model)
   sync_contacts: allow        # Saved as sensitive facts in local memory
+  # Teach mode and saved skills. A skill's steps go through this policy again every time it runs.
+  teach_start: allow
+  teach_stop: allow
+  recent_actions: allow
+  save_skill: ask             # You see the steps and approve before a skill is saved
+  run_skill: allow
+  list_skills: allow
+  delete_skill: allow
   schedule_routine: ask       # It will act later without you watching, so it asks once when you set it up
   # Desktop. Clicking a button like "Send", "Buy" or "Delete" asks first even though click is allowed.
   open_app: allow

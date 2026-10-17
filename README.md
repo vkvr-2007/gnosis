@@ -4,7 +4,7 @@
 
 Built for Track 03 (Personal AI) of the Nebius x NVIDIA Global AI Hackathon.
 
-> **Status:** build step 8 of 10. Working now: the brain, cloud and local model routing, the policy gate and audit log, the dashboard, long-term memory with a memory map, voice with voice ID, desktop control (open, close and operate Windows apps, with a screenshot fallback and a kill switch), parallel tasks, reminders, routines and proactive notices, the phone (a companion app, plus calls and messages on Android), and the coding agent (build, push to GitHub, deploy to Vercel). Teach mode comes next. See [the design](docs/architecture.md).
+> **Status:** build step 9 of 10. Working now: the brain, cloud and local model routing, the policy gate and audit log, the dashboard, long-term memory with a memory map, voice with voice ID, desktop control (open, close and operate Windows apps, with a screenshot fallback and a kill switch), parallel tasks, reminders, routines and proactive notices, the phone (a companion app, plus calls and messages on Android), the coding agent (build, push to GitHub, deploy to Vercel), and teach mode with saved skills. The hosted demo comes next. See [the design](docs/architecture.md).
 
 ## How it works
 
@@ -81,6 +81,15 @@ Then say "sync my contacts" once, and "call Amma" or "WhatsApp Rahul that I'm ru
   ```
 
 - **Publishing asks first.** Pushing to GitHub and deploying each ask once per project. The tokens are only passed to those two commands, never to the code Gnosis writes.
+
+## Teach mode and saved skills
+
+Show Gnosis a task once and it can do it again. Say "watch me", do the task in any Windows app, then say "done". Gnosis shows you the steps it saw, asks which values change each time (a month, a file name), and saves it as a skill. Later, "do the monthly report for March" runs it. You can also say "save that as a skill" after Gnosis finishes something you asked for.
+
+- **It records what you clicked, not where.** Each click is saved by the button or field's name, so a skill still works when windows move or the screen size changes.
+- **Some things are never recorded.** Typing in password fields, and anything while a password manager is in front.
+- **Skills are plain files you can read and edit.** Each one is a `SKILL.md` in `data/skills/<name>/`, with the steps listed in English and as JSON.
+- **A skill can't do more than you could ask for directly.** Saving one asks you first, and every step goes through the same approval rules as a normal request. Skills can't save, run or delete other skills, or change the rules.
 
 ## Quick start (Windows)
 

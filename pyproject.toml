@@ -24,6 +24,7 @@ desktop = [
     "mss>=9",
     "pillow>=10",
     "rapidfuzz>=3",
+    "pynput>=1.7; sys_platform == 'win32'",  # Teach mode recording
 ]
 # Notifications on the paired phone (Web Push).
 phone = ["pywebpush>=2"]
