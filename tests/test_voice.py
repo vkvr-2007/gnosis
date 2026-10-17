@@ -264,3 +264,7 @@ def test_never_silent_after_the_wake_word():
         assert any(e["type"] == "voice_error" and "IndexError" in e["error"] for e in seen)
 
     asyncio.run(go())
+
+
+def test_memory_fact_ids_are_not_read_aloud():
+    assert speakable("You prefer TypeScript. [#1]") == "You prefer TypeScript."
