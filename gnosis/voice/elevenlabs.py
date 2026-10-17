@@ -27,6 +27,27 @@ def api_key() -> str | None:
     return os.environ.get(KEY_ENV) or None
 
 
+def key_problem(key: str | None, client: httpx.Client | None = None) -> str | None:
+    """Why ElevenLabs will refuse this key, or None if it looks usable (or ElevenLabs can't be reached:
+    then the per-sentence fallback handles it)."""
+    if not key:
+        return f"{KEY_ENV} isn't set"
+    try:
+        r = (client or httpx.Client(timeout=10)).get(f"{API}/user", headers={"xi-api-key": key})
+    except httpx.HTTPError:
+        return None
+    if r.status_code < 400:
+        return None
+    try:
+        detail = r.json().get("detail") or {}
+    except ValueError:
+        return None
+    # A key without the user_read permission also fails here, but it can still speak; only a bad key counts.
+    if isinstance(detail, dict) and detail.get("code") == "invalid_api_key":
+        return detail.get("message") or "the API key was rejected"
+    return None
+
+
 def to_wav(audio: np.ndarray, rate: int = _RATE) -> bytes:
     if audio.dtype != np.int16:
         audio = (np.clip(audio, -1, 1) * 32767).astype(np.int16)

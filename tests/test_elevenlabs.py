@@ -67,3 +67,15 @@ def test_only_used_when_chosen_and_a_key_is_set(monkeypatch):
     assert isinstance(load_stt({"stt": "elevenlabs"}, lambda: local), ElevenLabsSTT)
     assert wrap_tts({"tts": "local"}, local) is local
     assert isinstance(wrap_tts({"tts": "elevenlabs"}, local), ElevenLabsTTS)
+
+
+def test_a_bad_key_is_reported_once_but_missing_permissions_are_not():
+    def replying(status, detail):
+        return httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(status, json={"detail": detail})))
+
+    assert elevenlabs.key_problem(None) == "ELEVENLABS_API_KEY isn't set"
+    bad = replying(400, {"code": "invalid_api_key", "message": "API key ID used as API key"})
+    assert elevenlabs.key_problem("id_123", client=bad) == "API key ID used as API key"
+    no_user_read = replying(401, {"code": "missing_permissions", "message": "needs user_read"})
+    assert elevenlabs.key_problem("sk_1", client=no_user_read) is None
+    assert elevenlabs.key_problem("sk_1", client=replying(200, {})) is None

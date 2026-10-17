@@ -27,7 +27,7 @@ def _expand(p: str | None) -> Path | None:
 async def run_voice(g: "Gnosis") -> None:
     """Runs the voice loop until cancelled. Heavy models load in a thread so the server stays responsive."""
     from gnosis.voice.audio import Microphone, Speaker
-    from gnosis.voice.elevenlabs import load_stt, wrap_tts
+    from gnosis.voice.elevenlabs import api_key, key_problem, load_stt, wrap_tts
     from gnosis.voice.loop import VoiceConfig, VoiceLoop
     from gnosis.voice.stt import SpeechToText
     from gnosis.voice.tts import load_tts
@@ -37,6 +37,12 @@ async def run_voice(g: "Gnosis") -> None:
 
     cfg = g.settings.voice
     await g.events.publish("voice_state", state="loading")
+    if "elevenlabs" in (cfg.get("stt"), cfg.get("tts")):
+        # Check the key once, rather than silently falling back on every sentence.
+        problem = await asyncio.to_thread(key_problem, api_key())
+        if problem:
+            g.audit.write("voice", note=f"ElevenLabs is off, using the on-device voice instead: {problem}")
+            cfg = {**cfg, "stt": "local", "tts": "local"}
     wake = await asyncio.to_thread(WakeWord, cfg.get("wake_model"), float(cfg.get("wake_threshold", 0.5)))
     stt = await asyncio.to_thread(load_stt, cfg, lambda: SpeechToText(cfg.get("stt_model", "small.en")))
     tts = wrap_tts(cfg, await asyncio.to_thread(load_tts, _expand(cfg.get("piper_voice"))))
