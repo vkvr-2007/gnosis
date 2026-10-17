@@ -55,7 +55,8 @@ async def run_voice(g: "Gnosis") -> None:
     loop = VoiceLoop(wake=wake, stt=stt, tts=tts, speaker=speaker, orchestrator=g.orchestrator,
                      events=g.events, detector=default_detector(), voice_id=voice_id,
                      config=VoiceConfig(follow_up_s=float(cfg.get("follow_up_s", 4))),
-                     on_audio_drain=mic.drain, on_stop_command=g.stop_all)
+                     on_audio_drain=mic.drain, on_stop_command=g.stop_all,
+                     on_error=lambda e: g.audit.write("voice_error", error=e))
     g.notifier.speakers.append(loop.say)  # Reminders and other notices are spoken too
     mic.start()
     await g.events.publish("voice_state", state="idle", wake_word=wake.label)

@@ -30,7 +30,8 @@ class VoiceLoop:
     def __init__(self, *, wake: Any, stt: Any, tts: Any, speaker: Any, orchestrator: Any, events: Any,
                  detector: Callable[[np.ndarray], bool], voice_id: Any | None = None,
                  config: VoiceConfig | None = None, on_audio_drain: Callable[[], None] | None = None,
-                 on_stop_command: Callable[[], Any] | None = None):
+                 on_stop_command: Callable[[], Any] | None = None,
+                 on_error: Callable[[str], None] | None = None):
         self.wake = wake
         self.stt = stt
         self.tts = tts
@@ -42,6 +43,7 @@ class VoiceLoop:
         self.config = config or VoiceConfig()
         self.on_audio_drain = on_audio_drain
         self.on_stop_command = on_stop_command  # "Stop" also halts running tasks, like the kill switch
+        self.on_error = on_error  # Writes voice problems to the audit log
         self.state = "idle"
         self._endpointer: Endpointer | None = None
         self._woken = False  # This listen started with the wake word (not a follow-up)
@@ -52,6 +54,11 @@ class VoiceLoop:
         if state != self.state:
             self.state = state
             await self.events.publish("voice_state", state=state)
+
+    async def _error(self, error: str) -> None:
+        if self.on_error:
+            self.on_error(error)
+        await self.events.publish("voice_error", error=error)
 
     def _spawn(self, coro) -> None:
         task = asyncio.create_task(coro)
@@ -94,7 +101,7 @@ class VoiceLoop:
             self._spawn(self._respond(audio))
 
     async def _feedback(self, spoken: str, error: str) -> None:
-        await self.events.publish("voice_error", error=error)
+        await self._error(error)
         async with self._busy:
             await self._speak(spoken)
 
@@ -106,7 +113,7 @@ class VoiceLoop:
             if self.on_audio_drain:
                 self.on_audio_drain()
         except Exception as e:
-            await self.events.publish("voice_error", error=f"Couldn't speak: {type(e).__name__}: {e}")
+            await self._error(f"Couldn't speak: {type(e).__name__}: {e}")
         if self._endpointer is None:
             await self._set_state("idle")
 
@@ -115,7 +122,7 @@ class VoiceLoop:
             await self._respond_to(audio)
         except Exception as e:
             # Anything that breaks between hearing and answering must not leave the owner in silence.
-            await self.events.publish("voice_error", error=f"{type(e).__name__}: {e}")
+            await self._error(f"{type(e).__name__}: {e}")
             await self._speak("Sorry, something went wrong. The dashboard shows what happened.")
 
     async def _respond_to(self, audio: np.ndarray) -> None:
@@ -123,7 +130,7 @@ class VoiceLoop:
             await self._set_state("thinking")
             text = (await asyncio.to_thread(self.stt.transcribe, audio)).strip()
             if not text:
-                await self.events.publish("voice_error", error="Speech recognition returned nothing")
+                await self._error("Speech recognition returned nothing")
                 await self._speak("Sorry, I didn't catch that.")
                 return
             if _STOP_WORDS.match(text):
@@ -160,7 +167,7 @@ class VoiceLoop:
         except asyncio.CancelledError:
             return "Stopped."
         except Exception as e:
-            await self.events.publish("voice_error", error=f"{type(e).__name__}: {e}")
+            await self._error(f"{type(e).__name__}: {e}")
             return "Sorry, I couldn't reach my brain just now."
 
     async def _announce(self, work: asyncio.Task) -> None:
