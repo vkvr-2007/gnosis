@@ -6,6 +6,7 @@
     python -m gnosis enroll          Teach Gnosis your voice (voice ID)
     python -m gnosis models          List the Nemotron models your Nebius key can use
     python -m gnosis phone pair ...  Pair your Android phone (then `phone connect`)
+    python -m gnosis invite          Print a one-time link (and QR code) that lets a browser use Gnosis
 """
 
 from __future__ import annotations
@@ -24,6 +25,7 @@ def _serve(args: argparse.Namespace) -> None:
     from gnosis.server.api import create_app
 
     settings = load_settings(args.config)
+    _harden()
     g = build(settings)
     server = uvicorn.Server(uvicorn.Config(create_app(g), host=settings.host, port=settings.port,
                                            log_level="warning"))
@@ -49,6 +51,36 @@ def _serve(args: argparse.Namespace) -> None:
                 task.cancel()
 
     asyncio.run(main())
+
+
+def _harden() -> None:
+    """On Linux, stops other processes running as the same user (such as code the coding agent runs)
+    from reading this process's memory or environment, where the API keys are."""
+    if sys.platform.startswith("linux"):
+        import ctypes
+
+        try:
+            ctypes.CDLL(None, use_errno=True).prctl(4, 0, 0, 0, 0)  # PR_SET_DUMPABLE = 0
+        except (OSError, AttributeError):
+            pass
+
+
+def _invite(args: argparse.Namespace) -> None:
+    """Asks the running server for a pairing link. Only works on the same machine (or inside the container)."""
+    import httpx
+    import segno
+
+    from gnosis.config import load_settings
+
+    settings = load_settings(args.config)
+    try:
+        r = httpx.post(f"http://127.0.0.1:{settings.port}/api/phone/pair", headers={"Host": "localhost"}, timeout=10)
+        r.raise_for_status()
+    except httpx.HTTPError as e:
+        sys.exit(f"Couldn't reach Gnosis on port {settings.port}. Is `gnosis serve` running? ({e})")
+    url = r.json()["url"]
+    segno.make(url, error="m").terminal(compact=True)
+    print(f"\n{url}\n\nOpen it within 5 minutes. It works once, on one device; run this again for each person.")
 
 
 def _enroll(args: argparse.Namespace) -> None:
@@ -133,7 +165,7 @@ def _phone(args: argparse.Namespace) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(prog="gnosis")
-    parser.add_argument("--config", help="Path to gnosis.yaml")
+    parser.add_argument("--config", default=os.environ.get("GNOSIS_CONFIG"), help="Path to gnosis.yaml")
     sub = parser.add_subparsers(dest="cmd")
     serve = sub.add_parser("serve")
     serve.add_argument("--voice", action="store_true", help='Listen for "Hey Gnosis" on the microphone')
@@ -141,6 +173,7 @@ def main() -> None:
     sub.add_parser("enroll").set_defaults(func=_enroll)
     sub.add_parser("chat").set_defaults(func=_chat)
     sub.add_parser("models").set_defaults(func=_models)
+    sub.add_parser("invite", help="One-time link that pairs a phone or browser").set_defaults(func=_invite)
     phone = sub.add_parser("phone", help="Pair and connect your Android phone over wireless debugging")
     phone_sub = phone.add_subparsers(dest="action", required=True)
     pair = phone_sub.add_parser("pair", help="One time: pair with the code from Wireless debugging")

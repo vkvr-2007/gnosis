@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -67,6 +68,9 @@ def load_settings(config_path: str | Path | None = None) -> Settings:
         proactive=raw.get("proactive") or {},
         phone=raw.get("phone") or {},
         coder=raw.get("coder") or {},
+        desktop=bool(raw.get("desktop", True)),
     )
+    if os.environ.get("GNOSIS_PUBLIC_URL"):  # The hosted demo's address, set by its deploy
+        settings.phone["url"] = os.environ["GNOSIS_PUBLIC_URL"]
     settings.data_dir.mkdir(parents=True, exist_ok=True)
     return settings

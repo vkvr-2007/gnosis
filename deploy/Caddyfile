@@ -1,0 +1,5 @@
+# HTTPS with a Let's Encrypt certificate, which the phone app needs for notifications and the microphone.
+{$GNOSIS_DOMAIN} {
+	encode gzip
+	reverse_proxy gnosis:8765
+}

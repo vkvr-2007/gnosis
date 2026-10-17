@@ -5,8 +5,8 @@ from __future__ import annotations
 import asyncio
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse
+from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -168,8 +168,10 @@ def create_app(g: Gnosis) -> FastAPI:
     if DASHBOARD_DIR.exists():
         app.mount("/static", StaticFiles(directory=DASHBOARD_DIR), name="static")
 
-        @app.get("/")
-        async def index() -> FileResponse:
+        @app.get("/", response_model=None)
+        async def index(request: Request) -> FileResponse | RedirectResponse:
+            if not request.state.local:  # The dashboard is for the laptop; other devices get the phone app
+                return RedirectResponse("/phone/")
             return FileResponse(Path(DASHBOARD_DIR) / "index.html")
 
     return app

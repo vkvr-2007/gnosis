@@ -4,7 +4,7 @@
 
 Built for Track 03 (Personal AI) of the Nebius x NVIDIA Global AI Hackathon.
 
-> **Status:** build step 9 of 10. Working now: the brain, cloud and local model routing, the policy gate and audit log, the dashboard, long-term memory with a memory map, voice with voice ID, desktop control (open, close and operate Windows apps, with a screenshot fallback and a kill switch), parallel tasks, reminders, routines and proactive notices, the phone (a companion app, plus calls and messages on Android), the coding agent (build, push to GitHub, deploy to Vercel), and teach mode with saved skills. The hosted demo comes next. See [the design](docs/architecture.md).
+> **Status:** all 10 build steps are done, with a final full test on the laptop to come. Working now: the brain, cloud and local model routing, the policy gate and audit log, the dashboard, long-term memory with a memory map, voice with voice ID, desktop control (open, close and operate Windows apps, with a screenshot fallback and a kill switch), parallel tasks, reminders, routines and proactive notices, the phone (a companion app, plus calls and messages on Android), the coding agent (build, push to GitHub, deploy to Vercel), teach mode with saved skills, and a hosted demo on Nebius. See [the design](docs/architecture.md).
 
 ## How it works
 
@@ -88,8 +88,12 @@ Show Gnosis a task once and it can do it again. Say "watch me", do the task in a
 
 - **It records what you clicked, not where.** Each click is saved by the button or field's name, so a skill still works when windows move or the screen size changes.
 - **Some things are never recorded.** Typing in password fields, and anything while a password manager is in front.
-- **Skills are plain files you can read and edit.** Each one is a `SKILL.md` in `data/skills/<name>/`, with the steps listed in English and as JSON.
+- **Skills are plain files you can read and edit.** Each one is a `SKILL.md` in `%USERPROFILE%\.gnosis\skills\<name>\`, with the steps listed in English and as JSON.
 - **A skill can't do more than you could ask for directly.** Saving one asks you first, and every step goes through the same approval rules as a normal request. Skills can't save, run or delete other skills, or change the rules.
+
+## Hosted demo
+
+A cut-down Gnosis runs on a Nebius VM so you can try it without a Windows laptop: chat and approvals from your phone or browser, tasks, reminders, memory, saved skills and the coding agent. Ask for an invite link; each link works once. To run your own, see [deploy/README.md](deploy/README.md).
 
 ## Quick start (Windows)
 
@@ -160,14 +164,17 @@ python -m venv .venv && .venv/bin/pip install -e ".[dev]"
 | `gnosis/memory/` | Long-term memory: facts, episodes, keyword and vector search, learning, memory map |
 | `gnosis/skills/desktop/` | App finder and launcher, UI Automation (read, click, type, shortcuts), screenshot fallback, Spotify |
 | `gnosis/voice/` | Microphone and speaker, wake word, end-of-speech detection, speech-to-text, text-to-speech, voice ID, the voice loop |
-| `gnosis/skills/` | Tools Gnosis can use (built-ins and memory today; desktop, phone, coder and more next) |
+| `gnosis/skills/` | Tools Gnosis can use: built-ins, memory, desktop, tasks, scheduler, phone, coder, teach mode |
+| `gnosis/teach/` | Teach mode recorder, and saved skills as SKILL.md files |
 | `gnosis/coder/` | The coding sandbox (WSL2 distro, or a workspace folder) |
 | `gnosis/phone/` | Phone pairing and device tokens, Web Push, Android control over ADB |
 | `gnosis/server/` | Local FastAPI + WebSocket API, and the phone bridge |
 | `web/dashboard/` | Dashboard |
 | `web/phone/` | Phone companion app (installable web app) |
 | `config/` | Settings, model routing and policy |
+| `deploy/` | Hosted demo: Docker Compose with Caddy for HTTPS, and the Nebius setup guide |
 | `docs/architecture.md` | Full design for Gnosis v1 |
+| `docs/demo-script.md` | The demo video, scene by scene |
 
 ## License
 

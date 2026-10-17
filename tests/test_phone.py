@@ -66,6 +66,22 @@ def test_phone_needs_a_token_and_dashboard_doesnt(settings):
 
     assert [d["name"] for d in laptop.get("/api/phone/devices").json()] == ["Pixel"]
     assert "Gnosis" in phone.get("/phone/").text  # The phone app itself is public
+    assert phone.get("/", follow_redirects=False).headers["location"] == "/phone/"
+    assert "<html" in laptop.get("/").text.lower()
+
+
+def test_public_url_and_cloud_config(monkeypatch, tmp_path):
+    from gnosis.config import REPO_ROOT, load_settings
+
+    monkeypatch.setenv("GNOSIS_PUBLIC_URL", "https://203-0-113-7.sslip.io")
+    raw = (REPO_ROOT / "config" / "gnosis.cloud.yaml").read_text().replace("/data", str(tmp_path))
+    (tmp_path / "cloud.yaml").write_text(raw)
+    s = load_settings(tmp_path / "cloud.yaml")
+    assert s.phone["url"] == "https://203-0-113-7.sslip.io" and s.desktop is False and s.host == "0.0.0.0"
+    g = build(s, llm=FakeLLM([]))
+    assert "send_sms" not in g.tools.names() and "code_run" in g.tools.names()
+    url = TestClient(create_app(g)).post("/api/phone/pair").json()["url"]
+    assert url.startswith("https://203-0-113-7.sslip.io/phone/#pair=")
 
 
 def test_other_websites_cant_use_the_laptop_browser(settings):

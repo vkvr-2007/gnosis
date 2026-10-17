@@ -1,0 +1,25 @@
+# Run from the repo root: docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
+services:
+  gnosis:
+    build: ..
+    restart: unless-stopped
+    environment:
+      NEBIUS_API_KEY: ${NEBIUS_API_KEY:?Set NEBIUS_API_KEY in deploy/.env}
+      GNOSIS_PUBLIC_URL: https://${GNOSIS_DOMAIN:?Set GNOSIS_DOMAIN in deploy/.env}
+      GH_TOKEN: ${GH_TOKEN:-}
+      VERCEL_TOKEN: ${VERCEL_TOKEN:-}
+    volumes:
+      - gnosis-data:/data
+  caddy:
+    image: caddy:2.8
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    environment:
+      GNOSIS_DOMAIN: ${GNOSIS_DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+    depends_on: [gnosis]
+volumes:
+  gnosis-data:
+  caddy-data:

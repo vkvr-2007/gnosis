@@ -1,0 +1,35 @@
+# The hosted demo (deploy/docker-compose.yml). No laptop here: desktop control, ADB and the Windows
+# watchers are off, and the coding agent works in a folder inside the container.
+server:
+  host: 0.0.0.0                # Only Caddy reaches it; the port isn't published outside the compose network
+  port: 8765
+
+data_dir: /data
+
+models_file: config/models.yaml
+policy_file: config/policy.yaml
+
+desktop: false
+
+orchestrator:
+  max_steps: 25
+  approval_timeout_s: 300      # The person approving is on a phone, so give them longer
+  max_parallel: 4
+
+phone:
+  url: null                    # Set from GNOSIS_PUBLIC_URL by the deploy
+  adb: false
+
+coder:
+  isolated: false              # Same container as Gnosis, so every code_run asks first
+
+proactive:
+  morning_briefing: null
+  quiet_hours: null
+  max_per_hour: 6
+  phone_push: always           # There's no laptop screen; notices go to paired browsers
+  check_every_s: 300
+  watchers:
+    battery: false
+    disk: true
+    windows_update: false
