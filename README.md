@@ -4,7 +4,7 @@
 
 Built for Track 03 (Personal AI) of the Nebius x NVIDIA Global AI Hackathon.
 
-> **Status:** build step 5 of 10. Working now: the brain, cloud and local model routing, the policy gate and audit log, the dashboard, long-term memory with a memory map, voice with voice ID, desktop control (open, close and operate Windows apps, with a screenshot fallback and a kill switch), and parallel tasks. Reminders, the phone and the coding agent come next. See [the design](docs/architecture.md).
+> **Status:** build step 6 of 10. Working now: the brain, cloud and local model routing, the policy gate and audit log, the dashboard, long-term memory with a memory map, voice with voice ID, desktop control (open, close and operate Windows apps, with a screenshot fallback and a kill switch), parallel tasks, and reminders, routines and proactive notices. The phone and the coding agent come next. See [the design](docs/architecture.md).
 
 ## How it works
 
@@ -42,6 +42,13 @@ Every request runs as its own task, so you can ask for the next thing while the 
 
 - **One task drives the screen at a time.** The mouse, keyboard and front window are shared, so the first task that uses them keeps them until it finishes and other desktop tasks wait their turn. Tasks that only use the network, memory or the coder sandbox run side by side.
 - **Voice stays free.** If a spoken request takes more than a few seconds, Gnosis says it's on it, keeps listening, and tells you when the task is done.
+
+## Reminders and proactive Gnosis
+
+- **Reminders and routines.** "Remind me to call mom at 7", "every weekday at 9 remind me about standup", or "every Sunday evening check for Windows updates" (a routine: Gnosis does the task by itself and tells you the result). They're saved on your laptop, so they survive restarts; one that came due while Gnosis was off fires when it starts again.
+- **Watchers** keep an eye on your battery, disk space and new Windows updates, and tell you when something changes.
+- **"Should I speak?"** Gnosis decides how to tell you: urgent things (battery at 9%) are always spoken; reminders pop up and are spoken unless you're gaming, presenting, in quiet hours or have said "do not disturb"; everything else waits for your briefing. It also limits how often it interrupts.
+- **Briefings.** Say "good morning" or "what did I miss?", or get one automatically every morning (`proactive.morning_briefing` in `config/gnosis.yaml`).
 
 ## Quick start (Windows)
 

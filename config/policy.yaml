@@ -13,6 +13,12 @@ tools:
   pause_task: allow
   resume_task: allow
   cancel_task: allow
+  set_reminder: allow
+  list_reminders: allow
+  cancel_reminder: allow
+  do_not_disturb: allow
+  briefing: allow
+  schedule_routine: ask       # It will act later without you watching, so it asks once when you set it up
   # Desktop. Clicking a button like "Send", "Buy" or "Delete" asks first even though click is allowed.
   open_app: allow
   close_app: allow

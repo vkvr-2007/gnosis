@@ -52,11 +52,13 @@ async def run_voice(g: "Gnosis") -> None:
                      events=g.events, detector=default_detector(), voice_id=voice_id,
                      config=VoiceConfig(follow_up_s=float(cfg.get("follow_up_s", 4))),
                      on_audio_drain=mic.drain, on_stop_command=g.stop_all)
+    g.notifier.speakers.append(loop.say)  # Reminders and other notices are spoken too
     mic.start()
     await g.events.publish("voice_state", state="idle", wake_word=wake.label)
     try:
         await loop.run(mic.blocks())
     finally:
+        g.notifier.speakers.remove(loop.say)
         mic.stop()
 
 

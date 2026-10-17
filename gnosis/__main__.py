@@ -33,18 +33,19 @@ def _serve(args: argparse.Namespace) -> None:
         from gnosis import killswitch
 
         killswitch.start(g.stop_all, settings.kill_switch)
-        if not getattr(args, "voice", False):
-            await server.serve()
-            return
-        from gnosis.voice import run_voice
+        background = [asyncio.create_task(g.run_background())]
+        if getattr(args, "voice", False):
+            from gnosis.voice import run_voice
 
-        voice = asyncio.create_task(run_voice(g))
-        voice.add_done_callback(lambda t: t.cancelled() or not t.exception() or
-                                print(f"Voice stopped: {type(t.exception()).__name__}: {t.exception()}"))
+            background.append(asyncio.create_task(run_voice(g)))
+        for task in background:
+            task.add_done_callback(lambda t: t.cancelled() or not t.exception() or
+                                   print(f"Stopped: {type(t.exception()).__name__}: {t.exception()}"))
         try:
             await server.serve()
         finally:
-            voice.cancel()
+            for task in background:
+                task.cancel()
 
     asyncio.run(main())
 

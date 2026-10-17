@@ -129,12 +129,15 @@ class VoiceLoop:
             return "Sorry, I couldn't reach my brain just now."
 
     async def _announce(self, work: asyncio.Task) -> None:
-        """Speaks a background task's result once Gnosis isn't busy talking with the owner."""
-        answer = await self._answer_of(work)
+        await self.say(await self._answer_of(work))
+
+    async def say(self, text: str) -> None:
+        """Speaks something Gnosis wasn't asked just now (a finished task, a reminder) once it won't
+        interrupt the owner."""
         while self._endpointer is not None:  # Don't talk over someone who's speaking
             await asyncio.sleep(0.2)
         async with self._busy:
-            await self._speak_and_follow_up(answer)
+            await self._speak_and_follow_up(text)
 
     async def _speak_and_follow_up(self, answer: str) -> None:
         await self._set_state("speaking")

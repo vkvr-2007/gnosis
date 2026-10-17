@@ -79,6 +79,17 @@ def create_app(g: Gnosis) -> FastAPI:
             raise HTTPException(409, f"Can't {action} that task (it may have finished)")
         return {"ok": True}
 
+    @app.get("/api/reminders")
+    async def reminders() -> list[dict]:
+        return [j.to_dict() for j in g.scheduler.store.upcoming()]
+
+    @app.delete("/api/reminders/{job_id}")
+    async def cancel_reminder(job_id: int) -> dict:
+        if not g.scheduler.cancel(job_id):
+            raise HTTPException(404, "No upcoming reminder with that id")
+        await g.events.publish("jobs_changed")
+        return {"ok": True}
+
     @app.post("/api/stop")
     async def stop() -> dict:
         return {"stopped": await g.stop_all()}

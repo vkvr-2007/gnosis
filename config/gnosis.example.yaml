@@ -15,6 +15,17 @@ orchestrator:
   approval_timeout_s: 120      # How long an "ask" waits for your answer before it's treated as "no"
   max_parallel: 4              # Requests that can run at the same time (desktop tasks still take turns)
 
+proactive:
+  morning_briefing: "08:00"    # Spoken briefing every day; null turns it off
+  quiet_hours: "23:00-07:00"   # Only urgent things interrupt; the rest waits for the briefing
+  max_per_hour: 4              # Non-urgent notifications per hour before Gnosis holds them back
+  check_every_s: 60            # How often the watchers look at battery and disk
+  watchers:
+    battery: true
+    disk: true
+    windows_update: true       # Checks for new Windows updates
+    updates_every_h: 6
+
 voice:
   wake_model: null             # Path to a custom hey_gnosis.onnx; null uses the bundled "hey jarvis" model
   wake_threshold: 0.5          # Raise if it wakes by accident, lower if it misses you

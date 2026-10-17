@@ -73,6 +73,15 @@
   .st { font-size: 11px; font-weight: 700; text-transform: uppercase; }
   .st.running { color: var(--accent); } .st.waiting, .st.queued, .st.paused { color: var(--warn); }
   .st.done { color: var(--ok); } .st.failed, .st.stopped { color: var(--bad); }
+  #jobs { padding: 8px 14px; display: flex; flex-direction: column; gap: 4px; font-size: 13px; max-height: 22vh; overflow-y: auto; }
+  #jobs:empty::after { content: "No reminders. Try \"remind me to stretch in 20 minutes\"."; color: var(--muted); }
+  .job { display: flex; gap: 8px; align-items: center; }
+  .job span { flex: 1; } .job small { color: var(--muted); }
+  .job button { padding: 2px 8px; font-size: 12px; }
+  #toasts { position: fixed; bottom: 20px; right: 20px; display: flex; flex-direction: column; gap: 8px; z-index: 5; max-width: 360px; }
+  .toast { background: var(--panel); border: 1px solid var(--accent); border-radius: 10px; padding: 10px 14px;
+           box-shadow: 0 6px 24px #0008; font-size: 14px; }
+  .toast.urgent { border-color: var(--bad); } .toast b { display: block; }
   @media (max-width: 800px) { main { grid-template-columns: 1fr; height: auto; } #chat { min-height: 50vh; } }
 </style>
 </head>
@@ -84,6 +93,7 @@
   <button id="stop" class="no" style="margin-left:auto;border-color:var(--bad);color:var(--bad)"
           title="Stops everything Gnosis is doing (also Ctrl+Alt+J)">■ Stop</button>
 </header>
+<div id="toasts"></div>
 <main>
   <section>
     <div class="tabs">
@@ -106,6 +116,7 @@
   <aside>
     <section><h2>Needs your approval</h2><div id="approvals"></div></section>
     <section><h2>Tasks</h2><div id="tasks"></div></section>
+    <section><h2>Coming up</h2><div id="jobs"></div></section>
     <section style="flex:1"><h2>Live activity</h2><div id="activity"></div></section>
   </aside>
 </main>
@@ -174,6 +185,32 @@ function onTask(t) {
   t.status === "failed" ? say("err", t.answer || "That task failed.") : say("gnosis", t.answer || "Done.");
 }
 
+// ---- Reminders and notices ----------------------------------------------
+async function loadJobs() {
+  const jobs = await fetch("/api/reminders").then((r) => r.json());
+  $("jobs").innerHTML = "";
+  jobs.forEach((j) => {
+    const row = document.createElement("div");
+    row.className = "job";
+    const icon = {reminder: "⏰", routine: "↻", briefing: "☀"}[j.kind] || "•";
+    row.innerHTML = `<span>${icon} ${esc(j.text)}</span><small>${esc(j.when)}${j.repeat !== "once" ? " · " + esc(j.repeat) : ""}</small>
+      <button class="no" title="Cancel">✕</button>`;
+    row.querySelector("button").onclick = () => fetch(`/api/reminders/${j.id}`, {method: "DELETE"});
+    $("jobs").appendChild(row);
+  });
+}
+
+function showNotice(n, channels) {
+  activity(`🔔 <b>${esc(n.title)}</b> ${esc(n.body)} <span class="ev">(${esc(channels.join(", "))})</span>`);
+  if (channels.includes("queue")) return;  // Held back for the briefing
+  const div = document.createElement("div");
+  div.className = "toast " + n.urgency;
+  div.innerHTML = `<b>${esc(n.title)}</b>${esc(n.body)}`;
+  div.onclick = () => div.remove();
+  $("toasts").appendChild(div);
+  setTimeout(() => div.remove(), n.urgency === "urgent" ? 30000 : 10000);
+}
+
 function onEvent(ev) {
   switch (ev.type) {
     case "model_call":
@@ -208,7 +245,9 @@ function onEvent(ev) {
     case "voice_error":
       say("err", ev.error);
       break;
-    case "task_status": onTask(ev.task); break;
+    case "task_status": onTask(ev.task); if (ev.task.status === "done") loadJobs(); break;
+    case "jobs_changed": loadJobs(); break;
+    case "notification": showNotice(ev.notice, ev.channels); break;
     case "task_finished":
       if (String(ev.session).endsWith("voice")) say("gnosis", ev.answer);
       // Learning runs just after the answer; refresh the map shortly after.
@@ -335,6 +374,7 @@ async function loadMemory() {
   });
 }
 
+loadJobs();
 fetch("/api/tasks").then((r) => r.json()).then((list) => { list.forEach((t) => tasks.set(t.id, t)); renderTasks(); });
 fetch("/api/approvals").then((r) => r.json()).then((list) =>
   list.forEach((a) => addApproval({approval_id: a.id, ...a})));

@@ -34,6 +34,7 @@ class Settings:
     max_parallel: int = 4  # Tasks that may run at the same time
     voice: dict[str, Any] = field(default_factory=dict)
     kill_switch: str = "ctrl+alt+j"
+    proactive: dict[str, Any] = field(default_factory=dict)
     desktop: bool = True  # Register desktop control tools (Windows only)
 
     @property
@@ -61,6 +62,7 @@ def load_settings(config_path: str | Path | None = None) -> Settings:
         max_parallel=int(orch.get("max_parallel", 4)),
         voice=raw.get("voice") or {},
         kill_switch=str(raw.get("kill_switch", "ctrl+alt+j")),
+        proactive=raw.get("proactive") or {},
     )
     settings.data_dir.mkdir(parents=True, exist_ok=True)
     return settings
