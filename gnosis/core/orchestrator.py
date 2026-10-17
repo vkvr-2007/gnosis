@@ -12,6 +12,7 @@ import uuid
 from collections import defaultdict
 from typing import Any
 
+from gnosis.core import skills
 from gnosis.core.audit import AuditLog
 from gnosis.core.events import EventBus
 from gnosis.core.llm import LLMClient
@@ -32,6 +33,14 @@ Help with harmless things only. Never reveal anything about the owner. Politely 
 
 _MAX_TOOL_RESULT_CHARS = 8_000
 _MEMORY_ID = re.compile(r"\s*\[#\d+\]")
+# An answer that says Gnosis did something; checked against whether any tool actually ran.
+_CLAIMS_ACTION = re.compile(
+    r"\b(?:I'?ve|I have|I)\s+(?:just\s+|now\s+)?(?:saved|stored|noted|remembered|opened|closed|typed|sent|set|"
+    r"scheduled|created|deleted|removed|started|played|launched|added|written|wrote|called|turned|"
+    r"cancelled|canceled|paused|moved|updated)\b", re.I)
+_CLAIM_CHECK = ("[Gnosis check] Your reply says you did something, but no tool ran in this task. If the request "
+                "needs an action, call the tool now. If it was already done before, say that, without "
+                "claiming you did it now.")
 _HISTORY_TURNS = 10
 _KEEP_FINISHED = 30  # Finished task cards kept for the dashboard
 # The task a tool is running for, so tools like run_skill can make further tool calls on its behalf.
@@ -224,6 +233,8 @@ class Orchestrator:
             # Sensitive facts are only recalled when the whole task is already staying on the laptop.
             private = bool(tags & self.memory.private_tags)
             recalled = await self.memory.recall(text, include_sensitive=private)
+            if "[Attached " in text:
+                recalled.episodes = []  # An old answer can't describe a new file; it must be looked at
             context = recalled.as_context()
             if context:
                 messages.append({"role": "system", "content": context})
@@ -231,21 +242,34 @@ class Orchestrator:
                                           facts=[f.id for f in recalled.facts],
                                           episodes=[e.id for e in recalled.episodes])
         messages += [*history, {"role": "user", "content": text}]
+        # Only the skills this request needs, plus the last few turns' (so "now close it" still works).
+        loaded = skills.skills_for([text, *(m["content"] for m in history[-4:] if m["role"] == "user")])
 
         answer = "I couldn't finish that within my step limit. Tell me if you want me to keep going."
+        acted, checked = False, False
         for step in range(self.max_steps):
             await self._checkpoint(info)
-            result = await self.llm.chat("planner", messages, tools=self.tools.schemas(), tags=tags)
+            result = await self.llm.chat("planner", messages, tools=self._schemas(loaded), tags=tags)
             msg = result.message
             messages.append(_assistant_dict(msg))
             if not msg.tool_calls:
                 # Models copy the [#id] tags from recalled memories even when told not to.
                 answer = _MEMORY_ID.sub("", msg.content or "").strip() or "Done."
+                if not acted and not checked and _CLAIMS_ACTION.search(answer):
+                    # A fast model sometimes says "I've saved that" without calling anything. One nudge.
+                    checked = True
+                    self.audit.write("claim_check", task_id=task_id, answer=answer[:200])
+                    messages.append({"role": "user", "content": _CLAIM_CHECK})
+                    continue
                 break
             for call in msg.tool_calls:
                 await self._checkpoint(info)
-                output = await self._run_tool(task_id, call.function.name, call.function.arguments,
-                                              tags, owner, info)
+                if call.function.name == skills.MORE_TOOLS:
+                    output = self._load_skill(task_id, call.function.arguments, loaded)
+                else:
+                    acted = True
+                    output = await self._run_tool(task_id, call.function.name, call.function.arguments,
+                                                  tags, owner, info)
                 messages.append({"role": "tool", "tool_call_id": call.id, "content": output})
 
         history.extend([{"role": "user", "content": text}, {"role": "assistant", "content": answer}])
@@ -255,6 +279,22 @@ class Orchestrator:
         if self.memory and owner:
             self.memory.learn_in_background(text, answer, task_id, set(tags))
         return answer
+
+    def _schemas(self, loaded: set[str]) -> list[dict[str, Any]]:
+        out = [self.tools.get(n).schema() for n in skills.tools_of(loaded, self.tools.names())]
+        more = skills.more_tools_schema(loaded)
+        return out + [more] if more else out
+
+    def _load_skill(self, task_id: str, raw_args: str, loaded: set[str]) -> str:
+        try:
+            name = json.loads(raw_args or "{}").get("skill", "")
+        except (json.JSONDecodeError, AttributeError):
+            name = ""
+        if not skills.skill_exists(name):
+            return json.dumps({"error": f"No skill called '{name}'"})
+        loaded.add(name)
+        self.audit.write("skill_loaded", task_id=task_id, skill=name)
+        return json.dumps({"loaded": name, "tools": skills.tools_of({name}, self.tools.names())})
 
     async def _run_tool(self, task_id: str, name: str, raw_args: str, tags: set[str],
                         owner: bool = True, info: TaskInfo | None = None) -> str:

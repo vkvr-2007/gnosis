@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import re
+import time
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -41,8 +42,10 @@ class Recall:
                          "never put them in your reply:")
             lines += [f"- [#{f.id}] {f.text}" for f in self.facts]
         if self.episodes:
-            lines.append("Related past tasks:")
-            lines += [f"- {e.request} -> {e.summary}" for e in self.episodes]
+            # Without this, a model replays an old answer ("I've noted that") instead of acting again.
+            lines.append("Related past tasks, for context only. They describe what happened then: never repeat "
+                         "their answers or claim their actions now; use your tools for anything current:")
+            lines += [f"- ({_ago(e.created)}) {e.request} -> {e.summary}" for e in self.episodes]
         text, used = [], 0
         for line in lines:
             if used + len(line) > budget_chars:
@@ -50,6 +53,15 @@ class Recall:
             text.append(line)
             used += len(line) + 1
         return "\n".join(text) or None
+
+
+def _ago(ts: float) -> str:
+    s = max(0.0, time.time() - ts)
+    if s < 3600:
+        return f"{int(s // 60)} min ago"
+    if s < 86400:
+        return f"{int(s // 3600)} h ago"
+    return f"{int(s // 86400)} days ago"
 
 
 def _normalize(scores: list[tuple[int, float]]) -> dict[int, float]:
@@ -61,13 +73,18 @@ def _normalize(scores: list[tuple[int, float]]) -> dict[int, float]:
 
 class Memory:
     def __init__(self, store: MemoryStore, llm: Any, *, private_tags: set[str] = frozenset(),
-                 max_facts: int = 8, max_episodes: int = 3, min_confidence: float = 0.6):
+                 max_facts: int = 8, max_episodes: int = 3, min_confidence: float = 0.6,
+                 auto_facts: bool = False):
         self.store = store
         self.private_tags = set(private_tags)
         self.llm = llm
         self.max_facts = max_facts
         self.max_episodes = max_episodes
         self.min_confidence = min_confidence
+        # Off by default: on its own the extractor saved the time, the battery level and lines from attached
+        # files as "facts", and answers then repeated them. Facts come from "remember" until the nightly
+        # digest (which the owner can veto) exists.
+        self.auto_facts = auto_facts
         self._background: set[asyncio.Task] = set()
 
     # ---- recall ------------------------------------------------------------
@@ -124,6 +141,8 @@ class Memory:
     async def learn(self, request: str, answer: str, task_id: str, tags: set[str]) -> list[Fact]:
         """Saves the episode and extracts durable facts from it."""
         episode = self.store.add_episode(request, answer[:500], task_id)
+        if not self.auto_facts:
+            return []
         messages = [
             {"role": "system", "content": _EXTRACT_PROMPT},
             {"role": "user", "content": f"Owner: {request}\nAssistant: {answer}"},

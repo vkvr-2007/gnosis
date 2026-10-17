@@ -22,6 +22,8 @@ class Route:
     # description on every call, so fewer tools means faster and more reliable answers.
     tools: frozenset[str] | None = None
     temperature: float | None = None  # None = the server's default; small local models need 0
+    # Provider-specific request fields, e.g. {"chat_template_kwargs": {"enable_thinking": false}}
+    extra_body: dict | None = None
 
 
 class ModelRouter:
@@ -54,6 +56,7 @@ class ModelRouter:
             system_prefix=spec.get("system_prefix"),
             tools=frozenset(spec["tools"]) if spec.get("tools") else None,
             temperature=float(spec["temperature"]) if spec.get("temperature") is not None else None,
+            extra_body=dict(spec["extra_body"]) if spec.get("extra_body") else None,
         )
 
     def choose(self, role: str, tags: Iterable[str] = (), online: bool = True) -> Route:

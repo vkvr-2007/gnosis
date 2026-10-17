@@ -154,3 +154,21 @@ def test_python_style_tool_calls_are_read_but_never_run():
     assert parse_text_tool_call("open_app(name=__import__('os').getcwd())", names) is None
     assert parse_text_tool_call("Call get_time() to find out.", names) is None
     assert parse_text_tool_call("deploy()", names) is None
+
+
+def test_a_role_can_pass_provider_fields_like_turning_thinking_off():
+    cfg = {"providers": {"p": {"base_url": "http://x", "on_device": True}},
+           "roles": {"local": {"provider": "p", "model": "m",
+                               "extra_body": {"chat_template_kwargs": {"enable_thinking": False}}}}}
+    client = LLMClient(ModelRouter(cfg))
+    sent = {}
+
+    class Completions:
+        async def create(self, **params):
+            sent.update(params)
+            msg = type("M", (), {"content": "hi", "tool_calls": None})()
+            return type("R", (), {"choices": [type("C", (), {"message": msg})()], "usage": None})()
+
+    client._clients["p"] = type("Client", (), {"chat": type("Chat", (), {"completions": Completions()})()})()
+    asyncio.run(client.chat("local", [{"role": "user", "content": "hi"}]))
+    assert sent["extra_body"] == {"chat_template_kwargs": {"enable_thinking": False}}

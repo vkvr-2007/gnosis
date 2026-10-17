@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from types import SimpleNamespace
 from typing import Any, Awaitable, Callable, Iterable
 
+import httpx
 import openai
 from openai import AsyncOpenAI
 
@@ -20,6 +21,7 @@ from gnosis.core.redact import redact
 CallListener = Callable[[dict[str, Any]], Awaitable[None]]
 
 _OFFLINE_RETRY_S = 60.0
+_EMBED_RETRY_S = 600.0  # Most setups never run an embedding server; don't keep knocking
 _THINK = re.compile(r"<think>.*?(</think>|$)", re.S)
 
 
@@ -181,7 +183,8 @@ class LLMClient:
             self._clients[route.provider] = AsyncOpenAI(
                 base_url=route.base_url,
                 api_key=route.api_key or "not-needed",
-                timeout=route.timeout_s,
+                # A local server that isn't running should fail at once, not after Windows' ~2 s retry.
+                timeout=httpx.Timeout(route.timeout_s, connect=0.5 if route.is_local else 10.0),
                 # A retry against a busy local server overlaps the request it's still working on.
                 max_retries=0 if route.is_local else 1,
             )
@@ -198,6 +201,8 @@ class LLMClient:
         params: dict[str, Any] = {"model": route.model, "messages": messages, **kwargs}
         if route.temperature is not None:
             params.setdefault("temperature", route.temperature)
+        if route.extra_body:
+            params["extra_body"] = {**route.extra_body, **params.get("extra_body", {})}
         if tools:
             params["tools"] = tools
         resp = await self._client(route).chat.completions.create(**params)
@@ -268,6 +273,6 @@ class LLMClient:
         try:
             resp = await self._client(route).embeddings.create(model=route.model, input=texts)
         except (openai.APIError, openai.APIConnectionError):
-            self._embed_down_until = time.monotonic() + _OFFLINE_RETRY_S
+            self._embed_down_until = time.monotonic() + _EMBED_RETRY_S
             return None
         return [d.embedding for d in sorted(resp.data, key=lambda d: d.index)]

@@ -68,8 +68,9 @@ def _shapes_png() -> bytes:
 
 STEPS = [
     Step("time", "What time is it?", ["get_time"], r"\d{1,2}[:.]\d{2}"),
-    Step("remember", "Remember that I prefer TypeScript.", ["remember"], r"(?i)typescript"),
-    Step("recall in a new conversation", "Which programming language do I like?", [], r"(?i)typescript",
+    # A new made-up snack each run, so the step proves a real save, not a fact left over from the last run.
+    Step("remember", "Remember that my favourite snack is {word}.", ["remember"], r"(?i)saved|noted|remember|{word}"),
+    Step("recall in a new conversation", "What is my favourite snack?", [], r"(?i){word}",
          fresh_session=True),
     Step("text attachment", "What's my budget in this note, and how many bananas?", [], r"(?s)1,?500.*6|6.*1,?500",
          files=[("notes.txt", _notes)]),
@@ -88,6 +89,7 @@ class Suite:
         self.base = base.rstrip("/")
         self.client = httpx.AsyncClient(timeout=timeout_s)
         self.session = f"accept-{uuid.uuid4().hex[:6]}"
+        self.word = "zebra" + uuid.uuid4().hex[:4]
 
     async def _audit_after(self, last_id: int) -> list[dict[str, Any]]:
         rows = (await self.client.get(f"{self.base}/api/audit")).json()
@@ -119,11 +121,13 @@ class Suite:
 
         watcher = asyncio.create_task(decline_new_approvals())
         session = f"{self.session}-{uuid.uuid4().hex[:4]}" if step.fresh_session else self.session
+        text = step.text.replace("{word}", self.word)
+        pattern = (step.answer_matches or "").replace("{word}", self.word)
         started = time.monotonic()
         problems: list[str] = []
         try:
             r = await self.client.post(f"{self.base}/api/chat",
-                                       json={"text": step.text, "session_id": session, "files": files})
+                                       json={"text": text, "session_id": session, "files": files})
             answer = r.json().get("answer") or r.json().get("detail") or r.text
             if r.status_code != 200:
                 problems.append(f"HTTP {r.status_code}")
@@ -137,7 +141,7 @@ class Suite:
         for t in step.expect_tools:
             if t not in tools and not (step.expect_declined and declined):
                 problems.append(f"didn't call {t}")
-        if step.answer_matches and not re.search(step.answer_matches, answer or ""):
+        if pattern and not re.search(pattern, answer or ""):
             problems.append("answer doesn't match")
         if re.search(r"\[#\d+\]|<think>", answer or ""):
             problems.append("answer leaks internal text (a memory id or <think>)")

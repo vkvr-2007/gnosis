@@ -98,3 +98,21 @@ def test_memory_search_stays_on_the_cloud_model_and_holds_back_sensitive_facts(s
     asyncio.run(private())
     result = json.loads(llm.calls[3]["messages"][-1]["content"])
     assert any("98450" in f["fact"] for f in result["facts"]) and "note" not in result
+
+
+def test_a_claimed_action_without_a_tool_gets_one_nudge(settings):
+    llm = FakeLLM([reply("Got it, I've saved that."),
+                   reply(calls=[tool_call("remember", {"subject": "owner", "predicate": "snack", "value": "dosa"})]),
+                   reply("Saved: your favourite snack is dosa.")])
+    g = build(settings, llm=llm)
+    assert run(g, "remember my favourite snack is dosa") == "Saved: your favourite snack is dosa."
+    assert "[Gnosis check]" in llm.calls[1]["messages"][-1]["content"]
+    assert [f.value for f in g.memory.store.facts(True)] == ["dosa"]
+
+
+def test_a_plain_answer_or_a_real_action_is_not_nudged(settings):
+    g = build(settings, llm=FakeLLM([reply("You prefer TypeScript.")]))
+    assert run(g, "what do I like?") == "You prefer TypeScript."
+    llm = FakeLLM([reply(calls=[tool_call("get_time", {})]), reply("I've checked: it's 9 PM.")])
+    g = build(settings, llm=llm)
+    assert run(g, "time?") == "I've checked: it's 9 PM." and len(llm.calls) == 2

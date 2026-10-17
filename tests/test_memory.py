@@ -84,7 +84,7 @@ def test_learn_saves_episode_and_confident_facts(store):
         {"subject": "owner", "predicate": "mood", "value": "tired", "confidence": 0.3},
         {"subject": "owner"},  # Malformed entries are skipped.
     ])
-    m = Memory(store, llm, private_tags={"private"})
+    m = Memory(store, llm, private_tags={"private"}, auto_facts=True)
     saved = asyncio.run(m.learn("I prefer TypeScript", "Noted.", "t1", {"private"}))
     assert [f.value for f in saved] == ["TypeScript"]
     assert store.episodes()[0].request == "I prefer TypeScript"
@@ -145,3 +145,10 @@ def test_memory_api(settings):
     assert c.delete(f"/api/memory/facts/{fact['id']}").json() == {"ok": True}
     assert c.delete(f"/api/memory/facts/{fact['id']}").status_code == 404
     assert c.get("/api/audit").json()[0]["kind"] == "memory_edit"
+
+
+def test_facts_are_not_learned_by_themselves_by_default(store):
+    llm = FakeLLM([], facts=[{"subject": "owner", "predicate": "battery", "value": "21%", "confidence": 0.95}])
+    m = Memory(store, llm)
+    assert asyncio.run(m.learn("battery?", "21%.", "t1", set())) == []
+    assert store.facts(True) == [] and store.episodes()[0].request == "battery?"
