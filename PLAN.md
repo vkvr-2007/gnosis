@@ -4,9 +4,10 @@ The owner-facing version of this plan is the "Gnosis v2 build plan" doc in the p
 copy every session works from. Follow it exactly; don't add steps or features that aren't here.
 
 ## Where it lives and who does what
-- Laptop folder: `C:\education\projects\gnosis-v2` (new). The old Gnosis folder is never changed.
-- Repository: `vkvr-2007/gnosis-v2` once the owner creates it; until then the `v2-app` branch of
-  `vkvr-2007/gnosis`.
+- Laptop folder: `C:\education\projects\gnosis`, the one home for Gnosis (owner, 17 Oct). The old
+  copy under `signalguard` is left as it is, never deleted.
+- Repository: only `vkvr-2007/gnosis`. v2 is built on the `v2-app` branch and replaces `main` once
+  step 1 passes the owner's test; v1 is kept under a `v1` tag.
 - The cloud session writes the code and tests and pushes each step. The laptop session only pulls each
   step into the new folder, runs pytest, `scripts/smoke.py` and `scripts/bench.py`, and reports exact
   output. It doesn't write features. The owner does the hands-on test and says "pass".
@@ -35,8 +36,8 @@ passes (each failure gets a test) → merge to `main`, log in PROGRESS.md → ne
 - Scope: steps 0–8 only. Phone app, coding agent, teach mode, hosted demo come back after step 8.
 
 ## Steps
-- [ ] **0. New project.** Repo, rule files, pyproject, settings and identity files, pytest, smoke and
-  bench, a laptop setup script (folder, venv, Start-menu shortcut).
+- [ ] **0. New project.** Rule files, pyproject, settings and identity files, pytest, smoke and
+  bench, a laptop setup script (clone into `C:\education\projects\gnosis`, venv, Start-menu shortcut).
   *Test (laptop session):* pytest passes; `python -m gnosis --check` says the model is ready.
 - [ ] **1. App shell and brain** (built). Window + tray, streamed chat with Nemotron Super (thinking
   off), Stop, conversation on disk, start-up model check, diagnostics (D), single instance.
