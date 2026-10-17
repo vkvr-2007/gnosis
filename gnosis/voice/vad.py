@@ -57,12 +57,13 @@ class Endpointer:
     is_speech: Callable[[np.ndarray], bool]
     end_silence_s: float = 0.8   # Pause that ends the utterance
     start_timeout_s: float = 5.0  # Give up if nobody says anything
-    max_s: float = 15.0
+    max_s: float = 15.0          # Longest utterance, counted from when speech started
     min_speech_s: float = 0.25   # Ignore clicks and coughs
     blocks: list[np.ndarray] = field(default_factory=list)
     _speech_s: float = 0.0
     _silence_s: float = 0.0
     _elapsed_s: float = 0.0
+    _utterance_s: float = 0.0
     started: bool = False
 
     def feed(self, block: np.ndarray) -> str | None:
@@ -80,8 +81,9 @@ class Endpointer:
                 self._speech_s = 0.0
             return "timeout" if not self.started and self._elapsed_s >= self.start_timeout_s - _EPS else None
         self.blocks.append(block)
+        self._utterance_s += _BLOCK_S
         self._silence_s = 0.0 if speech else self._silence_s + _BLOCK_S
-        if self._silence_s >= self.end_silence_s - _EPS or self._elapsed_s >= self.max_s - _EPS:
+        if self._silence_s >= self.end_silence_s - _EPS or self._utterance_s >= self.max_s - _EPS:
             return "done"
         return None
 

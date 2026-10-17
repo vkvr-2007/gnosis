@@ -73,9 +73,19 @@ class VoiceLoop:
             await self.feed(block)
 
     async def feed(self, block: np.ndarray) -> None:
-        if self.wake.heard(block):
+        # A transcribing wake detector would hear the request itself as well, so it rests meanwhile.
+        wake_listening = self._endpointer is None or not getattr(self.wake, "needs_quiet", False)
+        if wake_listening and self.wake.heard(block):
             if self.speaker.speaking:
                 self.speaker.stop()  # Barge-in
+            take = getattr(self.wake, "take_command", None)
+            command = take() if take else ""
+            if command:
+                # "Hey Gnosis, what time is it?" in one breath: answer it, no second listen.
+                self._woken = False
+                await self._set_state("thinking")
+                self._spawn(self._respond(getattr(self.wake, "last_audio", None), text=command))
+                return
             self._listen()
             self._woken = True
             await self._set_state("listening")
@@ -117,18 +127,19 @@ class VoiceLoop:
         if self._endpointer is None:
             await self._set_state("idle")
 
-    async def _respond(self, audio: np.ndarray) -> None:
+    async def _respond(self, audio: np.ndarray | None, text: str | None = None) -> None:
         try:
-            await self._respond_to(audio)
+            await self._respond_to(audio, text)
         except Exception as e:
             # Anything that breaks between hearing and answering must not leave the owner in silence.
             await self._error(f"{type(e).__name__}: {e}")
             await self._speak("Sorry, something went wrong. The dashboard shows what happened.")
 
-    async def _respond_to(self, audio: np.ndarray) -> None:
+    async def _respond_to(self, audio: np.ndarray | None, text: str | None = None) -> None:
         async with self._busy:
             await self._set_state("thinking")
-            text = (await asyncio.to_thread(self.stt.transcribe, audio)).strip()
+            if text is None:
+                text = (await asyncio.to_thread(self.stt.transcribe, audio)).strip()
             if not text:
                 await self._error("Speech recognition returned nothing")
                 await self._speak("Sorry, I didn't catch that.")

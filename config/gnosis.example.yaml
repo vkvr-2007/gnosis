@@ -39,7 +39,8 @@ proactive:
     updates_every_h: 6
 
 voice:
-  wake_model: null             # Path to a custom hey_gnosis.onnx; null uses the bundled "hey jarvis" model
+  wake_model: null             # null = listen for "Hey Gnosis" with a tiny on-device Whisper; or a path to a trained hey_gnosis.onnx
+  wake_stt_model: tiny.en      # The Whisper model that listens for "Hey Gnosis"
   wake_threshold: 0.5          # Raise if it wakes by accident, lower if it misses you
   stt_model: small.en          # base.en is faster on slower laptops, small.en is more accurate
   # ElevenLabs instead of the on-device models (needs ELEVENLABS_API_KEY). What you say after the wake word,

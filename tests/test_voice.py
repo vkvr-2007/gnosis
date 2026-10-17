@@ -268,3 +268,75 @@ def test_never_silent_after_the_wake_word():
 
 def test_memory_fact_ids_are_not_read_aloud():
     assert speakable("You prefer TypeScript. [#1]") == "You prefer TypeScript."
+
+
+# ---- "Hey Gnosis" ----------------------------------------------------------
+
+def test_wake_phrase_matches_how_whisper_hears_gnosis():
+    from gnosis.voice.wake import match_wake_phrase
+
+    for heard in ("Hey Gnosis.", "hey nosis", "Hey, Noses!", "Hi Gnosis", "Okay, knows is"):
+        assert match_wake_phrase(heard) == "", heard
+    assert match_wake_phrase("Hey Gnosis, what time is it?") == "what time is it?"
+    for other in ("hey there", "I read about gnosis", "Gnosis is a word", "hey nose"):
+        assert match_wake_phrase(other) is None, other
+
+
+def phrase_wake(*texts):
+    from gnosis.voice.wake import PhraseWake
+
+    heard = list(texts)
+    return PhraseWake(transcribe=lambda audio: heard.pop(0), detector=loud)
+
+
+def feed_utterance(wake, seconds_of_speech=0.8):
+    hits = [wake.heard(b) for b in [SPEECH] * int(seconds_of_speech / 0.08) + [SILENCE] * 8]
+    wake._pool.shutdown(wait=True)  # Let the background transcription finish
+    return any(hits) or wake.heard(SILENCE)
+
+
+def test_phrase_wake_hears_the_phrase_and_keeps_a_same_breath_command():
+    wake = phrase_wake("Hey Gnosis, open Spotify.")
+    assert feed_utterance(wake)
+    assert wake.take_command() == "open Spotify." and wake.take_command() == ""
+    assert wake.last_audio is not None and len(wake.last_audio) > 0
+    assert not feed_utterance(phrase_wake("what's the weather"))
+
+
+def test_phrase_wake_waits_any_time_before_the_phrase():
+    wake = phrase_wake("hey gnosis")
+    for _ in range(400):  # 32 s of silence first must not cut the utterance short
+        assert not wake.heard(SILENCE)
+    assert feed_utterance(wake, seconds_of_speech=1.2)
+
+
+class CommandWake(FakeWake):
+    """Like PhraseWake after "Hey Gnosis, open spotify" in one breath."""
+    needs_quiet = True
+
+    def __init__(self):
+        self.command, self.last_audio = "", SPEECH
+
+    def heard(self, block):
+        if int(block[0]) == WAKE:
+            self.command = "open spotify"
+            return True
+        return False
+
+    def take_command(self):
+        command, self.command = self.command, ""
+        return command
+
+
+def test_a_same_breath_command_is_answered_without_a_second_listen_and_still_voice_checked():
+    speaker, orch = FakeSpeaker(), FakeOrchestrator()
+    loop = VoiceLoop(wake=CommandWake(), stt=FakeSTT(), tts=FakeTTS(), speaker=speaker, orchestrator=orch,
+                     events=EventBus(), detector=loud, voice_id=FakeVoiceID(owner=False),
+                     config=VoiceConfig(follow_up_s=0))
+
+    async def go():
+        await loop.feed(wake_block())
+        await loop.drain()
+
+    asyncio.run(go())
+    assert orch.calls == [("open spotify", False)]  # Guest: voice ID still ran on the wake audio

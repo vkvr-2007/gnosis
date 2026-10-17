@@ -33,7 +33,7 @@ async def run_voice(g: "Gnosis") -> None:
     from gnosis.voice.tts import load_tts
     from gnosis.voice.vad import default_detector
     from gnosis.voice.voice_id import load_voice_id
-    from gnosis.voice.wake import WakeWord
+    from gnosis.voice.wake import load_wake
 
     cfg = g.settings.voice
     await g.events.publish("voice_state", state="loading")
@@ -43,7 +43,7 @@ async def run_voice(g: "Gnosis") -> None:
         if problem:
             g.audit.write("voice", note=f"ElevenLabs is off, using the on-device voice instead: {problem}")
             cfg = {**cfg, "stt": "local", "tts": "local"}
-    wake = await asyncio.to_thread(WakeWord, cfg.get("wake_model"), float(cfg.get("wake_threshold", 0.5)))
+    wake = await asyncio.to_thread(load_wake, cfg)
     stt = await asyncio.to_thread(load_stt, cfg, lambda: SpeechToText(cfg.get("stt_model", "small.en")))
     tts = wrap_tts(cfg, await asyncio.to_thread(load_tts, _expand(cfg.get("piper_voice"))))
     voice_id = None

@@ -93,7 +93,7 @@ Show Gnosis a task once and it can do it again. Say "watch me", do the task in a
 
 ## Files and the camera
 
-Attach files and photos to any request with 📎 or 📷 on the dashboard, or 📷 in the phone app (which offers the phone's camera). Text files are read into the request; images are shown to the Nemotron vision model when Gnosis needs to look at them. You can also ask by voice, "Hey Jarvis, what am I holding?", and Gnosis takes one photo with the laptop's camera after you approve it (install with `pip install -e ".[camera]"`). Photos from the camera aren't saved, and attachments are deleted after a week.
+Attach files and photos to any request with 📎 or 📷 on the dashboard, or 📷 in the phone app (which offers the phone's camera). Text files are read into the request; images are shown to the Nemotron vision model when Gnosis needs to look at them. You can also ask by voice, "Hey Gnosis, what am I holding?", and Gnosis takes one photo with the laptop's camera after you approve it (install with `pip install -e ".[camera]"`). Photos from the camera aren't saved, and attachments are deleted after a week.
 
 ## Hosted demo
 
@@ -146,7 +146,7 @@ Everything voice-related runs on your laptop: your audio never leaves it.
 .\.venv\Scripts\python -m gnosis serve --voice
 ```
 
-Say **"Hey Jarvis"** (the bundled wake word until you [train "Hey Gnosis"](docs/wake-word.md)), wait for the chime, and speak. After Gnosis answers it keeps listening for a few seconds, so you can follow up without the wake word. Say the wake word while it's talking to interrupt it, or say "stop".
+Say **"Hey Gnosis"**, wait for the chime, and speak. Or say it in one breath: "Hey Gnosis, what time is it?" A tiny Whisper model on your laptop listens for the phrase ([details](docs/wake-word.md)). After Gnosis answers it keeps listening for a few seconds, so you can follow up without the wake word. Say the wake word while it's talking to interrupt it, or say "stop".
 
 **ElevenLabs voices (optional).** For a more natural voice, or ElevenLabs' speech recognition, set `ELEVENLABS_API_KEY` as a user environment variable and set `voice.tts` and/or `voice.stt` to `elevenlabs` in `config/gnosis.yaml`. What you say after the wake word, and Gnosis's spoken replies, then go to ElevenLabs. The wake word always stays on the laptop, and if ElevenLabs can't be reached Gnosis falls back to the on-device voice.
 

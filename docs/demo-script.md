@@ -5,7 +5,7 @@ Recorded on the laptop (Lenovo IdeaPad Slim 3i, Iris Xe, 16 GB, no NVIDIA GPU) w
 | Time | On screen | Say or do | What it shows |
 |---|---|---|---|
 | 0:00 | Title card, then the dashboard | "This is Gnosis, a private personal agent for Windows, running on NVIDIA Nemotron through Nebius Token Factory." | The pitch |
-| 0:10 | Dashboard | "Hey Jarvis, open Spotify and play some lo-fi." | Voice, wake word, desktop control |
+| 0:10 | Dashboard | "Hey Gnosis, open Spotify and play some lo-fi." | Voice, wake word, desktop control |
 | 0:25 | Dashboard, Notepad | "Open Notepad and write a shopping list: milk, eggs, coffee." | Driving apps through UI Automation, typing safety |
 | 0:40 | Dashboard task cards | Type: "Build me a landing page for a coffee shop called Ember and deploy it." Then say: "Remind me at 6 to call Mum." | Parallel tasks; the reminder runs while the coder works |
 | 1:00 | Phone | The deploy approval pops up on the phone; tap Approve. | Policy gate, phone companion, Web Push |

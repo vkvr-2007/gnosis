@@ -1,26 +1,34 @@
-# Training the "Hey Gnosis" wake word
+# The "Hey Gnosis" wake word
 
-Gnosis listens for its wake word with [openWakeWord](https://github.com/dscripka/openWakeWord), on your laptop.
-Until a custom model exists, it uses the bundled **"Hey Jarvis"** model, so that's the phrase to say.
+Gnosis wakes up when you say **"Hey Gnosis"**. Everything happens on your laptop: nothing is sent
+anywhere until it has heard the phrase.
 
-## Make a "Hey Gnosis" model
+## How it hears you
 
-openWakeWord trains wake words from synthetic speech, so you don't need to record hundreds of samples yourself.
+When you speak while Gnosis is idle, it transcribes that short clip with a tiny Whisper model
+(`tiny.en`, about 75 MB) and checks whether it starts with "Hey Gnosis". Whisper often spells the
+name the way it sounds ("Hey Nosis", "Hey Noses"), and those count too. It takes about 0.6 s per clip
+on an Intel i5, and in testing noise, a fan, music and "Hey Jarvis" never woke it.
 
-1. Open openWakeWord's automatic training notebook (linked from its README, "Training New Models") in Google Colab.
-2. Set the target phrase to `hey gnosis`. Add a couple of spellings that sound the same, such as `hey nosis`, to help it generalise.
-3. Run all cells. Training can take an hour or more on a free Colab GPU and produces `hey_gnosis.onnx`.
-4. Copy the file to `%USERPROFILE%\.gnosis\models\hey_gnosis.onnx` and set it in `config/gnosis.yaml`:
+You can say the request in the same breath: "Hey Gnosis, what time is it?" is answered straight away.
+Or say "Hey Gnosis", wait for the chime, then speak.
 
-   ```yaml
-   voice:
-     wake_model: ~/.gnosis/models/hey_gnosis.onnx
-   ```
+## Settings (`config/gnosis.yaml`, under `voice:`)
 
-5. Restart with `python -m gnosis serve --voice`.
+- `wake_stt_model: tiny.en` is the Whisper model that listens for the phrase. `base.en` is more
+  accurate in a noisy room but uses more CPU.
+- `wake_model: null` keeps the phrase detector. Set it to an openWakeWord `.onnx` file to use a
+  trained model instead (below).
 
-## Tuning
+## Optional: a trained openWakeWord model
 
-- If it wakes up by accident, raise `voice.wake_threshold` (for example 0.6 or 0.7).
-- If it misses you, lower it (for example 0.4).
-- Test in the room where you'll record the demo, with the fan or AC on.
+A trained model uses less CPU than transcribing, which helps if Gnosis listens all day on battery.
+
+1. Open openWakeWord's automatic training notebook (linked from its README, "Training New Models")
+   in Google Colab.
+2. Set the target phrase to `hey gnosis`, plus a spelling that sounds the same such as `hey nosis`.
+3. Run all cells. Training takes an hour or more on a free Colab GPU and produces `hey_gnosis.onnx`.
+4. Copy it to `%USERPROFILE%\.gnosis\models\hey_gnosis.onnx` and set
+   `wake_model: ~/.gnosis/models/hey_gnosis.onnx`.
+5. Restart with `python -m gnosis serve --voice`. With a model, `wake_threshold` tunes it: raise it
+   (0.6–0.7) if it wakes by accident, lower it (0.4) if it misses you.

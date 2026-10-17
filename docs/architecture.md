@@ -77,7 +77,7 @@ A single `LLMClient` wraps all calls and adds retries, streaming, token and cost
 | Piece | Default | Alternatives | Notes |
 |---|---|---|---|
 | Audio I/O | `sounddevice` | PyAudio | Clean WASAPI support on Windows |
-| Wake word | **openWakeWord** with a custom "Hey Gnosis" model trained on synthetic speech (its standard training notebook); the bundled "hey jarvis" model is the fallback | Porcupine | Local, free, and works on CPU |
+| Wake word | "Hey Gnosis", heard by a tiny on-device Whisper model (no training needed); a custom **openWakeWord** model can replace it to save CPU | Porcupine | Local, free, and works on CPU |
 | VAD | Silero VAD | webrtcvad | Detects end of speech |
 | Speech-to-text | **faster-whisper** `base.en` / `small.en` on CPU (int8), since the laptop has no NVIDIA GPU | Whisper via OpenVINO on Iris | Local, so the voice never leaves the laptop |
 | Text-to-speech | **Piper** (a calm British male voice) | Kokoro-82M | Local and quick on CPU |
@@ -416,5 +416,5 @@ gnosis/
 1. **Assistant voice:** a calm British male Piper voice.
 2. **Deploy target:** Vercel.
 3. **Remote phone access:** Tailscale.
-4. **Wake word:** "Hey Gnosis" (custom-trained), with "Hey Jarvis" as the fallback.
+4. **Wake word:** "Hey Gnosis", heard by tiny Whisper on the laptop; a trained openWakeWord model is optional.
 5. **Hosted demo:** a Nebius VM with desktop skills off.
