@@ -4,8 +4,9 @@
 #
 # Start llama.cpp first (Vulkan build on Intel Iris). --jinja turns on tool calling:
 #   llama-server -m nvidia_Llama-3.1-Nemotron-Nano-4B-v1.1-Q4_K_M.gguf --port 8081 --jinja -c 8192
-# If the model's own chat template fails to load, add llama.cpp's Llama 3.1 tool template:
-#   --chat-template-file models/templates/meta-llama-Llama-3.1-8B-Instruct.jinja
+# The model's built-in chat template is broken (its tool calls are never closed with "}", and it drops
+# every system message after the first), so llama.cpp can't load it. Use the corrected copy in this repo:
+#   --chat-template-file config/templates/nemotron-nano-4b-v1.1.jinja
 #
 # Expect slow replies (tens of seconds on Iris Xe) and less reliable tool calls than Nemotron Super.
 # Screenshot tools need a vision model, so they won't work in this mode.
@@ -29,10 +30,10 @@ everyday_tools: &everyday_tools
    set_reminder, list_reminders]
 
 roles:
-  planner: { provider: local, model: nemotron-nano-local, system_prefix: "detailed thinking off", tools: *everyday_tools }
-  fast:    { provider: local, model: nemotron-nano-local, system_prefix: "detailed thinking off", tools: *everyday_tools }
+  planner: { provider: local, model: nemotron-nano-local, system_prefix: "detailed thinking off", temperature: 0, tools: *everyday_tools }
+  fast:    { provider: local, model: nemotron-nano-local, system_prefix: "detailed thinking off", temperature: 0, tools: *everyday_tools }
   vision:  { provider: local, model: nemotron-nano-local }
-  local:   { provider: local, model: nemotron-nano-local, system_prefix: "detailed thinking off", tools: *everyday_tools }
+  local:   { provider: local, model: nemotron-nano-local, system_prefix: "detailed thinking off", temperature: 0, tools: *everyday_tools }
   embed:   { provider: local_embed, model: nomic-embed-text }
 
 routing:

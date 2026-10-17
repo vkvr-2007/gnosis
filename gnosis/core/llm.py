@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 import json
 import re
 import secrets
@@ -77,7 +78,21 @@ def parse_text_tool_call(text: str | None, names: set[str]) -> tuple[str, dict[s
                 except ValueError:
                     args = {}
             return obj["name"], args if isinstance(args, dict) else {}
-    return None
+    return _parse_call_style(text, names)
+
+
+def _parse_call_style(text: str, names: set[str]) -> tuple[str, dict[str, Any]] | None:
+    """A reply that is only a Python-style call, e.g. get_time() or open_app(name="Notepad").
+    Only keyword arguments with literal values are read; nothing is ever run."""
+    m = re.fullmatch(r"\s*`*\s*(?:python\s+)?([A-Za-z_]\w*)\((.*)\)\s*`*\s*", text, re.S)
+    if not m or m.group(1) not in names:
+        return None
+    try:
+        call = ast.parse(f"f({m.group(2)})", mode="eval").body
+        args = {kw.arg: ast.literal_eval(kw.value) for kw in call.keywords if kw.arg}
+    except (SyntaxError, ValueError):
+        return None
+    return m.group(1), args
 
 
 def _as_tool_message(name: str, args: dict[str, Any]) -> Any:
@@ -181,6 +196,8 @@ class LLMClient:
         tools = _for_route(tools, route)
         started = time.monotonic()
         params: dict[str, Any] = {"model": route.model, "messages": messages, **kwargs}
+        if route.temperature is not None:
+            params.setdefault("temperature", route.temperature)
         if tools:
             params["tools"] = tools
         resp = await self._client(route).chat.completions.create(**params)

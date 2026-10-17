@@ -139,6 +139,18 @@ def test_a_role_can_limit_which_tools_its_model_sees():
     tools = [{"type": "function", "function": {"name": n, "parameters": {}}} for n in ("get_time", "deploy")]
     asyncio.run(client.chat("planner", [{"role": "user", "content": "hi"}], tools=tools))
     assert seen == [{"get_time"}]
+    assert client.router.choose("planner").temperature == 0
     # Without a list, the model gets every tool.
     assert ModelRouter({"roles": {"local": {"provider": "p", "model": "m"}}, "providers": {
         "p": {"base_url": "http://x", "on_device": True}}}).choose("local").tools is None
+
+
+def test_python_style_tool_calls_are_read_but_never_run():
+    from gnosis.core.llm import parse_text_tool_call
+
+    names = {"get_time", "open_app"}
+    assert parse_text_tool_call("get_time()", names) == ("get_time", {})
+    assert parse_text_tool_call('`open_app(name="Notepad")`', names) == ("open_app", {"name": "Notepad"})
+    assert parse_text_tool_call("open_app(name=__import__('os').getcwd())", names) is None
+    assert parse_text_tool_call("Call get_time() to find out.", names) is None
+    assert parse_text_tool_call("deploy()", names) is None

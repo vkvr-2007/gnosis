@@ -21,6 +21,7 @@ class Route:
     # Only these tools are offered to this model (None = all). A small local model reads every tool
     # description on every call, so fewer tools means faster and more reliable answers.
     tools: frozenset[str] | None = None
+    temperature: float | None = None  # None = the server's default; small local models need 0
 
 
 class ModelRouter:
@@ -52,6 +53,7 @@ class ModelRouter:
             timeout_s=float(provider.get("timeout_s", 300 if on_device else 60)),
             system_prefix=spec.get("system_prefix"),
             tools=frozenset(spec["tools"]) if spec.get("tools") else None,
+            temperature=float(spec["temperature"]) if spec.get("temperature") is not None else None,
         )
 
     def choose(self, role: str, tags: Iterable[str] = (), online: bool = True) -> Route:
