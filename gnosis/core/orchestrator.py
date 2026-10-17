@@ -149,8 +149,10 @@ class Orchestrator:
         if decision.action == ALLOW and tool.escalate:
             try:
                 risk = tool.escalate(args)
-            except Exception:
-                risk = None
+                if inspect.isawaitable(risk):
+                    risk = await risk
+            except Exception as e:
+                risk = f"I couldn't check whether this is safe ({type(e).__name__})"
             if risk:
                 decision = Decision(ASK, risk)
         elif decision.action == ASK and decision.once:

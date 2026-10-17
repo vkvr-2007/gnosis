@@ -77,7 +77,10 @@ class Element:
     def line(self) -> str:
         label = self.type.removesuffix("Control")
         text = f"[{self.id}] {label} '{self.name}'" if self.name else f"[{self.id}] {label}"
-        if self.value and self.value != self.name:
+        if self.type == "DocumentControl" and self.value:
+            # A document's contents can be long and personal; read_screen reads them on request.
+            text += f" ({len(self.value)} characters of text)"
+        elif self.value and self.value != self.name:
             text += f" = '{self.value[:60]}'"
         return text
 
@@ -214,6 +217,19 @@ class Desktop:
                 self.auto.SendKeys("{Ctrl}a{Delete}")
         self.auto.SendKeys(escape_text(text), interval=0.005)
         return f"Typed {len(text)} characters"
+
+    def typing_target(self, element_id: int | None = None) -> dict:
+        """What type_text would type into: the control type and how much text it already holds."""
+        control = self.element(element_id).control if element_id is not None else self.auto.GetFocusedControl()
+        chars = None
+        try:
+            chars = len(control.GetValuePattern().Value or "")
+        except Exception:
+            try:
+                chars = len(control.GetTextPattern().DocumentRange.GetText(-1) or "")
+            except Exception:
+                pass
+        return {"window": self.foreground()["title"], "type": control.ControlTypeName, "chars": chars}
 
     def press(self, combo: str) -> str:
         self.auto.SendKeys(combo_to_sendkeys(combo))

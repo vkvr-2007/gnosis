@@ -10,3 +10,4 @@ user_skills/
 node_modules/
 dist/
 *.egg-info/
+local-models/

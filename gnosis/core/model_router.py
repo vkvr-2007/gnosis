@@ -16,6 +16,8 @@ class Route:
     api_key: str | None
     is_local: bool
     reason: str
+    timeout_s: float = 60.0
+    system_prefix: str | None = None  # e.g. "detailed thinking off" for Nemotron Nano
 
 
 class ModelRouter:
@@ -34,14 +36,18 @@ class ModelRouter:
         spec = self.roles[role]
         provider = self.providers[spec["provider"]]
         key_env = provider.get("api_key_env")
+        on_device = bool(provider.get("on_device", False))
         return Route(
             role=role,
             provider=spec["provider"],
             model=spec["model"],
             base_url=provider["base_url"],
             api_key=os.environ.get(key_env) if key_env else None,
-            is_local=bool(provider.get("on_device", False)),
+            is_local=on_device,
             reason=reason,
+            # A small model on a laptop GPU can take minutes to read Gnosis's prompt and tools.
+            timeout_s=float(provider.get("timeout_s", 300 if on_device else 60)),
+            system_prefix=spec.get("system_prefix"),
         )
 
     def choose(self, role: str, tags: Iterable[str] = (), online: bool = True) -> Route:

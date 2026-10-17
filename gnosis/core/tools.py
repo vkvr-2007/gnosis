@@ -20,8 +20,8 @@ class Tool:
     # For "ask_once" tools: what an approval covers, e.g. the app a screenshot would show.
     approval_scope: Callable[[dict[str, Any]], str | Awaitable[str]] | None = None
     # Lets an allowed call ask anyway when this particular use is risky (e.g. clicking "Send").
-    # Returns the reason to ask, or None.
-    escalate: Callable[[dict[str, Any]], str | None] | None = None
+    # Returns the reason to ask, or None. May be async.
+    escalate: Callable[[dict[str, Any]], str | None | Awaitable[str | None]] | None = None
 
     def schema(self) -> dict[str, Any]:
         return {

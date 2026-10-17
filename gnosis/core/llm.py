@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import time
 from dataclasses import dataclass
 from typing import Any, Awaitable, Callable, Iterable
@@ -15,6 +16,43 @@ from gnosis.core.redact import redact
 CallListener = Callable[[dict[str, Any]], Awaitable[None]]
 
 _OFFLINE_RETRY_S = 60.0
+_THINK = re.compile(r"<think>.*?(</think>|$)", re.S)
+
+
+class ModelError(RuntimeError):
+    """A model call failed in a way worth telling the owner about in plain words."""
+
+
+def strip_thinking(text: str | None) -> str | None:
+    """Removes the <think>...</think> reasoning some Nemotron models write before their answer.
+
+    An unclosed <think> (the reply was cut off mid-thought) is removed to the end.
+    """
+    if not text or "<think>" not in text:
+        return text
+    return _THINK.sub("", text).strip()
+
+
+def _with_prefix(messages: list[dict[str, Any]], prefix: str | None) -> list[dict[str, Any]]:
+    if not prefix:
+        return messages
+    if messages and messages[0].get("role") == "system":
+        return [{**messages[0], "content": f"{prefix}\n\n{messages[0]['content']}"}, *messages[1:]]
+    return [{"role": "system", "content": prefix}, *messages]
+
+
+def _describe(e: Exception, route: Route) -> str:
+    where = f"the local model at {route.base_url}" if route.is_local else f"{route.provider} ({route.model})"
+    if isinstance(e, openai.APITimeoutError):
+        return f"{where} didn't answer within {route.timeout_s:.0f} s"
+    if isinstance(e, openai.APIConnectionError):
+        return f"couldn't connect to {where}; is it running?"
+    if isinstance(e, openai.AuthenticationError):
+        return f"{where} rejected the API key"
+    if isinstance(e, openai.APIStatusError):
+        detail = str(getattr(e, "message", e))[:300]
+        return f"{where} returned an error ({e.status_code}): {detail}"
+    return f"{where} failed: {type(e).__name__}: {e}"
 
 
 @dataclass
@@ -55,8 +93,9 @@ class LLMClient:
             self._clients[route.provider] = AsyncOpenAI(
                 base_url=route.base_url,
                 api_key=route.api_key or "not-needed",
-                timeout=60.0,
-                max_retries=1,
+                timeout=route.timeout_s,
+                # A retry against a busy local server overlaps the request it's still working on.
+                max_retries=0 if route.is_local else 1,
             )
         return self._clients[route.provider]
 
@@ -64,13 +103,16 @@ class LLMClient:
         redactions = 0
         if not route.is_local:
             messages, redactions = _redact_messages(messages)
+        messages = _with_prefix(messages, route.system_prefix)
         started = time.monotonic()
         params: dict[str, Any] = {"model": route.model, "messages": messages, **kwargs}
         if tools:
             params["tools"] = tools
         resp = await self._client(route).chat.completions.create(**params)
         latency = int((time.monotonic() - started) * 1000)
-        result = LLMResult(resp.choices[0].message, route, redactions, latency)
+        message = resp.choices[0].message
+        message.content = strip_thinking(message.content)
+        result = LLMResult(message, route, redactions, latency)
         if self.listener:
             await self.listener({
                 "role": route.role,
@@ -93,13 +135,23 @@ class LLMClient:
     ) -> LLMResult:
         route = self.router.choose(role, tags, online=self.online)
         try:
-            return await self._call(route, messages, tools, **kwargs)
-        except (openai.APIConnectionError, openai.APITimeoutError):
+            try:
+                return await self._call(route, messages, tools, **kwargs)
+            except openai.InternalServerError:
+                # Often a one-off, e.g. a small model writing a tool call the server can't parse.
+                return await self._call(route, messages, tools, **kwargs)
+        except (openai.APIConnectionError, openai.APITimeoutError, openai.InternalServerError) as e:
             fallback = self.router.fallback(route)
             if fallback is None:
-                raise
-            self._offline_until = time.monotonic() + _OFFLINE_RETRY_S
-            return await self._call(fallback, messages, tools, **kwargs)
+                raise ModelError(_describe(e, route)) from e
+            if not isinstance(e, openai.InternalServerError):
+                self._offline_until = time.monotonic() + _OFFLINE_RETRY_S
+            try:
+                return await self._call(fallback, messages, tools, **kwargs)
+            except openai.APIError as e2:
+                raise ModelError(f"{_describe(e, route)}, and then {_describe(e2, fallback)}") from e2
+        except openai.APIError as e:
+            raise ModelError(_describe(e, route)) from e
 
     async def embed(self, texts: list[str]) -> list[list[float]] | None:
         """Embeds text with the on-device embedding model, or returns None if there isn't one running.

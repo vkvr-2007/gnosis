@@ -97,11 +97,15 @@ def register_desktop_tools(registry: ToolRegistry, llm: Any, runner: DesktopRunn
                 return {"opened_website": url, "note": f"{name} isn't installed, so I opened the website"}
             return {"error": f"I couldn't find an app called '{name}'",
                     "closest": [e.name for e, _ in index.find(name, 3)]}
+        before = {w["handle"] for w in await runner.run(lambda d: d.windows())}
         apps.launch(entry)
         window = await runner.run(lambda d: _wait_for_window(d, entry.name, 12))
         if window:
             await runner.run(lambda d: d.focus_window(window["handle"]))
-            return {"opened": entry.name, "window": window["title"]}
+            out = {"opened": entry.name, "window": window["title"]}
+            if window["handle"] in before:
+                out["note"] = "It was already open, so this window may hold the owner's work"
+            return out
         return {"opened": entry.name, "note": "Started it, but its window hasn't appeared yet (games can take a while)"}
 
     @registry.tool("close_app", "Close an app's windows gracefully (it may ask to save).",
@@ -151,6 +155,14 @@ def register_desktop_tools(registry: ToolRegistry, llm: Any, runner: DesktopRunn
     async def click(element_id: int, double: bool = False) -> str:
         return await runner.run(lambda d: d.click(int(element_id), double))
 
+    async def risky_type(args: dict) -> str | None:
+        """Typing into a document that already has text could change the owner's work."""
+        t = await runner.run(lambda d: d.typing_target(args.get("element_id")))
+        chars = t["chars"]
+        has_work = ((t["type"] == "DocumentControl" and chars != 0)  # None: couldn't tell, so ask
+                    or (t["type"] == "EditControl" and chars is not None and chars > 100))
+        return f"this types into '{t['window']}', which already has your text in it" if has_work else None
+
     @registry.tool("type_text",
                    "Type text into the front window, or into a field from look_at_window. "
                    "Set replace=true to clear the field first.",
@@ -158,7 +170,8 @@ def register_desktop_tools(registry: ToolRegistry, llm: Any, runner: DesktopRunn
                        "text": {"type": "string"},
                        "element_id": {"type": "integer"},
                        "replace": {"type": "boolean"}},
-                    "required": ["text"]})
+                    "required": ["text"]},
+                   escalate=risky_type)
     async def type_text(text: str, element_id: int | None = None, replace: bool = False) -> str:
         return await runner.run(lambda d: d.type_text(text, element_id, replace))
 

@@ -1,0 +1,33 @@
+# Runs every role on the local model: for testing without a Nebius key, or fully offline.
+# Use it by adding this line to config/gnosis.yaml:
+#   models_file: config/models.offline.yaml
+#
+# Start llama.cpp first (Vulkan build on Intel Iris). --jinja turns on tool calling:
+#   llama-server -m nvidia_Llama-3.1-Nemotron-Nano-4B-v1.1-Q4_K_M.gguf --port 8081 --jinja -c 8192
+# If the model's own chat template fails to load, add llama.cpp's Llama 3.1 tool template:
+#   --chat-template-file models/templates/meta-llama-Llama-3.1-8B-Instruct.jinja
+#
+# Expect slow replies (tens of seconds on Iris Xe) and less reliable tool calls than Nemotron Super.
+# Screenshot tools need a vision model, so they won't work in this mode.
+
+providers:
+  local:
+    base_url: http://127.0.0.1:8081/v1/
+    api_key_env: null
+    on_device: true
+    timeout_s: 300
+  local_embed:
+    base_url: http://127.0.0.1:8082/v1/
+    api_key_env: null
+    on_device: true
+
+roles:
+  planner: { provider: local, model: nemotron-nano-local, system_prefix: "detailed thinking off" }
+  fast:    { provider: local, model: nemotron-nano-local, system_prefix: "detailed thinking off" }
+  vision:  { provider: local, model: nemotron-nano-local }
+  local:   { provider: local, model: nemotron-nano-local, system_prefix: "detailed thinking off" }
+  embed:   { provider: local_embed, model: nomic-embed-text }
+
+routing:
+  private_tags: [private, personal_memory, screen_text, voice_id, local_files]
+  offline_fallback: []

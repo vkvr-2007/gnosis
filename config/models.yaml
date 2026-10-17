@@ -8,11 +8,12 @@ providers:
     base_url: https://api.tokenfactory.nebius.com/v1/
     api_key_env: NEBIUS_API_KEY
   local:
-    # llama.cpp server (Vulkan build on Intel Iris), started with:
-    #   llama-server -m nemotron-nano-q4.gguf --port 8081
+    # llama.cpp server (Vulkan build on Intel Iris), started with --jinja so tool calling works:
+    #   llama-server -m nemotron-nano-q4.gguf --port 8081 --jinja -c 8192
     base_url: http://127.0.0.1:8081/v1/
     api_key_env: null
     on_device: true
+    timeout_s: 300  # Reading Gnosis's prompt and tools takes a while on a laptop GPU
   local_embed:
     base_url: http://127.0.0.1:8082/v1/
     api_key_env: null
@@ -22,7 +23,8 @@ roles:
   planner:   { provider: nebius, model: nvidia/nemotron-3-super }   # Long plans, tool calling
   fast:      { provider: nebius, model: nvidia/nemotron-3-nano }    # Routing, short replies
   vision:    { provider: nebius, model: nvidia/nemotron-nano-vl }   # Screenshots and images
-  local:     { provider: local,  model: nemotron-nano-local }       # Private and offline work
+  local:     { provider: local,  model: nemotron-nano-local,        # Private and offline work
+               system_prefix: "detailed thinking off" }             # Nemotron Nano: answer without long reasoning
   # Memory search embeddings, on-device only. Start a second llama.cpp server with an embedding model:
   #   llama-server -m nomic-embed-text-v1.5.Q8_0.gguf --embeddings --port 8082
   # Without it, memory search uses keyword search alone.

@@ -97,6 +97,7 @@ class FakeDesktop:
         self.closed, self.focused, self.clicked = [], [], []
         self.last = [Element(1, "ButtonControl", "Send", "", (0, 0, 10, 10)),
                      Element(2, "ButtonControl", "Attach", "", (0, 0, 10, 10))]
+        self.target = {"window": "Gmail", "type": "EditControl", "chars": 0}
 
     def windows(self):
         return self.open
@@ -120,6 +121,9 @@ class FakeDesktop:
         self.clicked.append(element_id)
         return f"Clicked [{element_id}]"
 
+    def typing_target(self, element_id=None):
+        return self.target
+
 
 @pytest.fixture
 def desk(monkeypatch):
@@ -134,7 +138,9 @@ def desk(monkeypatch):
 
 
 def test_open_close_and_web_fallback(desk):
-    assert desk.run("open_app", name="spotify") == {"opened": "Spotify", "window": "Spotify Premium"}
+    opened = desk.run("open_app", name="spotify")
+    assert opened["opened"] == "Spotify" and opened["window"] == "Spotify Premium"
+    assert "already open" in opened["note"]  # Its window existed before the launch
     assert desk.launched == ["Spotify"] and desk.fake.focused == [11]
     assert desk.run("open_app", name="whatsapp")["opened_website"] == "https://web.whatsapp.com"
     assert "closest" in desk.run("open_app", name="photoshop")
@@ -147,6 +153,22 @@ def test_risky_click_escalates(desk):
     click = desk.reg.get("click")
     assert "Send" in click.escalate({"element_id": 1})
     assert click.escalate({"element_id": 2}) is None
+
+
+def test_typing_into_existing_work_escalates(desk):
+    typing = desk.reg.get("type_text").escalate
+    assert asyncio.run(typing({"text": "hi"})) is None  # An empty field
+    desk.fake.target = {"window": "Color Flow Date.ini - Notepad", "type": "DocumentControl", "chars": 512}
+    assert "Color Flow Date.ini" in asyncio.run(typing({"text": "hi"}))
+    desk.fake.target = {"window": "Untitled - Notepad", "type": "DocumentControl", "chars": 0}
+    assert asyncio.run(typing({"text": "hi"})) is None  # A new blank document
+    desk.fake.target = {"window": "Word", "type": "DocumentControl", "chars": None}
+    assert asyncio.run(typing({"text": "hi"}))  # Can't tell, so ask
+
+
+def test_document_contents_stay_out_of_window_listing():
+    doc = Element(1, "DocumentControl", "Text editor", "anon_key=eyJhbGciOiJIUzI1NiIsInR5cCI6", (0, 0, 9, 9))
+    assert doc.line() == "[1] Document 'Text editor' (37 characters of text)"
 
 
 def test_click_on_send_waits_for_approval(settings, monkeypatch):

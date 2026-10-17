@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 
 from gnosis.app import Gnosis
 from gnosis.config import REPO_ROOT
+from gnosis.core.llm import ModelError
 
 DASHBOARD_DIR = REPO_ROOT / "web" / "dashboard"
 
@@ -51,9 +52,12 @@ def create_app(g: Gnosis) -> FastAPI:
         tags = {"private"} if req.private else set()
         try:
             answer = await g.orchestrator.handle(req.text, req.session_id, tags)
+        except ModelError as e:
+            g.audit.write("error", where="chat", error=str(e))
+            raise HTTPException(502, f"Model error: {e}")
         except Exception as e:
             g.audit.write("error", where="chat", error=f"{type(e).__name__}: {e}")
-            raise HTTPException(502, f"Gnosis couldn't reach a model: {type(e).__name__}: {e}")
+            raise HTTPException(500, f"Gnosis hit an error: {type(e).__name__}: {e}")
         return {"answer": answer}
 
     @app.post("/api/stop")
