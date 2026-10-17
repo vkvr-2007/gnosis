@@ -81,3 +81,43 @@ def test_thinking_is_stripped_and_prefix_added():
     assert strip_thinking("The user wants the time.\n</think>\n\nIt's 11:03.") == "It's 11:03."
     out = _with_prefix([{"role": "system", "content": "You are Gnosis."}], "detailed thinking off")
     assert out[0]["content"].startswith("detailed thinking off\n\nYou are Gnosis.") and len(out) == 1
+
+
+def test_small_model_tool_calls_written_as_text_still_work(settings):
+    from types import SimpleNamespace
+
+    from gnosis.core.llm import parse_text_tool_call
+
+    assert parse_text_tool_call('<x> {"name": "get_time", "parameters": {}}', {"get_time"}) == ("get_time", {})
+    assert parse_text_tool_call('{"name": "open_app", "arguments": "{\\"name\\": \\"notepad\\"}"}',
+                                {"open_app"}) == ("open_app", {"name": "notepad"})
+    assert parse_text_tool_call('{"name": "rm_rf", "parameters": {}}', {"get_time"}) is None
+    assert parse_text_tool_call("It's 11:03.", {"get_time"}) is None
+
+    client = LLMClient(ModelRouter(settings.models))
+    sent = []
+
+    async def create(**params):
+        sent.append(params)
+        if "tools" in params:
+            raise openai.InternalServerError(
+                "The model produced output that does not match the expected peg-native format",
+                response=httpx.Response(500, request=httpx.Request("POST", "http://127.0.0.1:8081/v1/")), body=None)
+        msg = SimpleNamespace(content='<think>time tool</think>\n{"name": "get_time", "parameters": {}}',
+                              tool_calls=None)
+        return SimpleNamespace(choices=[SimpleNamespace(message=msg)], usage=None)
+
+    client._client = lambda route: SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+    tools = [{"type": "function", "function": {"name": "get_time", "description": "The time",
+                                               "parameters": {"type": "object", "properties": {}}}}]
+    history = [{"role": "system", "content": "You are Gnosis."}, {"role": "user", "content": "what time is it?"},
+               {"role": "assistant", "content": "", "tool_calls": [
+                   {"id": "a", "type": "function", "function": {"name": "get_time", "arguments": "{}"}}]},
+               {"role": "tool", "tool_call_id": "a", "content": "10:00"}]
+    result = asyncio.run(client.chat("local", history, tools=tools))
+    call = result.message.tool_calls[0]
+    assert call.function.name == "get_time" and call.function.arguments == "{}"
+    retry = sent[-1]["messages"]
+    assert "tools" not in sent[-1] and "- get_time(): The time" in retry[0]["content"]
+    assert retry[2] == {"role": "assistant", "content": "(called get_time({}))"}
+    assert retry[3] == {"role": "user", "content": "Tool result: 10:00"}

@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import json
 import re
+import secrets
 import time
 from dataclasses import dataclass
+from types import SimpleNamespace
 from typing import Any, Awaitable, Callable, Iterable
 
 import openai
@@ -42,6 +45,64 @@ def _with_prefix(messages: list[dict[str, Any]], prefix: str | None) -> list[dic
     if messages and messages[0].get("role") == "system":
         return [{**messages[0], "content": f"{prefix}\n\n{messages[0]['content']}"}, *messages[1:]]
     return [{"role": "system", "content": prefix}, *messages]
+
+
+def _is_parse_error(e: Exception) -> bool:
+    text = str(getattr(e, "message", e)).lower()
+    return any(w in text for w in ("pars", "format", "grammar"))
+
+
+def parse_text_tool_call(text: str | None, names: set[str]) -> tuple[str, dict[str, Any]] | None:
+    """Finds a tool call a small model wrote as plain JSON, e.g. {"name": "get_time", "parameters": {}}."""
+    if not text:
+        return None
+    decoder = json.JSONDecoder()
+    for m in re.finditer(r"\{", text):
+        try:
+            obj, _ = decoder.raw_decode(text, m.start())
+        except ValueError:
+            continue
+        if isinstance(obj, dict) and obj.get("name") in names:
+            args = obj.get("parameters", obj.get("arguments", {}))
+            if isinstance(args, str):
+                try:
+                    args = json.loads(args)
+                except ValueError:
+                    args = {}
+            return obj["name"], args if isinstance(args, dict) else {}
+    return None
+
+
+def _as_tool_message(name: str, args: dict[str, Any]) -> Any:
+    call = SimpleNamespace(id="call_" + secrets.token_hex(4), type="function",
+                           function=SimpleNamespace(name=name, arguments=json.dumps(args)))
+    return SimpleNamespace(content="", tool_calls=[call])
+
+
+def _tools_as_text(messages: list[dict[str, Any]], tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The conversation for a model that couldn't use the tools API: the tools are described in words,
+    and earlier tool calls and results become plain text."""
+    lines = []
+    for t in tools:
+        f = t.get("function", t)
+        props = f.get("parameters", {}).get("properties", {})
+        lines.append(f"- {f['name']}({', '.join(props)}): {f.get('description', '')}")
+    note = ("To use a tool, reply with only one JSON object and nothing else, like "
+            '{"name": "get_time", "parameters": {}}. Otherwise reply normally.\nTools:\n' + "\n".join(lines))
+    out: list[dict[str, Any]] = []
+    for m in messages:
+        if m.get("role") == "assistant" and m.get("tool_calls"):
+            calls = "; ".join(f"{c['function']['name']}({c['function']['arguments']})" for c in m["tool_calls"])
+            out.append({"role": "assistant", "content": f"(called {calls})"})
+        elif m.get("role") == "tool":
+            out.append({"role": "user", "content": f"Tool result: {m.get('content', '')}"})
+        else:
+            out.append(m)
+    if out and out[0].get("role") == "system":
+        out[0] = {**out[0], "content": f"{out[0]['content']}\n\n{note}"}
+    else:
+        out.insert(0, {"role": "system", "content": note})
+    return out
 
 
 def _describe(e: Exception, route: Route) -> str:
@@ -104,7 +165,8 @@ class LLMClient:
             )
         return self._clients[route.provider]
 
-    async def _call(self, route: Route, messages, tools, **kwargs) -> LLMResult:
+    async def _call(self, route: Route, messages, tools, _tool_names: set[str] | None = None,
+                    **kwargs) -> LLMResult:
         redactions = 0
         if not route.is_local:
             messages, redactions = _redact_messages(messages)
@@ -117,6 +179,12 @@ class LLMClient:
         latency = int((time.monotonic() - started) * 1000)
         message = resp.choices[0].message
         message.content = strip_thinking(message.content)
+        names = _tool_names or ({t.get("function", t)["name"] for t in tools} if tools else set())
+        if names and route.is_local and not message.tool_calls:
+            # Small local models sometimes write the tool call as text instead of using the API.
+            found = parse_text_tool_call(message.content, names)
+            if found:
+                message = _as_tool_message(*found)
         result = LLMResult(message, route, redactions, latency)
         if self.listener:
             await self.listener({
@@ -142,8 +210,13 @@ class LLMClient:
         try:
             try:
                 return await self._call(route, messages, tools, **kwargs)
-            except openai.InternalServerError:
-                # Often a one-off, e.g. a small model writing a tool call the server can't parse.
+            except openai.InternalServerError as e:
+                if tools and route.is_local and _is_parse_error(e):
+                    # The model wrote a tool call llama.cpp couldn't parse. Ask again with the tools
+                    # described in words, and read the tool call from its text.
+                    return await self._call(route, _tools_as_text(messages, tools), None,
+                                            _tool_names={t.get("function", t)["name"] for t in tools}, **kwargs)
+                # Often a one-off.
                 return await self._call(route, messages, tools, **kwargs)
         except (openai.APIConnectionError, openai.APITimeoutError, openai.InternalServerError) as e:
             fallback = self.router.fallback(route)
