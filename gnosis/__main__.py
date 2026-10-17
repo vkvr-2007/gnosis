@@ -4,7 +4,7 @@
     python -m gnosis serve --voice   ...and listen for "Hey Gnosis" on the microphone
     python -m gnosis chat            Talk to Gnosis in the terminal
     python -m gnosis enroll          Teach Gnosis your voice (voice ID)
-    python -m gnosis models          List the Nemotron models your Nebius key can use
+    python -m gnosis models          List the Nemotron models your Nebius (or NVIDIA) key can use
     python -m gnosis phone pair ...  Pair your Android phone (then `phone connect`)
     python -m gnosis invite          Print a one-time link (and QR code) that lets a browser use Gnosis
 """
@@ -127,11 +127,15 @@ def _models(args: argparse.Namespace) -> None:
 
     from gnosis.config import load_settings
 
-    nebius = load_settings(args.config).models["providers"]["nebius"]
-    key = os.environ.get(nebius["api_key_env"])
+    providers = load_settings(args.config).models["providers"]
+    name, cloud = next(((n, p) for n, p in providers.items() if p.get("api_key_env") and not p.get("on_device")),
+                       (None, None))
+    if cloud is None:
+        sys.exit("This models file has no cloud provider (it's the offline one).")
+    key = os.environ.get(cloud["api_key_env"])
     if not key:
-        sys.exit(f"Set {nebius['api_key_env']} to your Nebius Token Factory API key first.")
-    client = OpenAI(base_url=nebius["base_url"], api_key=key)
+        sys.exit(f"Set {cloud['api_key_env']} to your {name} API key first.")
+    client = OpenAI(base_url=cloud["base_url"], api_key=key)
     ids = sorted(m.id for m in client.models.list())
     nemotron = [i for i in ids if "nemotron" in i.lower()]
     print("Nemotron models available to you:")

@@ -154,3 +154,14 @@ def test_python_style_tool_calls_are_read_but_never_run():
     assert parse_text_tool_call("open_app(name=__import__('os').getcwd())", names) is None
     assert parse_text_tool_call("Call get_time() to find out.", names) is None
     assert parse_text_tool_call("deploy()", names) is None
+
+
+def test_every_models_file_loads():
+    import yaml
+
+    from gnosis.config import REPO_ROOT
+
+    for name, cloud in [("models.yaml", "nebius"), ("models.nvidia.yaml", "nvidia"), ("models.offline.yaml", None)]:
+        router = ModelRouter(yaml.safe_load((REPO_ROOT / "config" / name).read_text()))
+        assert router.choose("planner").provider == (cloud or "local"), name
+        assert router.choose("planner", {"private"}).is_local, name

@@ -1,0 +1,30 @@
+# Nemotron through NVIDIA's free API (build.nvidia.com), for testing before the Nebius key arrives.
+# Use it with `models_file: config/models.nvidia.yaml` in config/gnosis.yaml, and set NVIDIA_API_KEY.
+# Model IDs change; run `python -m gnosis models` to list the ones your key can use.
+
+providers:
+  nvidia:
+    base_url: https://integrate.api.nvidia.com/v1/
+    api_key_env: NVIDIA_API_KEY
+  local:
+    base_url: http://127.0.0.1:8081/v1/
+    api_key_env: null
+    on_device: true
+    timeout_s: 300
+  local_embed:
+    base_url: http://127.0.0.1:8082/v1/
+    api_key_env: null
+    on_device: true
+
+roles:
+  planner:   { provider: nvidia, model: nvidia/llama-3.3-nemotron-super-49b-v1.5,
+               system_prefix: "/no_think" }                           # Answer without long reasoning
+  fast:      { provider: nvidia, model: nvidia/nvidia-nemotron-nano-9b-v2, system_prefix: "/no_think" }
+  vision:    { provider: nvidia, model: nvidia/nemotron-nano-12b-v2-vl }
+  local:     { provider: local,  model: nemotron-nano-local, system_prefix: "detailed thinking off",
+               temperature: 0 }
+  embed:     { provider: local_embed, model: nomic-embed-text }
+
+routing:
+  private_tags: [private, personal_memory, screen_text, voice_id, local_files, phone_data]
+  offline_fallback: [planner, fast]

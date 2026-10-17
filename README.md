@@ -128,6 +128,8 @@ llama-server -m nemotron-nano-q4.gguf --port 8081 --jinja -c 8192
 
 Without it, Gnosis still works and private requests fail with a clear message instead of going to the cloud.
 
+To test with a free NVIDIA API key from [build.nvidia.com](https://build.nvidia.com) instead, set `NVIDIA_API_KEY` and add `models_file: config/models.nvidia.yaml` to `config/gnosis.yaml`. It runs the same Nemotron models in NVIDIA's cloud.
+
 To try Gnosis with no Nebius key at all, add `models_file: config/models.offline.yaml` to `config/gnosis.yaml`. Every request then runs on the local model: slower, and screenshot tools won't work.
 
 For smarter memory search, also run a small embedding model (memory search falls back to keyword search without it):
