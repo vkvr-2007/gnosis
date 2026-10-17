@@ -35,6 +35,7 @@ class Settings:
     voice: dict[str, Any] = field(default_factory=dict)
     kill_switch: str = "ctrl+alt+j"
     proactive: dict[str, Any] = field(default_factory=dict)
+    phone: dict[str, Any] = field(default_factory=dict)
     desktop: bool = True  # Register desktop control tools (Windows only)
 
     @property
@@ -63,6 +64,7 @@ def load_settings(config_path: str | Path | None = None) -> Settings:
         voice=raw.get("voice") or {},
         kill_switch=str(raw.get("kill_switch", "ctrl+alt+j")),
         proactive=raw.get("proactive") or {},
+        phone=raw.get("phone") or {},
     )
     settings.data_dir.mkdir(parents=True, exist_ok=True)
     return settings

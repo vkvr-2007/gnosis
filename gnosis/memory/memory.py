@@ -161,7 +161,7 @@ class Memory:
 
     def graph(self) -> dict[str, list[dict[str, Any]]]:
         """Nodes and edges for the dashboard's memory map: the owner at the centre."""
-        facts = self.store.facts()
+        facts = [f for f in self.store.facts() if f.source != "phone"]  # Synced contacts would swamp the map
         subjects = {OWNER} | {f.subject for f in facts}
         by_lower = {s.lower(): s for s in subjects}
         nodes = [{"id": f"s:{s}", "label": "You" if s == OWNER else s, "kind": "subject"} for s in sorted(subjects)]

@@ -6,6 +6,9 @@ Every notice goes through the same decision:
   presenting, or Gnosis has already said a lot this hour (then it waits for the briefing);
 - high (e.g. a reminder you set): a notification, and spoken aloud when that won't interrupt;
 - urgent (e.g. battery about to die): always a notification and always spoken.
+
+Anything shown or spoken is also pushed to the paired phone when you're away from the laptop (or always,
+or never: `proactive.phone_push`).
 """
 
 from __future__ import annotations
@@ -23,7 +26,8 @@ from typing import Any, Awaitable, Callable
 LEVELS = ("low", "normal", "high", "urgent")
 
 # Delivery decisions
-QUEUE, TOAST, SPEAK = "queue", "toast", "speak"
+QUEUE, TOAST, SPEAK, PHONE = "queue", "toast", "speak", "phone"
+AWAY_AFTER_S = 300  # No keyboard or mouse input for this long counts as away from the laptop
 
 
 @dataclass
@@ -80,14 +84,30 @@ def user_is_busy() -> bool:
     return state.value in (2, 3, 4, 6)
 
 
+def idle_seconds() -> float:
+    """Seconds since the last keyboard or mouse input on Windows (0 elsewhere)."""
+    if sys.platform != "win32":
+        return 0.0
+    import ctypes
+
+    class LASTINPUTINFO(ctypes.Structure):
+        _fields_ = [("cbSize", ctypes.c_uint), ("dwTime", ctypes.c_uint)]
+
+    info = LASTINPUTINFO(ctypes.sizeof(LASTINPUTINFO), 0)
+    if not ctypes.windll.user32.GetLastInputInfo(ctypes.byref(info)):
+        return 0.0
+    return (ctypes.windll.kernel32.GetTickCount() - info.dwTime) / 1000.0
+
+
 Speak = Callable[[str], Awaitable[None]]
+Push = Callable[[str, str], Awaitable[int]]
 
 
 class Notifier:
     def __init__(self, events: Any, audit: Any, config: dict[str, Any] | None = None,
                  clock: Callable[[], float] = time.time,
                  toast: Callable[[str, str], None] | None = None,
-                 busy: Callable[[], bool] = user_is_busy):
+                 busy: Callable[[], bool] = user_is_busy, idle: Callable[[], float] = idle_seconds):
         cfg = config or {}
         self.events = events
         self.audit = audit
@@ -96,6 +116,9 @@ class Notifier:
         self.max_per_hour = int(cfg.get("max_per_hour", 4))
         self.toast = toast if toast is not None else (windows_toast if sys.platform == "win32" else None)
         self.busy = busy
+        self.idle = idle
+        self.phone_push = cfg.get("phone_push", "away")  # away | always | never
+        self.push: Push | None = None     # Set when the phone bridge is ready
         self.speakers: list[Speak] = []   # The voice loop adds itself here
         self.pending: list[Notice] = []   # Waiting for the next briefing
         self.dnd_until = 0.0
@@ -122,6 +145,16 @@ class Notifier:
             return []
         return [TOAST]
 
+    def _push_to_phone(self) -> bool:
+        if self.phone_push == "always":
+            return True
+        if self.phone_push != "away":
+            return False
+        try:
+            return self.idle() >= AWAY_AFTER_S
+        except Exception:
+            return False
+
     def _safe_busy(self) -> bool:
         try:
             return bool(self.busy())
@@ -139,6 +172,12 @@ class Notifier:
                 await asyncio.to_thread(self.toast, notice.title, notice.body)
             except Exception as e:
                 self.audit.write("error", where="toast", error=f"{type(e).__name__}: {e}")
+        if channels and self.push is not None and self._push_to_phone():
+            try:
+                if await self.push(notice.title, notice.body):
+                    channels = [*channels, PHONE]
+            except Exception as e:
+                self.audit.write("error", where="phone_push", error=f"{type(e).__name__}: {e}")
         if SPEAK in channels:
             # Speaking waits until the owner isn't mid-sentence, so it mustn't hold up the caller.
             for speak in list(self.speakers):

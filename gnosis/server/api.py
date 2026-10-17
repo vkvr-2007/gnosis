@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field
 from gnosis.app import Gnosis
 from gnosis.config import REPO_ROOT
 from gnosis.core.llm import ModelError
+from gnosis.server.phone_api import TokenGuard, add_phone_routes
 
 DASHBOARD_DIR = REPO_ROOT / "web" / "dashboard"
 
@@ -42,6 +43,8 @@ class FactPatch(BaseModel):
 
 def create_app(g: Gnosis) -> FastAPI:
     app = FastAPI(title="Gnosis", version="0.1.0")
+    app.add_middleware(TokenGuard, devices=g.devices)
+    add_phone_routes(app, g)
 
     @app.get("/api/health")
     async def health() -> dict:
@@ -107,7 +110,9 @@ def create_app(g: Gnosis) -> FastAPI:
 
     @app.get("/api/memory")
     async def memory() -> dict:
-        return {"facts": [f.to_dict() for f in g.memory.store.facts()],
+        facts = g.memory.store.facts()
+        return {"facts": [f.to_dict() for f in facts if f.source != "phone"],
+                "phone_contacts": sum(f.source == "phone" for f in facts),
                 "episodes": [e.to_dict() for e in g.memory.store.episodes(50)]}
 
     @app.get("/api/memory/graph")

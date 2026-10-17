@@ -17,11 +17,15 @@ from gnosis.core.policy import ApprovalManager, Grants, Policy
 from gnosis.core.tools import ToolRegistry
 from gnosis.memory.memory import Memory
 from gnosis.memory.store import MemoryStore
+from gnosis.phone.adb import Phone, find_adb, subprocess_runner
+from gnosis.phone.devices import Devices
+from gnosis.phone.push import WebPush
 from gnosis.proactive import Notice, Notifier, Watchers
 from gnosis.scheduler import Job, JobStore, Scheduler, parse_time
 from gnosis.skills.builtin import register_builtin
 from gnosis.skills.desktop import register_desktop_tools
 from gnosis.skills.memory_tools import register_memory_tools
+from gnosis.skills.phone_tools import register_phone_tools
 from gnosis.skills.scheduler_tools import register_scheduler_tools
 from gnosis.skills.task_tools import register_task_tools
 
@@ -41,7 +45,21 @@ class Gnosis:
     notifier: Any = None
     scheduler: Any = None
     watchers: Any = None
+    devices: Any = None
+    push: Any = None
+    phone: Any = None
+    _stt: Any = None
     _jobs: set = field(default_factory=set)  # Routines running in the background
+
+    def transcribe_file(self, file: Any) -> str:
+        """Speech to text for a recording from the phone (any format ffmpeg/PyAV can read)."""
+        from faster_whisper import decode_audio
+
+        if self._stt is None:
+            from gnosis.voice.stt import SpeechToText
+
+            self._stt = SpeechToText(self.settings.voice.get("stt_model", "small.en"))
+        return self._stt.transcribe(decode_audio(file, sampling_rate=16_000))
 
     async def run_background(self) -> None:
         """Reminders, routines and watchers: the parts of Gnosis that act without being asked."""
@@ -116,6 +134,14 @@ def build(settings: Settings, llm: LLMClient | None = None) -> Gnosis:
         watch_cfg["battery"] = False
     g.watchers = Watchers(g.notifier, watch_cfg)
     register_scheduler_tools(tools, g.scheduler, g.notifier, g.watchers)
+
+    g.devices = Devices(settings.db_path)
+    g.push = WebPush(g.devices, settings.data_dir)
+    g.notifier.push = g.push.send if g.push.available else None
+    adb = find_adb(settings.data_dir)
+    g.phone = Phone(subprocess_runner(adb) if adb else None, settings.data_dir / "phone.json")
+    if settings.phone.get("adb", True):
+        register_phone_tools(tools, g.phone, memory)
 
     morning = proactive.get("morning_briefing")
     if morning:

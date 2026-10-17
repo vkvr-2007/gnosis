@@ -1,0 +1,320 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0f14">
+<title>Gnosis</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg">
+<style>
+  :root {
+    --bg: #0b0f14; --panel: #121821; --line: #1f2a37; --text: #e6edf3; --muted: #8b98a8;
+    --accent: #4cc9f0; --ok: #3ddc97; --warn: #f4a261; --bad: #ef476f;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+         display: flex; flex-direction: column; }
+  header { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+  header h1 { font-size: 17px; margin: 0; letter-spacing: .08em; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); }
+  .dot.on { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
+  #status { color: var(--muted); font-size: 13px; flex: 1; }
+  button { background: var(--accent); color: #001018; border: 0; border-radius: 10px; padding: 10px 14px; font: inherit; font-weight: 600; }
+  button.no { background: transparent; color: var(--text); border: 1px solid var(--line); }
+  button.small { padding: 4px 10px; font-size: 13px; }
+  nav { display: flex; border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom); }
+  nav button { flex: 1; background: transparent; color: var(--muted); border-radius: 0; padding: 12px 4px; font-size: 13px; position: relative; }
+  nav button.active { color: var(--accent); }
+  .count { position: absolute; top: 6px; margin-left: 4px; background: var(--warn); color: #001018; border-radius: 9px; font-size: 11px; padding: 0 6px; }
+  .count:empty { display: none; }
+  .view { display: none; flex: 1; min-height: 0; flex-direction: column; }
+  .view.active { display: flex; }
+  .scroll { flex: 1; overflow-y: auto; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+  .msg { max-width: 85%; padding: 9px 13px; border-radius: 14px; white-space: pre-wrap; word-wrap: break-word; }
+  .you { align-self: flex-end; background: #1d3557; }
+  .gnosis { align-self: flex-start; background: #17212c; border: 1px solid var(--line); }
+  .err { align-self: flex-start; color: var(--bad); }
+  form { display: flex; gap: 8px; padding: 10px 12px; border-top: 1px solid var(--line); align-items: center; }
+  input[type=text] { flex: 1; min-width: 0; background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 22px; padding: 11px 14px; font: inherit; }
+  #mic { width: 46px; height: 46px; border-radius: 50%; padding: 0; font-size: 20px; }
+  #mic.rec { background: var(--bad); color: white; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+  .card .top { display: flex; gap: 8px; align-items: baseline; }
+  .card .top b { flex: 1; }
+  .card .sub { color: var(--muted); font-size: 14px; margin-top: 2px; }
+  .card .btns { display: flex; gap: 8px; margin-top: 10px; }
+  .card.ask { border-color: var(--warn); }
+  .st { font-size: 11px; font-weight: 700; text-transform: uppercase; }
+  .st.running { color: var(--accent); } .st.waiting, .st.queued, .st.paused { color: var(--warn); }
+  .st.done { color: var(--ok); } .st.failed, .st.stopped { color: var(--bad); }
+  .empty { color: var(--muted); text-align: center; margin-top: 30px; }
+  #pair { flex: 1; display: none; flex-direction: column; align-items: center; justify-content: center; padding: 30px; text-align: center; gap: 12px; }
+  #pair p { color: var(--muted); }
+  code { color: var(--warn); }
+</style>
+</head>
+<body>
+<header>
+  <div class="dot" id="dot"></div>
+  <h1>GNOSIS</h1>
+  <span id="status">connecting…</span>
+  <button class="no small" id="notify" hidden>🔔 Alerts</button>
+  <button class="no small" id="stop" style="border-color:var(--bad);color:var(--bad)">■ Stop</button>
+</header>
+
+<div id="pair">
+  <h2>Pair this phone</h2>
+  <p>On your laptop, open the Gnosis dashboard, click <b>Pair phone</b>, and scan the QR code with this phone's camera.</p>
+  <p id="pair-error" class="err"></p>
+</div>
+
+<div class="view active" id="view-chat">
+  <div class="scroll" id="chat"></div>
+  <form id="form">
+    <input type="text" id="text" placeholder="Ask Gnosis…" autocomplete="off" enterkeyhint="send">
+    <button type="button" id="mic" title="Hold to talk">🎙</button>
+  </form>
+</div>
+<div class="view" id="view-tasks"><div class="scroll" id="tasks"></div></div>
+<div class="view" id="view-approvals"><div class="scroll" id="approvals"></div></div>
+<div class="view" id="view-notices"><div class="scroll" id="notices"></div></div>
+
+<nav id="nav">
+  <button class="active" data-view="chat">Chat</button>
+  <button data-view="tasks">Tasks</button>
+  <button data-view="approvals">Approve<span class="count" id="approval-count"></span></button>
+  <button data-view="notices">Notices</button>
+</nav>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const store = { get: (k) => { try { return localStorage.getItem(k); } catch { return null; } },
+                set: (k, v) => { try { localStorage.setItem(k, v); } catch {} } };
+let token = store.get("gnosis_token");
+
+async function api(path, opts = {}) {
+  const headers = {...(opts.headers || {}), Authorization: "Bearer " + token};
+  if (opts.json !== undefined) { headers["Content-Type"] = "application/json"; opts.body = JSON.stringify(opts.json); }
+  const r = await fetch(path, {...opts, headers});
+  if (r.status === 401) { unpaired("This phone isn't paired any more. Pair it again from the laptop."); throw new Error("unpaired"); }
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.detail || r.statusText);
+  return data;
+}
+
+function unpaired(error) {
+  token = null;
+  store.set("gnosis_token", "");
+  ["view-chat", "view-tasks", "view-approvals", "view-notices"].forEach((v) => $(v).classList.remove("active"));
+  $("nav").style.display = "none";
+  $("pair").style.display = "flex";
+  $("pair-error").textContent = error || "";
+}
+
+async function claim(code) {
+  const name = /android/i.test(navigator.userAgent) ? "Android phone" : "Phone";
+  const r = await fetch("/api/phone/claim", {method: "POST", headers: {"Content-Type": "application/json"},
+                                             body: JSON.stringify({code, name})});
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.detail || "Pairing failed");
+  token = data.token;
+  store.set("gnosis_token", token);
+}
+
+// ---- chat ----------------------------------------------------------------
+const mine = new Set();
+function say(cls, text) {
+  const div = document.createElement("div");
+  div.className = "msg " + cls;
+  div.textContent = text;
+  $("chat").appendChild(div);
+  $("chat").scrollTop = $("chat").scrollHeight;
+}
+
+async function send(text) {
+  say("you", text);
+  try {
+    const t = await api("/api/tasks", {method: "POST", json: {text, session_id: "phone"}});
+    mine.add(t.id);
+    onTask(tasks.get(t.id) || t);
+  } catch (e) { if (e.message !== "unpaired") say("err", e.message); }
+}
+
+$("form").onsubmit = (e) => {
+  e.preventDefault();
+  const text = $("text").value.trim();
+  if (!text) return;
+  $("text").value = "";
+  send(text);
+};
+
+// Hold the mic button to talk; the recording is transcribed on the laptop.
+let recorder = null, chunks = [];
+async function startRec(e) {
+  e.preventDefault();
+  if (recorder) return;
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({audio: true});
+    recorder = new MediaRecorder(stream);
+    chunks = [];
+    recorder.ondataavailable = (ev) => chunks.push(ev.data);
+    recorder.onstop = async () => {
+      stream.getTracks().forEach((t) => t.stop());
+      const blob = new Blob(chunks, {type: recorder.mimeType});
+      recorder = null;
+      $("mic").classList.remove("rec");
+      if (blob.size < 2000) return;
+      try {
+        const r = await api("/api/phone/voice", {method: "POST", body: blob, headers: {"Content-Type": blob.type}});
+        if (!r.text) return say("err", "I didn't catch that.");
+        say("you", "🎙 " + r.text);
+        if (r.task) { mine.add(r.task.id); onTask(tasks.get(r.task.id) || r.task); }
+      } catch (err) { if (err.message !== "unpaired") say("err", err.message); }
+    };
+    recorder.start();
+    $("mic").classList.add("rec");
+  } catch (err) {
+    say("err", window.isSecureContext ? "Microphone blocked: " + err.message
+                                      : "The microphone needs HTTPS. Use the Tailscale address for Gnosis.");
+  }
+}
+const stopRec = (e) => { e.preventDefault(); if (recorder && recorder.state === "recording") recorder.stop(); };
+$("mic").addEventListener("pointerdown", startRec);
+$("mic").addEventListener("pointerup", stopRec);
+$("mic").addEventListener("pointerleave", stopRec);
+
+// ---- tasks -----------------------------------------------------------------
+const tasks = new Map();
+const ACTIVE = new Set(["queued", "running", "waiting", "paused"]);
+function renderTasks() {
+  const list = [...tasks.values()].sort((a, b) => b.created - a.created).slice(0, 20);
+  $("tasks").innerHTML = list.length ? "" : '<div class="empty">No tasks yet.</div>';
+  list.forEach((t) => {
+    const div = document.createElement("div");
+    div.className = "card";
+    const btns = !ACTIVE.has(t.status) ? "" : `<div class="btns">
+      ${t.status === "paused" ? '<button class="no small" data-a="resume">Resume</button>' : '<button class="no small" data-a="pause">Pause</button>'}
+      <button class="no small" data-a="cancel">Cancel</button></div>`;
+    div.innerHTML = `<div class="top"><b>${esc(t.text)}</b><span class="st ${t.status}">${t.status}</span></div>
+      <div class="sub">${esc(t.detail || t.answer || "")}</div>${btns}`;
+    div.querySelectorAll("button").forEach((b) => b.onclick = () => api(`/api/tasks/${t.id}/${b.dataset.a}`, {method: "POST"}).catch(() => {}));
+    $("tasks").appendChild(div);
+  });
+}
+function onTask(t) {
+  tasks.set(t.id, t);
+  renderTasks();
+  if (!mine.has(t.id) || ACTIVE.has(t.status)) return;
+  mine.delete(t.id);
+  t.status === "failed" ? say("err", t.answer || "That task failed.") : say("gnosis", t.answer || "Done.");
+}
+
+// ---- approvals ---------------------------------------------------------------
+const approvals = new Map();
+function renderApprovals() {
+  $("approval-count").textContent = approvals.size || "";
+  $("approvals").innerHTML = approvals.size ? "" : '<div class="empty">Nothing waiting for you.</div>';
+  approvals.forEach((a) => {
+    const div = document.createElement("div");
+    div.className = "card ask";
+    div.innerHTML = `<div class="top"><b>${esc(a.tool.replaceAll("_", " "))}</b></div>
+      <div class="sub">${esc(JSON.stringify(a.args))}</div><div class="sub">${esc(a.reason)}</div>
+      <div class="btns"><button data-ok="1">Allow</button><button class="no" data-ok="0">Deny</button></div>`;
+    div.querySelectorAll("button").forEach((b) => b.onclick = () =>
+      api(`/api/approvals/${a.id}`, {method: "POST", json: {approved: b.dataset.ok === "1"}}).catch(() => {}));
+    $("approvals").appendChild(div);
+  });
+}
+
+// ---- notices -------------------------------------------------------------------
+function addNotice(n) {
+  if ($("notices").querySelector(".empty")) $("notices").innerHTML = "";
+  const div = document.createElement("div");
+  div.className = "card";
+  const when = new Date(n.created * 1000).toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"});
+  div.innerHTML = `<div class="top"><b>${esc(n.title)}</b><span class="sub">${when}</span></div><div class="sub">${esc(n.body)}</div>`;
+  $("notices").prepend(div);
+}
+
+// ---- live updates ----------------------------------------------------------------
+function onEvent(ev) {
+  switch (ev.type) {
+    case "task_status": onTask(ev.task); break;
+    case "approval_needed":
+      approvals.set(ev.approval_id, {id: ev.approval_id, tool: ev.tool, args: ev.args, reason: ev.reason});
+      renderApprovals();
+      break;
+    case "approval_resolved": approvals.delete(ev.approval_id); renderApprovals(); break;
+    case "notification": addNotice(ev.notice); break;
+    case "stopped": say("err", `Stopped ${ev.tasks} task(s).`); break;
+  }
+}
+
+function connect() {
+  if (!token) return;
+  const ws = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws?token=${encodeURIComponent(token)}`);
+  ws.onopen = () => { $("dot").classList.add("on"); $("status").textContent = "connected to your laptop"; };
+  ws.onclose = (e) => {
+    $("dot").classList.remove("on");
+    if (e.code === 4401) return unpaired("This phone isn't paired any more. Pair it again from the laptop.");
+    $("status").textContent = "reconnecting…";
+    setTimeout(connect, 3000);
+  };
+  ws.onmessage = (m) => onEvent(JSON.parse(m.data));
+}
+
+async function loadState() {
+  const [taskList, pending] = await Promise.all([api("/api/tasks"), api("/api/approvals")]);
+  taskList.forEach((t) => tasks.set(t.id, t));
+  pending.forEach((a) => approvals.set(a.id, a));
+  renderTasks();
+  renderApprovals();
+  $("notices").innerHTML = '<div class="empty">Reminders and alerts show up here.</div>';
+}
+
+// ---- notifications (Web Push; needs HTTPS) -----------------------------------
+function b64ToBytes(s) {
+  const pad = "=".repeat((4 - (s.length % 4)) % 4);
+  const raw = atob((s + pad).replace(/-/g, "+").replace(/_/g, "/"));
+  return Uint8Array.from(raw, (c) => c.charCodeAt(0));
+}
+async function enableNotifications() {
+  try {
+    const {public_key} = await api("/api/phone/push-key");
+    if (!public_key) return say("err", "Notifications aren't set up on the laptop (pip install -e .[phone]).");
+    if (await Notification.requestPermission() !== "granted") return;
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.subscribe({userVisibleOnly: true, applicationServerKey: b64ToBytes(public_key)});
+    await api("/api/phone/push", {method: "POST", json: {subscription: sub.toJSON()}});
+    $("notify").hidden = true;
+    say("gnosis", "Notifications are on. I'll tell you about reminders and alerts here.");
+  } catch (e) { say("err", "Couldn't turn on notifications: " + e.message); }
+}
+
+document.querySelectorAll("nav button").forEach((b) => b.onclick = () => {
+  document.querySelectorAll("nav button").forEach((x) => x.classList.toggle("active", x === b));
+  document.querySelectorAll(".view").forEach((v) => v.classList.toggle("active", v.id === "view-" + b.dataset.view));
+});
+$("stop").onclick = () => api("/api/stop", {method: "POST"}).catch(() => {});
+$("notify").onclick = enableNotifications;
+
+(async function start() {
+  const code = new URLSearchParams(location.hash.slice(1)).get("pair");
+  if (code) {
+    history.replaceState(null, "", location.pathname);
+    try { await claim(code); } catch (e) { return unpaired(e.message); }
+  }
+  if (!token) return unpaired();
+  if ("serviceWorker" in navigator && window.isSecureContext) {
+    navigator.serviceWorker.register("sw.js");
+    if ("PushManager" in window && Notification.permission !== "granted") $("notify").hidden = false;
+  }
+  try { await loadState(); } catch (e) { if (e.message !== "unpaired") say("err", "Can't reach your laptop: " + e.message); }
+  connect();
+})();
+</script>
+</body>
+</html>

@@ -4,7 +4,7 @@
 
 Built for Track 03 (Personal AI) of the Nebius x NVIDIA Global AI Hackathon.
 
-> **Status:** build step 6 of 10. Working now: the brain, cloud and local model routing, the policy gate and audit log, the dashboard, long-term memory with a memory map, voice with voice ID, desktop control (open, close and operate Windows apps, with a screenshot fallback and a kill switch), parallel tasks, and reminders, routines and proactive notices. The phone and the coding agent come next. See [the design](docs/architecture.md).
+> **Status:** build step 7 of 10. Working now: the brain, cloud and local model routing, the policy gate and audit log, the dashboard, long-term memory with a memory map, voice with voice ID, desktop control (open, close and operate Windows apps, with a screenshot fallback and a kill switch), parallel tasks, reminders, routines and proactive notices, and the phone (a companion app, plus calls and messages on Android). The coding agent comes next. See [the design](docs/architecture.md).
 
 ## How it works
 
@@ -49,6 +49,24 @@ Every request runs as its own task, so you can ask for the next thing while the 
 - **Watchers** keep an eye on your battery, disk space and new Windows updates, and tell you when something changes.
 - **"Should I speak?"** Gnosis decides how to tell you: urgent things (battery at 9%) are always spoken; reminders pop up and are spoken unless you're gaming, presenting, in quiet hours or have said "do not disturb"; everything else waits for your briefing. It also limits how often it interrupts.
 - **Briefings.** Say "good morning" or "what did I miss?", or get one automatically every morning (`proactive.morning_briefing` in `config/gnosis.yaml`).
+
+## Your phone
+
+**Companion app.** Click **Pair phone** on the dashboard and scan the QR code. Gnosis opens on your phone, already signed in: chat, hold-to-talk, your task cards, approvals and notices. Each phone gets its own token, and you can unpair it from the dashboard.
+
+- To reach Gnosis from anywhere, install [Tailscale](https://tailscale.com) on the laptop and phone, run `tailscale serve --bg 8765` on the laptop, and put the `https://…ts.net` address in `phone.url` in `config/gnosis.yaml`. HTTPS is also what lets the phone use its microphone and get notifications (`pip install -e ".[phone]"`). On home Wi-Fi only, set `server.host: 0.0.0.0` instead.
+- When you're away from the laptop, reminders and alerts are pushed to the phone.
+
+**Phone control (Android).** Gnosis calls, texts, sends WhatsApp messages, opens apps and reads notifications on your phone over wireless debugging. Calls and messages always ask you first.
+
+```powershell
+.\scripts\get_adb.ps1                                   # Downloads adb
+# Phone: Developer options > Wireless debugging > Pair device with pairing code
+.\.venv\Scripts\python -m gnosis phone pair 192.168.1.20:37000 123456
+.\.venv\Scripts\python -m gnosis phone connect 192.168.1.20:41235   # The address under Wireless debugging
+```
+
+Then say "sync my contacts" once, and "call Amma" or "WhatsApp Rahul that I'm running late" works by name. Contacts are saved on the laptop as sensitive facts.
 
 ## Quick start (Windows)
 
@@ -120,8 +138,10 @@ python -m venv .venv && .venv/bin/pip install -e ".[dev]"
 | `gnosis/skills/desktop/` | App finder and launcher, UI Automation (read, click, type, shortcuts), screenshot fallback, Spotify |
 | `gnosis/voice/` | Microphone and speaker, wake word, end-of-speech detection, speech-to-text, text-to-speech, voice ID, the voice loop |
 | `gnosis/skills/` | Tools Gnosis can use (built-ins and memory today; desktop, phone, coder and more next) |
-| `gnosis/server/` | Local FastAPI + WebSocket API |
+| `gnosis/phone/` | Phone pairing and device tokens, Web Push, Android control over ADB |
+| `gnosis/server/` | Local FastAPI + WebSocket API, and the phone bridge |
 | `web/dashboard/` | Dashboard |
+| `web/phone/` | Phone companion app (installable web app) |
 | `config/` | Settings, model routing and policy |
 | `docs/architecture.md` | Full design for Gnosis v1 |
 

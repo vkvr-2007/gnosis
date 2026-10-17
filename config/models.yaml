@@ -32,6 +32,6 @@ roles:
 
 routing:
   # Requests tagged with any of these never leave the laptop.
-  private_tags: [private, personal_memory, screen_text, voice_id, local_files]
+  private_tags: [private, personal_memory, screen_text, voice_id, local_files, phone_data]
   # Roles that may fall back to the local model when Nebius is unreachable.
   offline_fallback: [planner, fast]

@@ -15,10 +15,18 @@ orchestrator:
   approval_timeout_s: 120      # How long an "ask" waits for your answer before it's treated as "no"
   max_parallel: 4              # Requests that can run at the same time (desktop tasks still take turns)
 
+phone:
+  # Where the phone reaches Gnosis. Best: Tailscale on both devices, then `tailscale serve --bg 8765`
+  # on the laptop and put its https://<laptop>.<tailnet>.ts.net address here (HTTPS is needed for
+  # notifications and the microphone). Without it, set server.host to 0.0.0.0 to use your Wi-Fi.
+  url: null
+  adb: true                    # Phone control over ADB (scripts\get_adb.ps1, then `gnosis phone pair`)
+
 proactive:
   morning_briefing: "08:00"    # Spoken briefing every day; null turns it off
   quiet_hours: "23:00-07:00"   # Only urgent things interrupt; the rest waits for the briefing
   max_per_hour: 4              # Non-urgent notifications per hour before Gnosis holds them back
+  phone_push: away             # Also notify the phone: away (no input for 5 min) | always | never
   check_every_s: 60            # How often the watchers look at battery and disk
   watchers:
     battery: true

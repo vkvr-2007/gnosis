@@ -29,5 +29,5 @@ roles:
   embed:   { provider: local_embed, model: nomic-embed-text }
 
 routing:
-  private_tags: [private, personal_memory, screen_text, voice_id, local_files]
+  private_tags: [private, personal_memory, screen_text, voice_id, local_files, phone_data]
   offline_fallback: []

@@ -82,6 +82,13 @@
   .toast { background: var(--panel); border: 1px solid var(--accent); border-radius: 10px; padding: 10px 14px;
            box-shadow: 0 6px 24px #0008; font-size: 14px; }
   .toast.urgent { border-color: var(--bad); } .toast b { display: block; }
+  #pair-dialog { background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 12px; padding: 20px; max-width: 420px; }
+  #pair-dialog::backdrop { background: #000a; }
+  #pair-dialog .qr { display: flex; justify-content: center; margin: 12px 0; }
+  #pair-dialog small { color: var(--muted); display: block; }
+  #pair-dialog .warn { color: var(--warn); }
+  .device { display: flex; gap: 8px; align-items: center; font-size: 13px; padding: 3px 0; }
+  .device span { flex: 1; }
   @media (max-width: 800px) { main { grid-template-columns: 1fr; height: auto; } #chat { min-height: 50vh; } }
 </style>
 </head>
@@ -90,10 +97,23 @@
   <div class="dot" id="dot"></div>
   <h1>GNOSIS</h1>
   <span id="status">connecting…</span>
-  <button id="stop" class="no" style="margin-left:auto;border-color:var(--bad);color:var(--bad)"
+  <button id="pair-phone" class="no" style="margin-left:auto">📱 Pair phone</button>
+  <button id="stop" class="no" style="border-color:var(--bad);color:var(--bad)"
           title="Stops everything Gnosis is doing (also Ctrl+Alt+J)">■ Stop</button>
 </header>
 <div id="toasts"></div>
+<dialog id="pair-dialog">
+  <h3 style="margin-top:0">Pair your phone</h3>
+  <small>Scan this with your phone's camera within 5 minutes. It opens Gnosis on your phone, already signed in.</small>
+  <div class="qr" id="pair-qr"></div>
+  <small id="pair-url"></small>
+  <p class="warn" id="pair-warn" hidden>Gnosis only listens on this laptop right now, so your phone can't reach it yet.
+    Set up Tailscale and put its address in <code>phone.url</code>, or set <code>server.host: 0.0.0.0</code> in
+    <code>config/gnosis.yaml</code>, then restart Gnosis.</p>
+  <h4>Paired phones</h4>
+  <div id="pair-devices"></div>
+  <p style="text-align:right;margin-bottom:0"><button class="no" id="pair-close">Close</button></p>
+</dialog>
 <main>
   <section>
     <div class="tabs">
@@ -211,6 +231,34 @@ function showNotice(n, channels) {
   setTimeout(() => div.remove(), n.urgency === "urgent" ? 30000 : 10000);
 }
 
+// ---- Phone pairing --------------------------------------------------------
+async function loadDevices() {
+  const devices = await fetch("/api/phone/devices").then((r) => r.json());
+  $("pair-devices").innerHTML = devices.length ? "" : '<small>None yet.</small>';
+  devices.forEach((d) => {
+    const row = document.createElement("div");
+    row.className = "device";
+    const seen = d.last_seen ? new Date(d.last_seen * 1000).toLocaleString() : "never";
+    row.innerHTML = `<span>📱 ${esc(d.name)} <small>last seen ${esc(seen)}${d.notifications ? " · notifications on" : ""}</small></span>
+      <button class="no">Unpair</button>`;
+    row.querySelector("button").onclick = async () => {
+      await fetch(`/api/phone/devices/${d.id}`, {method: "DELETE"});
+      loadDevices();
+    };
+    $("pair-devices").appendChild(row);
+  });
+}
+
+$("pair-phone").onclick = async () => {
+  const r = await fetch("/api/phone/pair", {method: "POST"}).then((x) => x.json());
+  $("pair-qr").innerHTML = r.qr_svg;
+  $("pair-url").textContent = r.url;
+  $("pair-warn").hidden = !r.lan_only;
+  await loadDevices();
+  $("pair-dialog").showModal();
+};
+$("pair-close").onclick = () => $("pair-dialog").close();
+
 function onEvent(ev) {
   switch (ev.type) {
     case "model_call":
@@ -247,6 +295,10 @@ function onEvent(ev) {
       break;
     case "task_status": onTask(ev.task); if (ev.task.status === "done") loadJobs(); break;
     case "jobs_changed": loadJobs(); break;
+    case "phone_paired":
+      activity(`📱 paired ${esc(ev.device.name)}`);
+      if ($("pair-dialog").open) { $("pair-dialog").close(); say("gnosis", "Your phone is paired."); }
+      break;
     case "notification": showNotice(ev.notice, ev.channels); break;
     case "task_finished":
       if (String(ev.session).endsWith("voice")) say("gnosis", ev.answer);

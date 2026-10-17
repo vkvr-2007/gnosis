@@ -5,6 +5,7 @@
     python -m gnosis chat            Talk to Gnosis in the terminal
     python -m gnosis enroll          Teach Gnosis your voice (voice ID)
     python -m gnosis models          List the Nemotron models your Nebius key can use
+    python -m gnosis phone pair ...  Pair your Android phone (then `phone connect`)
 """
 
 from __future__ import annotations
@@ -106,6 +107,30 @@ def _models(args: argparse.Namespace) -> None:
         print("  ", i)
 
 
+def _phone(args: argparse.Namespace) -> None:
+    from gnosis.config import load_settings
+    from gnosis.phone.adb import AdbError, Phone, find_adb, subprocess_runner
+
+    settings = load_settings(args.config)
+    adb = find_adb(settings.data_dir)
+    if adb is None:
+        sys.exit("adb isn't installed. Run .\\scripts\\get_adb.ps1 first.")
+    phone = Phone(subprocess_runner(adb), settings.data_dir / "phone.json")
+    try:
+        if args.action == "pair":
+            # Phone: Settings > Developer options > Wireless debugging > Pair device with pairing code
+            print(phone.pair(args.address, args.code))
+            print("Paired. Now run: python -m gnosis phone connect <the IP address and port shown under "
+                  "Wireless debugging (not the pairing one)>")
+        elif args.action == "connect":
+            print(phone.connect(args.address))
+            print("Connected:", phone.status())
+        else:
+            print(phone.status())
+    except AdbError as e:
+        sys.exit(str(e))
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="gnosis")
     parser.add_argument("--config", help="Path to gnosis.yaml")
@@ -116,6 +141,15 @@ def main() -> None:
     sub.add_parser("enroll").set_defaults(func=_enroll)
     sub.add_parser("chat").set_defaults(func=_chat)
     sub.add_parser("models").set_defaults(func=_models)
+    phone = sub.add_parser("phone", help="Pair and connect your Android phone over wireless debugging")
+    phone_sub = phone.add_subparsers(dest="action", required=True)
+    pair = phone_sub.add_parser("pair", help="One time: pair with the code from Wireless debugging")
+    pair.add_argument("address", help="IP:port shown on the pairing screen")
+    pair.add_argument("code", help="6-digit pairing code")
+    connect = phone_sub.add_parser("connect", help="Connect (Gnosis reconnects by itself after this)")
+    connect.add_argument("address", help="IP:port shown under Wireless debugging")
+    phone_sub.add_parser("status")
+    phone.set_defaults(func=_phone)
     args = parser.parse_args()
     getattr(args, "func", _serve)(args)
 
