@@ -236,3 +236,31 @@ def test_guest_mode_blocks_owner_tools_and_memory(settings):
     assert "only the owner" in llm.calls[1]["messages"][-1]["content"]
     assert g.memory.store.episodes() == []  # Guests don't create memories
     assert g.policy.decide("get_time", owner=False).action == "allow"
+
+
+def test_never_silent_after_the_wake_word():
+    async def go():
+        # Woken, but nobody speaks
+        loop, speaker, orch = make_loop()
+        await loop.feed(wake_block())
+        for _ in range(80):
+            await loop.feed(SILENCE)
+        await loop.drain()
+        assert len(speaker.played) == 2 and orch.calls == [] and loop.state == "idle"  # Chime, "didn't hear"
+
+        # Heard something, but speech recognition got no words
+        loop, speaker, orch = make_loop("")
+        await say(loop)
+        assert len(speaker.played) == 2 and orch.calls == []
+
+        # Speech recognition crashes
+        loop, speaker, orch = make_loop()
+        errors = loop.events.subscribe()
+        await say(loop)  # FakeSTT has no texts left, so it raises
+        assert len(speaker.played) == 2
+        seen = []
+        while not errors.empty():
+            seen.append(await errors.get())
+        assert any(e["type"] == "voice_error" and "IndexError" in e["error"] for e in seen)
+
+    asyncio.run(go())

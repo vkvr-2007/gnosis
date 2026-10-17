@@ -44,6 +44,7 @@ class VoiceLoop:
         self.on_stop_command = on_stop_command  # "Stop" also halts running tasks, like the kill switch
         self.state = "idle"
         self._endpointer: Endpointer | None = None
+        self._woken = False  # This listen started with the wake word (not a follow-up)
         self._busy = asyncio.Lock()
         self._tasks: set[asyncio.Task] = set()
 
@@ -69,6 +70,7 @@ class VoiceLoop:
             if self.speaker.speaking:
                 self.speaker.stop()  # Barge-in
             self._listen()
+            self._woken = True
             await self._set_state("listening")
             if self.config.chime:
                 self._spawn(self.speaker.play([chime()]))
@@ -78,18 +80,51 @@ class VoiceLoop:
         result = self._endpointer.feed(block)
         if result == "timeout":
             self._endpointer = None
+            if self._woken and not self._busy.locked():
+                # Woken but heard nothing: say so, instead of going quiet (usually the mic is too quiet).
+                self._woken = False
+                self._spawn(self._feedback("I didn't hear anything. Say the wake word and try again.",
+                                           "no speech after the wake word"))
+                return
             await self._set_state("idle" if not self._busy.locked() else "thinking")
         elif result == "done":
             audio = self._endpointer.audio()
             self._endpointer = None
+            self._woken = False
             self._spawn(self._respond(audio))
 
+    async def _feedback(self, spoken: str, error: str) -> None:
+        await self.events.publish("voice_error", error=error)
+        async with self._busy:
+            await self._speak(spoken)
+
+    async def _speak(self, text: str) -> None:
+        """Speaks without the follow-up window; used for problems, so a failure here is only reported."""
+        try:
+            await self._set_state("speaking")
+            await self.speaker.play(self.tts.synthesize(text))
+            if self.on_audio_drain:
+                self.on_audio_drain()
+        except Exception as e:
+            await self.events.publish("voice_error", error=f"Couldn't speak: {type(e).__name__}: {e}")
+        if self._endpointer is None:
+            await self._set_state("idle")
+
     async def _respond(self, audio: np.ndarray) -> None:
+        try:
+            await self._respond_to(audio)
+        except Exception as e:
+            # Anything that breaks between hearing and answering must not leave the owner in silence.
+            await self.events.publish("voice_error", error=f"{type(e).__name__}: {e}")
+            await self._speak("Sorry, something went wrong. The dashboard shows what happened.")
+
+    async def _respond_to(self, audio: np.ndarray) -> None:
         async with self._busy:
             await self._set_state("thinking")
             text = (await asyncio.to_thread(self.stt.transcribe, audio)).strip()
             if not text:
-                await self._set_state("idle")
+                await self.events.publish("voice_error", error="Speech recognition returned nothing")
+                await self._speak("Sorry, I didn't catch that.")
                 return
             if _STOP_WORDS.match(text):
                 self.speaker.stop()
