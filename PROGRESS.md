@@ -1,8 +1,8 @@
 # PROGRESS.md
 
 ## Continue here
-Step 1 is built and passes its unit tests (34). Next: the owner's laptop test for step 1 (see PLAN.md),
-then the bench baseline goes below.
+Step 1 is built and passes its unit tests (34). Next: step 0 on the laptop (new folder, repo), then the
+owner's step 1 test. The bench baseline goes below.
 
 ## Log
 - 2026-10-17 · Step 1 built: core with id-tagged events and stop, Nemotron streaming with reasoning
