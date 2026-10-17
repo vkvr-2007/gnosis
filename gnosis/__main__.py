@@ -139,6 +139,30 @@ def _models(args: argparse.Namespace) -> None:
         print("  ", i)
 
 
+def _check_models(args: argparse.Namespace) -> None:
+    from gnosis.config import load_settings
+    from gnosis.harness import models
+
+    if not models.main(load_settings(args.config).models, args.roles or None):
+        sys.exit(1)
+
+
+def _accept(args: argparse.Namespace) -> None:
+    from gnosis.config import load_settings
+    from gnosis.harness import accept
+
+    report_dir = load_settings(args.config).data_dir / "reports"
+    if not accept.main(args.url, args.desktop, report_dir):
+        sys.exit(1)
+
+
+def _bench(args: argparse.Namespace) -> None:
+    from gnosis.harness import bench
+
+    if not bench.main(args.url, args.rounds):
+        sys.exit(1)
+
+
 def _phone(args: argparse.Namespace) -> None:
     from gnosis.config import load_settings
     from gnosis.phone.adb import AdbError, Phone, find_adb, subprocess_runner
@@ -174,6 +198,17 @@ def main() -> None:
     sub.add_parser("chat").set_defaults(func=_chat)
     sub.add_parser("models").set_defaults(func=_models)
     sub.add_parser("invite", help="One-time link that pairs a phone or browser").set_defaults(func=_invite)
+    check = sub.add_parser("check-models", help="Test that each model role calls tools properly")
+    check.add_argument("roles", nargs="*", help="Roles to check (default: all that take tools)")
+    check.set_defaults(func=_check_models)
+    acc = sub.add_parser("accept", help="Run the laptop acceptance suite against a running server")
+    acc.add_argument("--url", default="http://127.0.0.1:8765")
+    acc.add_argument("--desktop", action="store_true", help="Include steps that open and close real apps")
+    acc.set_defaults(func=_accept)
+    ben = sub.add_parser("bench", help="Time standard requests against a running server")
+    ben.add_argument("--url", default="http://127.0.0.1:8765")
+    ben.add_argument("--rounds", type=int, default=3)
+    ben.set_defaults(func=_bench)
     phone = sub.add_parser("phone", help="Pair and connect your Android phone over wireless debugging")
     phone_sub = phone.add_subparsers(dest="action", required=True)
     pair = phone_sub.add_parser("pair", help="One time: pair with the code from Wireless debugging")

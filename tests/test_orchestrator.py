@@ -73,3 +73,8 @@ def test_step_limit(settings):
     settings.max_steps = 2
     g = build(settings, llm=FakeLLM([reply(calls=[tool_call("get_time", {})])] * 2))
     assert "step limit" in run(g, "loop forever")
+
+
+def test_memory_ids_never_reach_the_answer(settings):
+    g = build(settings, llm=FakeLLM([reply("You prefer TypeScript [#1] and dark mode. [#12]")]))
+    assert run(g, "what do I like?") == "You prefer TypeScript and dark mode."

@@ -6,6 +6,7 @@ import asyncio
 import contextvars
 import inspect
 import json
+import re
 import time
 import uuid
 from collections import defaultdict
@@ -30,6 +31,7 @@ GUEST_PROMPT = """The person speaking is NOT the owner: voice ID didn't recognis
 Help with harmless things only. Never reveal anything about the owner. Politely refuse anything else."""
 
 _MAX_TOOL_RESULT_CHARS = 8_000
+_MEMORY_ID = re.compile(r"\s*\[#\d+\]")
 _HISTORY_TURNS = 10
 _KEEP_FINISHED = 30  # Finished task cards kept for the dashboard
 # The task a tool is running for, so tools like run_skill can make further tool calls on its behalf.
@@ -231,7 +233,8 @@ class Orchestrator:
             msg = result.message
             messages.append(_assistant_dict(msg))
             if not msg.tool_calls:
-                answer = (msg.content or "").strip() or "Done."
+                # Models copy the [#id] tags from recalled memories even when told not to.
+                answer = _MEMORY_ID.sub("", msg.content or "").strip() or "Done."
                 break
             for call in msg.tool_calls:
                 await self._checkpoint(info)
