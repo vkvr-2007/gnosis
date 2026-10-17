@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Gnosis</title>
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <header class="bar">
+    <div class="orb" id="orb" data-state="offline" aria-hidden="true"><span></span></div>
+    <div class="who">
+      <div class="name" id="name">Gnosis</div>
+      <div class="status" id="status">Connecting to the model…</div>
+    </div>
+    <button class="ghost" id="newChat" title="Start a new conversation">New chat</button>
+    <button class="ghost" id="diagBtn" title="Diagnostics (D)">D</button>
+  </header>
+
+  <main id="log" aria-live="polite"></main>
+
+  <form class="composer" id="composer">
+    <textarea id="input" rows="1" placeholder="Ask Gnosis…" autocomplete="off"></textarea>
+    <button type="submit" id="send">Send</button>
+  </form>
+
+  <section class="diag" id="diag" hidden>
+    <div class="diag-head">
+      <strong>Diagnostics</strong>
+      <button class="ghost" id="recheck">Check the model again</button>
+      <button class="ghost" id="diagClose">Close</button>
+    </div>
+    <dl id="diagStatus"></dl>
+    <table>
+      <thead><tr><th>Time</th><th>What</th><th>Details</th></tr></thead>
+      <tbody id="diagRows"></tbody>
+    </table>
+  </section>
+
+  <script src="app.js"></script>
+</body>
+</html>

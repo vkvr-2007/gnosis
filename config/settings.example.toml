@@ -1,0 +1,23 @@
+# Copy this file to config/settings.toml to change a setting. Anything left out keeps its default.
+# API keys never go in this file: they are read from Windows user environment variables.
+
+[brain]
+# NVIDIA's API today; for Nebius, change base_url, model and api_key_env.
+base_url = "https://integrate.api.nvidia.com/v1"
+model = "nvidia/nemotron-3-super-120b-a12b"
+api_key_env = "NVIDIA_API_KEY"
+# Nemotron can reason before answering. Off is much faster for conversation.
+thinking = false
+max_tokens = 1024
+temperature = 0.6
+timeout_s = 60
+
+[conversation]
+# How many earlier messages are sent with each question.
+history_messages = 30
+# Your time zone for the time stamp on each question. Empty = the laptop's own.
+timezone = ""
+
+[app]
+# Where Gnosis keeps its conversation, logs and benchmarks. Empty = %USERPROFILE%\.gnosis2
+data_dir = ""

@@ -1,0 +1,10 @@
+{
+  "name": "Gnosis",
+  "tagline": "Your desktop assistant",
+  "wake_words": ["hey gnosis"],
+  "address_as": "",
+  "language": "en",
+  "voice": {
+    "elevenlabs_voice_id": "JBFqnCBsd6RMkjVDRZzb"
+  }
+}
