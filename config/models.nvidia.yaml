@@ -26,7 +26,8 @@ everyday_tools: &everyday_tools
 
 roles:
   planner: { provider: nvidia, model: nvidia/nemotron-3-super-120b-a12b }      # Long plans, tool calling
-  fast:    { provider: nvidia, model: nvidia/nemotron-nano-3-30b-a3b }         # Routing, short replies
+  # nemotron-nano-3-30b-a3b isn't offered to free keys, and nemotron-3.5-lightning timed out in testing.
+  fast:    { provider: nvidia, model: nvidia/nemotron-3-super-120b-a12b }      # Routing, short replies
   vision:  { provider: nvidia, model: nvidia/nemotron-3.5-super-vl-120b-a12b } # Screenshots and images
   local:   { provider: local, model: nemotron-nano-local, system_prefix: "detailed thinking off",
              temperature: 0, tools: *everyday_tools }
