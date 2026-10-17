@@ -26,10 +26,13 @@ class ModelError(RuntimeError):
 def strip_thinking(text: str | None) -> str | None:
     """Removes the <think>...</think> reasoning some Nemotron models write before their answer.
 
-    An unclosed <think> (the reply was cut off mid-thought) is removed to the end.
+    An unclosed <think> (the reply was cut off mid-thought) is removed to the end. When the chat template
+    opens the <think> itself, the reply has only the closing tag, so everything before it is removed.
     """
-    if not text or "<think>" not in text:
+    if not text:
         return text
+    if "<think>" not in text:
+        return text.split("</think>", 1)[1].strip() if "</think>" in text else text
     return _THINK.sub("", text).strip()
 
 
@@ -49,6 +52,8 @@ def _describe(e: Exception, route: Route) -> str:
         return f"couldn't connect to {where}; is it running?"
     if isinstance(e, openai.AuthenticationError):
         return f"{where} rejected the API key"
+    if isinstance(e, openai.InternalServerError) and "pars" in str(getattr(e, "message", e)).lower():
+        return f"{where} wrote a tool call that couldn't be read (small models do this; try again or rephrase)"
     if isinstance(e, openai.APIStatusError):
         detail = str(getattr(e, "message", e))[:300]
         return f"{where} returned an error ({e.status_code}): {detail}"

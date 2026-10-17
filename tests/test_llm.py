@@ -60,6 +60,14 @@ def test_server_error_is_retried_once_then_explained(settings):
     with pytest.raises(ModelError, match="local model .* returned an error \\(500\\)"):
         asyncio.run(client.chat("local", [{"role": "user", "content": "hi"}]))
 
+    async def unparsable(route, messages, tools, **kw):
+        raise openai.InternalServerError("Failed to parse tool call", response=httpx.Response(
+            500, request=httpx.Request("POST", "http://127.0.0.1:8081/v1/chat/completions")), body=None)
+
+    client._call = unparsable
+    with pytest.raises(ModelError, match="wrote a tool call that couldn't be read"):
+        asyncio.run(client.chat("local", [{"role": "user", "content": "hi"}]))
+
 
 def test_local_routes_wait_longer_than_cloud(settings):
     router = ModelRouter(settings.models)
@@ -70,5 +78,6 @@ def test_thinking_is_stripped_and_prefix_added():
     assert strip_thinking("<think>hmm</think>\n\nIt's 11:03.") == "It's 11:03."
     assert strip_thinking("<think>cut off mid-thou") == ""
     assert strip_thinking("plain") == "plain"
+    assert strip_thinking("The user wants the time.\n</think>\n\nIt's 11:03.") == "It's 11:03."
     out = _with_prefix([{"role": "system", "content": "You are Gnosis."}], "detailed thinking off")
     assert out[0]["content"].startswith("detailed thinking off\n\nYou are Gnosis.") and len(out) == 1
