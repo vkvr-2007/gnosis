@@ -116,7 +116,10 @@ Paste the model IDs you want into [`config/models.yaml`](config/models.yaml), th
 ```powershell
 .\.venv\Scripts\python -m gnosis serve    # Dashboard at http://127.0.0.1:8765
 .\.venv\Scripts\python -m gnosis chat     # Or talk to it in the terminal
+.\.venv\Scripts\python -m gnosis app      # Or in its own window, with a tray icon (needs the desktop extra)
 ```
+
+`gnosis app` opens the dashboard in its own window instead of a browser tab. Closing the window hides it to the tray; **Quit Gnosis** in the tray menu really stops it. Starting it again brings the open window forward rather than starting a second copy. If `gnosis serve` is already running, the window uses that server. Add `--voice` to listen for the wake word. The **Diagnostics** tab (also in the tray menu) shows whether each key is set (never the key itself), whether the local models are running, recent model timings and recent errors. **Copy report** puts all of that on the clipboard.
 
 ### Optional: local model for private and offline mode
 

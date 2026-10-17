@@ -2,6 +2,7 @@
 
     python -m gnosis serve           Start Gnosis and its dashboard on http://127.0.0.1:8765
     python -m gnosis serve --voice   ...and listen for "Hey Gnosis" on the microphone
+    python -m gnosis app [--voice]   Gnosis in its own window, with a tray icon (closing hides it)
     python -m gnosis chat            Talk to Gnosis in the terminal
     python -m gnosis enroll          Teach Gnosis your voice (voice ID)
     python -m gnosis models          List the Nemotron models your Nebius key can use
@@ -18,39 +19,22 @@ import sys
 
 
 def _serve(args: argparse.Namespace) -> None:
-    import uvicorn
-
-    from gnosis.app import build
     from gnosis.config import load_settings
-    from gnosis.server.api import create_app
+    from gnosis.server.run import GnosisServer
 
-    settings = load_settings(args.config)
     _harden()
-    g = build(settings)
-    server = uvicorn.Server(uvicorn.Config(create_app(g), host=settings.host, port=settings.port,
-                                           log_level="warning"))
-    print(f"Gnosis dashboard: http://{settings.host}:{settings.port}")
-    print(f"Kill switch: {settings.kill_switch} stops everything Gnosis is doing")
+    server = GnosisServer(load_settings(args.config), voice=getattr(args, "voice", False))
+    print(f"Gnosis dashboard: {server.url}")
+    print(f"Kill switch: {server.settings.kill_switch} stops everything Gnosis is doing")
+    asyncio.run(server.serve())
 
-    async def main() -> None:
-        from gnosis import killswitch
 
-        killswitch.start(g.stop_all, settings.kill_switch)
-        background = [asyncio.create_task(g.run_background())]
-        if getattr(args, "voice", False):
-            from gnosis.voice import run_voice
+def _app(args: argparse.Namespace) -> None:
+    from gnosis.config import load_settings
+    from gnosis.window import run_app
 
-            background.append(asyncio.create_task(run_voice(g)))
-        for task in background:
-            task.add_done_callback(lambda t: t.cancelled() or not t.exception() or
-                                   print(f"Stopped: {type(t.exception()).__name__}: {t.exception()}"))
-        try:
-            await server.serve()
-        finally:
-            for task in background:
-                task.cancel()
-
-    asyncio.run(main())
+    _harden()
+    sys.exit(run_app(load_settings(args.config), voice=args.voice))
 
 
 def _harden() -> None:
@@ -194,6 +178,9 @@ def main() -> None:
     serve = sub.add_parser("serve")
     serve.add_argument("--voice", action="store_true", help='Listen for "Hey Gnosis" on the microphone')
     serve.set_defaults(func=_serve)
+    app = sub.add_parser("app", help="Gnosis in its own window, with a tray icon")
+    app.add_argument("--voice", action="store_true", help='Listen for "Hey Gnosis" on the microphone')
+    app.set_defaults(func=_app)
     sub.add_parser("enroll").set_defaults(func=_enroll)
     sub.add_parser("chat").set_defaults(func=_chat)
     sub.add_parser("models").set_defaults(func=_models)

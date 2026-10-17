@@ -97,6 +97,14 @@
   #pair-dialog .warn { color: var(--warn); }
   .device { display: flex; gap: 8px; align-items: center; font-size: 13px; padding: 3px 0; }
   .device span { flex: 1; }
+  #diag { flex: 1; overflow-y: auto; padding: 10px 14px; font-size: 13px; }
+  #diag h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); margin: 14px 0 6px; }
+  #diag table { width: 100%; border-collapse: collapse; }
+  #diag td, #diag th { text-align: left; padding: 4px 8px 4px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+  #diag th { color: var(--muted); font-weight: 600; }
+  #diag .good { color: var(--ok); } #diag .bad { color: var(--bad); } #diag .meh { color: var(--muted); }
+  #diag .bar { display: flex; gap: 8px; align-items: center; }
+  #diag .bar span { flex: 1; color: var(--muted); }
   @media (max-width: 800px) { main { grid-template-columns: 1fr; height: auto; } #chat { min-height: 50vh; } }
 </style>
 </head>
@@ -127,6 +135,7 @@
     <div class="tabs">
       <button class="tab active" data-view="talk">Conversation</button>
       <button class="tab" data-view="memory">Memory</button>
+      <button class="tab" data-view="diag">Diagnostics</button>
     </div>
     <div class="view active" id="view-talk">
       <div id="chat"></div>
@@ -151,6 +160,7 @@
       <svg id="map" viewBox="-400 -300 800 600" preserveAspectRatio="xMidYMid meet"></svg>
       <div id="facts"></div>
     </div>
+    <div class="view" id="view-diag"><div id="diag"></div></div>
   </section>
   <aside>
     <section><h2>Needs your approval</h2><div id="approvals"></div></section>
@@ -408,7 +418,47 @@ document.querySelectorAll(".tab").forEach((t) => t.onclick = () => {
   document.querySelectorAll(".tab").forEach((x) => x.classList.toggle("active", x === t));
   document.querySelectorAll(".view").forEach((v) => v.classList.toggle("active", v.id === "view-" + t.dataset.view));
   if (t.dataset.view === "memory") loadMemory();
+  if (t.dataset.view === "diag") loadDiagnostics();
 });
+
+// ---- Diagnostics ----------------------------------------------------------
+const yesNo = (v, yes = "yes", no = "no") => v == null ? `<span class="meh">–</span>`
+  : `<span class="${v ? "good" : "bad"}">${v ? yes : no}</span>`;
+const ago = (ts) => { const s = Math.round(Date.now() / 1000 - ts);
+  return s < 60 ? `${s}s ago` : s < 3600 ? `${Math.round(s / 60)}m ago` : `${Math.round(s / 3600)}h ago`; };
+
+async function loadDiagnostics() {
+  let d;
+  try { d = await fetch("/api/diagnostics").then((r) => r.json()); }
+  catch (err) { $("diag").innerHTML = `<p class="bad">Can't reach Gnosis: ${esc(err)}</p>`; return; }
+  const gi = d.gnosis;
+  $("diag").innerHTML = `
+    <div class="bar"><span>Gnosis ${esc(gi.version)} · ${esc(gi.commit || "no commit")} · up ${Math.round(gi.uptime_s / 60)} min</span>
+      <button class="no" id="diag-copy">Copy report</button><button class="no" id="diag-refresh">Refresh</button></div>
+    <h3>Overall</h3><table>
+      <tr><td>Cloud models</td><td>${yesNo(d.online, "online", "offline (using the local model)")}</td></tr>
+      <tr><td>Voice</td><td>${esc(d.voice)}</td></tr>
+      <tr><td>Tools loaded</td><td>${d.tools}</td></tr>
+      <tr><td>Tasks running / approvals waiting</td><td>${d.tasks.running} / ${d.tasks.approvals_waiting}</td></tr>
+      <tr><td>Claim checks (recent)</td><td>${d.claim_checks}</td></tr>
+      <tr><td>Code folder</td><td>${esc(gi.folder)}</td></tr>
+      <tr><td>Data folder</td><td>${esc(gi.data_dir)}</td></tr>
+      <tr><td>Python / OS</td><td>${esc(gi.python)} · ${esc(gi.platform)}</td></tr></table>
+    <h3>Keys</h3><table>${d.keys.map((k) => `<tr><td>${esc(k.name)}</td><td>${yesNo(k.set, "set", "missing")}</td></tr>`).join("")}</table>
+    <h3>Model providers</h3><table><tr><th>Provider</th><th>Roles</th><th>Key</th><th>Reachable</th></tr>
+      ${d.providers.map((p) => `<tr><td>${esc(p.name)}${p.local ? " (on this laptop)" : ""}<br><small class="meh">${esc(p.url)}</small></td>
+        <td>${esc(p.roles.join(", ") || "–")}</td><td>${p.key ? yesNo(p.key_set, "set", "missing") : '<span class="meh">none needed</span>'}</td>
+        <td>${p.local ? yesNo(p.reachable, "yes", "not running") : '<span class="meh">see calls</span>'}</td></tr>`).join("")}</table>
+    <h3>Recent model calls</h3>${d.calls.length ? `<table><tr><th>Role</th><th>Model</th><th>Calls</th><th>Last</th><th>Median</th></tr>
+      ${d.calls.map((c) => `<tr><td>${esc(c.role)}</td><td>${esc(c.model || "")} <small class="meh">${esc(c.where || "")}</small></td>
+        <td>${c.calls}</td><td>${c.last_ms ?? "–"} ms <small class="meh">${ago(c.last_ts)}</small></td><td>${c.median_ms ?? "–"} ms</td></tr>`).join("")}</table>`
+      : `<p class="meh">No model calls yet.</p>`}
+    <h3>Recent errors</h3>${d.errors.length ? `<table>${d.errors.map((e) => `<tr><td style="white-space:nowrap">${ago(e.ts)}</td>
+      <td>${esc(e.kind)}${e.where ? " · " + esc(e.where) : ""}</td><td class="bad">${esc(e.error)}</td></tr>`).join("")}</table>`
+      : `<p class="good">No errors.</p>`}`;
+  $("diag-refresh").onclick = loadDiagnostics;
+  $("diag-copy").onclick = () => navigator.clipboard.writeText(JSON.stringify(d, null, 2));
+}
 
 const short = (s, n = 22) => s.length > n ? s.slice(0, n - 1) + "…" : s;
 const SVG = "http://www.w3.org/2000/svg";

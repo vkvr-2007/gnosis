@@ -11,6 +11,7 @@ from fastapi.responses import FileResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
+from gnosis import diagnostics
 from gnosis.app import Gnosis
 from gnosis.config import REPO_ROOT
 from gnosis.core.llm import ModelError
@@ -200,6 +201,10 @@ def create_app(g: Gnosis) -> FastAPI:
             raise HTTPException(404, "No episode with that id")
         g.audit.write("memory_edit", action="forget_episode", episode_id=episode_id)
         return {"ok": True}
+
+    @app.get("/api/diagnostics")
+    async def diagnostics_report() -> dict:
+        return await diagnostics.collect(g)
 
     @app.get("/api/audit")
     async def audit(limit: int = 100) -> list[dict]:

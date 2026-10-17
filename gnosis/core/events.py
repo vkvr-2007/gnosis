@@ -10,6 +10,7 @@ from typing import Any
 class EventBus:
     def __init__(self) -> None:
         self._subscribers: set[asyncio.Queue] = set()
+        self.last: dict[str, dict[str, Any]] = {}  # The latest event of each type, e.g. the voice state
 
     def subscribe(self) -> asyncio.Queue:
         q: asyncio.Queue = asyncio.Queue(maxsize=500)
@@ -21,6 +22,7 @@ class EventBus:
 
     async def publish(self, type_: str, **data: Any) -> None:
         event = {"type": type_, "ts": time.time(), **data}
+        self.last[type_] = event
         for q in list(self._subscribers):
             if q.full():  # A slow client drops its oldest event rather than blocking Gnosis.
                 q.get_nowait()

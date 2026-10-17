@@ -25,6 +25,8 @@ desktop = [
     "pillow>=10",
     "rapidfuzz>=3",
     "pynput>=1.7; sys_platform == 'win32'",  # Teach mode recording
+    "pywebview>=5; sys_platform == 'win32'",  # `gnosis app`: its own window
+    "pystray>=0.19",                         # ...and tray icon
 ]
 # Notifications on the paired phone (Web Push).
 phone = ["pywebpush>=2"]
