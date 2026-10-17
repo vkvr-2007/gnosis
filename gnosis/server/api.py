@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import FileResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -82,6 +83,38 @@ def create_app(g: Gnosis) -> FastAPI:
             g.audit.write("error", where="chat", error=f"{type(e).__name__}: {e}")
             raise HTTPException(500, f"Gnosis hit an error: {type(e).__name__}: {e}")
         return {"answer": answer}
+
+    @app.post("/api/chat/stream")
+    async def chat_stream(req: ChatRequest) -> StreamingResponse:
+        """The answer as server-sent events while it's written: `delta` (more text), `reset` (drop the
+        text so far: it led to a tool call), then `done` with the whole answer, or `error`."""
+        tags = {"private"} if req.private else set()
+        text = request_text(req)
+        queue: asyncio.Queue = asyncio.Queue()
+
+        async def on_text(delta: str | None) -> None:
+            await queue.put(("reset", "") if delta is None else ("delta", delta))
+
+        async def work() -> None:
+            try:
+                await queue.put(("done", await g.orchestrator.handle(text, req.session_id, tags, on_text=on_text)))
+            except Exception as e:
+                g.audit.write("error", where="chat", error=f"{type(e).__name__}: {e}")
+                await queue.put(("error", f"{type(e).__name__}: {e}"))
+
+        async def events():
+            task = asyncio.create_task(work())
+            try:
+                while True:
+                    kind, data = await queue.get()
+                    yield f"event: {kind}\ndata: {json.dumps(data)}\n\n"
+                    if kind in ("done", "error"):
+                        return
+            finally:
+                if not task.done():
+                    task.cancel()  # The client went away
+
+        return StreamingResponse(events(), media_type="text/event-stream")
 
     @app.post("/api/tasks")
     async def start_task(req: ChatRequest) -> dict:

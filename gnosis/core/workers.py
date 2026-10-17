@@ -34,6 +34,7 @@ class TaskInfo:
     held: set[str] = field(default_factory=set)  # Resources this task holds
     calls: list[dict[str, Any]] = field(default_factory=list)  # Tool calls made, for "save that as a skill"
     gate: asyncio.Event = field(default_factory=asyncio.Event)  # Cleared while paused
+    on_text: Any = None  # async callback for the answer's text as it streams in (e.g. the voice)
 
     def __post_init__(self) -> None:
         self.gate.set()

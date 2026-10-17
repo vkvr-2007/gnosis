@@ -35,17 +35,24 @@ _MAX_TOOL_RESULT_CHARS = 8_000
 _MEMORY_ID = re.compile(r"\s*\[#\d+\]")
 # An answer that says Gnosis did something; checked against whether any tool actually ran.
 _CLAIMS_ACTION = re.compile(
-    r"\b(?:I'?ve|I have|I)\s+(?:just\s+|now\s+)?(?:saved|stored|noted|remembered|opened|closed|typed|sent|set|"
+    r"\b(?:I[’']?ve|I have|I)\s+(?:just\s+|now\s+)?(?:saved|stored|noted|remembered|opened|closed|typed|sent|set|"
     r"scheduled|created|deleted|removed|started|played|launched|added|written|wrote|called|turned|"
     r"cancelled|canceled|paused|moved|updated)\b", re.I)
-_CLAIM_CHECK = ("[Gnosis check] Your reply says you did something, but no tool ran in this task. If the request "
-                "needs an action, call the tool now. If it was already done before, say that, without "
-                "claiming you did it now.")
+_CLAIM_CHECK = ("[Gnosis check] Your reply says you did something, but no tool has run in this task, so nothing "
+                "was done. Recalled past tasks are history: they don't count as doing it now. If the request "
+                "asks for an action, call the tool for it now. Otherwise answer without claiming an action.")
+# The re-check may think first: slower, but this only happens when a fast answer looked wrong.
+_THINK = {"extra_body": {"chat_template_kwargs": {"enable_thinking": True}}}
 _HISTORY_TURNS = 10
 _KEEP_FINISHED = 30  # Finished task cards kept for the dashboard
 # The task a tool is running for, so tools like run_skill can make further tool calls on its behalf.
 _CURRENT: contextvars.ContextVar[tuple[TaskInfo, set[str], bool] | None] = contextvars.ContextVar(
     "gnosis_task", default=None)
+
+
+def _needs_claim_check(msg: Any, acted: bool, checked: bool) -> bool:
+    return (not msg.tool_calls and not acted and not checked
+            and bool(_CLAIMS_ACTION.search(msg.content or "")))
 
 
 def current_tags() -> set[str]:
@@ -91,10 +98,13 @@ class Orchestrator:
     # ---- running tasks -------------------------------------------------------
 
     async def handle(self, text: str, session_id: str = "default",
-                     tags: set[str] | None = None, owner: bool = True) -> str:
+                     tags: set[str] | None = None, owner: bool = True, on_text: Any = None) -> str:
         """Runs one request and returns the answer. `owner=False` is guest mode: voice ID didn't
-        recognise the speaker."""
-        return await self._run(self._new_task(text, session_id, owner), tags)
+        recognise the speaker. `on_text(delta)` receives the answer's text as it streams in, and
+        `on_text(None)` when text already sent should be discarded (it led to a tool call instead)."""
+        info = self._new_task(text, session_id, owner)
+        info.on_text = on_text
+        return await self._run(info, tags)
 
     def submit(self, text: str, session_id: str = "default", tags: set[str] | None = None,
                owner: bool = True) -> tuple[TaskInfo, asyncio.Task]:
@@ -247,15 +257,29 @@ class Orchestrator:
 
         answer = "I couldn't finish that within my step limit. Tell me if you want me to keep going."
         acted, checked = False, False
+        streamed = False
+
+        async def stream_text(delta: str | None) -> None:
+            nonlocal streamed
+            streamed = streamed or delta is not None
+            await self.events.publish("answer_reset" if delta is None else "answer_delta",
+                                      task_id=task_id, session=session_id, text=delta)
+            if info.on_text is not None:
+                await info.on_text(delta)
+
         for step in range(self.max_steps):
             await self._checkpoint(info)
-            result = await self.llm.chat("planner", messages, tools=self._schemas(loaded), tags=tags)
+            result = await self.llm.chat("planner", messages, tools=self._schemas(loaded), tags=tags,
+                                         on_text=stream_text, **(_THINK if checked and not acted else {}))
             msg = result.message
             messages.append(_assistant_dict(msg))
+            if streamed and (msg.tool_calls or _needs_claim_check(msg, acted, checked)):
+                streamed = False
+                await stream_text(None)  # That text wasn't the answer
             if not msg.tool_calls:
                 # Models copy the [#id] tags from recalled memories even when told not to.
                 answer = _MEMORY_ID.sub("", msg.content or "").strip() or "Done."
-                if not acted and not checked and _CLAIMS_ACTION.search(answer):
+                if _needs_claim_check(msg, acted, checked):
                     # A fast model sometimes says "I've saved that" without calling anything. One nudge.
                     checked = True
                     self.audit.write("claim_check", task_id=task_id, answer=answer[:200])

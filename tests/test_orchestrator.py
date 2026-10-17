@@ -101,7 +101,7 @@ def test_memory_search_stays_on_the_cloud_model_and_holds_back_sensitive_facts(s
 
 
 def test_a_claimed_action_without_a_tool_gets_one_nudge(settings):
-    llm = FakeLLM([reply("Got it, I've saved that."),
+    llm = FakeLLM([reply("Got it – I’ve saved that."),  # Curly apostrophe, as the model writes it
                    reply(calls=[tool_call("remember", {"subject": "owner", "predicate": "snack", "value": "dosa"})]),
                    reply("Saved: your favourite snack is dosa.")])
     g = build(settings, llm=llm)

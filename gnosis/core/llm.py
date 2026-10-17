@@ -19,6 +19,7 @@ from gnosis.core.model_router import ModelRouter, Route
 from gnosis.core.redact import redact
 
 CallListener = Callable[[dict[str, Any]], Awaitable[None]]
+TextListener = Callable[[str], Awaitable[None]]  # Receives a reply's text as it streams in
 
 _OFFLINE_RETRY_S = 60.0
 _EMBED_RETRY_S = 600.0  # Most setups never run an embedding server; don't keep knocking
@@ -40,6 +41,42 @@ def strip_thinking(text: str | None) -> str | None:
     if "<think>" not in text:
         return text.split("</think>", 1)[1].strip() if "</think>" in text else text
     return _THINK.sub("", text).strip()
+
+
+class _ThinkingFilter:
+    """Holds back a streamed <think>...</think> block so only the answer is shown and spoken."""
+
+    def __init__(self) -> None:
+        self.buffer = ""
+        self.state = "start"  # start: deciding; think: inside reasoning; pass: answer text
+
+    def feed(self, text: str) -> str:
+        if self.state == "pass":
+            return text
+        if self.state == "after":  # Just past </think>: drop the blank space before the answer
+            text = text.lstrip()
+            if text:
+                self.state = "pass"
+            return text
+        self.buffer += text
+        if self.state == "start":
+            stripped = self.buffer.lstrip()
+            if len(stripped) < len("<think>") and "<think>".startswith(stripped):
+                return ""  # Might still become <think>
+            if not stripped.startswith("<think>"):
+                self.state, out, self.buffer = "pass", self.buffer, ""
+                return out
+            self.state = "think"
+        if "</think>" in self.buffer:
+            out = self.buffer.split("</think>", 1)[1].lstrip()
+            self.state, self.buffer = ("pass" if out else "after"), ""
+            return out
+        return ""
+
+    def flush(self) -> str:
+        out = self.buffer if self.state == "start" else ""
+        self.buffer = ""
+        return out
 
 
 def _for_route(tools: list[dict[str, Any]] | None, route: Route) -> list[dict[str, Any]] | None:
@@ -205,9 +242,14 @@ class LLMClient:
             params["extra_body"] = {**route.extra_body, **params.get("extra_body", {})}
         if tools:
             params["tools"] = tools
-        resp = await self._client(route).chat.completions.create(**params)
+        on_text = params.pop("on_text", None)
+        if on_text and not route.is_local:
+            # Local models sometimes write tool calls as text, which must never be shown or spoken.
+            message, usage = await self._stream(route, params, on_text)
+        else:
+            resp = await self._client(route).chat.completions.create(**params)
+            message, usage = resp.choices[0].message, resp.usage
         latency = int((time.monotonic() - started) * 1000)
-        message = resp.choices[0].message
         message.content = strip_thinking(message.content)
         names = _tool_names or ({t.get("function", t)["name"] for t in tools} if tools else set())
         if names and route.is_local and not message.tool_calls:
@@ -224,9 +266,42 @@ class LLMClient:
                 "reason": route.reason,
                 "redactions": redactions,
                 "latency_ms": latency,
-                "tokens": getattr(resp.usage, "total_tokens", None) if resp.usage else None,
+                "tokens": getattr(usage, "total_tokens", None) if usage else None,
             })
         return result
+
+    async def _stream(self, route: Route, params: dict[str, Any], on_text: TextListener) -> tuple[Any, Any]:
+        """Streams a reply, passing its visible text to `on_text` as it arrives. Returns the whole
+        message (text and tool calls, put back together) and the token usage."""
+        stream = await self._client(route).chat.completions.create(
+            **params, stream=True, stream_options={"include_usage": True})
+        content: list[str] = []
+        calls: dict[int, dict[str, str]] = {}
+        hide = _ThinkingFilter()
+        usage = None
+        async for chunk in stream:
+            usage = getattr(chunk, "usage", None) or usage
+            if not chunk.choices:
+                continue
+            delta = chunk.choices[0].delta
+            if delta.content:
+                content.append(delta.content)
+                visible = hide.feed(delta.content)
+                if visible:
+                    await on_text(visible)
+            for tc in delta.tool_calls or []:
+                slot = calls.setdefault(tc.index, {"id": "", "name": "", "args": ""})
+                slot["id"] = tc.id or slot["id"]
+                if tc.function is not None:
+                    slot["name"] += tc.function.name or ""
+                    slot["args"] += tc.function.arguments or ""
+        rest = hide.flush()
+        if rest:
+            await on_text(rest)
+        tool_calls = [SimpleNamespace(id=s["id"] or "call_" + secrets.token_hex(4), type="function",
+                                      function=SimpleNamespace(name=s["name"], arguments=s["args"] or "{}"))
+                      for _, s in sorted(calls.items())]
+        return SimpleNamespace(content="".join(content) or None, tool_calls=tool_calls or None), usage
 
     async def chat(
         self,
