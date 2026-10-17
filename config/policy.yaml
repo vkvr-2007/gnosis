@@ -47,6 +47,8 @@ tools:
   press_keys: allow
   play_music: allow
   read_screen: allow          # Text stays on the laptop (local model)
+  look_at_image: allow       # Images you attached yourself
+  look_through_camera: ask    # Takes a photo and sends it to the cloud vision model, so it asks every time
   look_at_screen: ask_once    # Sends a screenshot to the cloud vision model: asked once per app
   vision_click: ask_once
   read_file: allow

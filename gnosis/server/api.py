@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field
 from gnosis.app import Gnosis
 from gnosis.config import REPO_ROOT
 from gnosis.core.llm import ModelError
+from gnosis.attachments import MAX_BYTES, AttachmentError
 from gnosis.server.phone_api import TokenGuard, add_phone_routes
 
 DASHBOARD_DIR = REPO_ROOT / "web" / "dashboard"
@@ -22,6 +23,7 @@ class ChatRequest(BaseModel):
     text: str = Field(min_length=1, max_length=8000)
     session_id: str = "default"
     private: bool = False
+    files: list[str] = Field(default_factory=list, max_length=5)  # Attachment ids from /api/files
 
 
 class ApprovalAnswer(BaseModel):
@@ -50,11 +52,29 @@ def create_app(g: Gnosis) -> FastAPI:
     async def health() -> dict:
         return {"ok": True, "online": g.llm.online, "tools": g.tools.names()}
 
+    def request_text(req: ChatRequest) -> str:
+        if not req.files:
+            return req.text
+        try:
+            return f"{req.text}\n\n{g.inbox.describe(req.files)}"
+        except AttachmentError as e:
+            raise HTTPException(400, str(e))
+
+    @app.post("/api/files")
+    async def upload(request: Request, name: str = "file") -> dict:
+        """One attached file or camera photo, sent as the raw request body."""
+        data = await request.body()
+        try:
+            return g.inbox.save(name, data).to_dict()
+        except AttachmentError as e:
+            raise HTTPException(413 if len(data) > MAX_BYTES else 400, str(e))
+
     @app.post("/api/chat")
     async def chat(req: ChatRequest) -> dict:
         tags = {"private"} if req.private else set()
+        text = request_text(req)
         try:
-            answer = await g.orchestrator.handle(req.text, req.session_id, tags)
+            answer = await g.orchestrator.handle(text, req.session_id, tags)
         except ModelError as e:
             g.audit.write("error", where="chat", error=str(e))
             raise HTTPException(502, f"Model error: {e}")
@@ -66,7 +86,7 @@ def create_app(g: Gnosis) -> FastAPI:
     @app.post("/api/tasks")
     async def start_task(req: ChatRequest) -> dict:
         """Starts a request in the background; progress arrives as task_status events."""
-        info, task = g.orchestrator.submit(req.text, req.session_id, {"private"} if req.private else set())
+        info, task = g.orchestrator.submit(request_text(req), req.session_id, {"private"} if req.private else set())
         task.add_done_callback(lambda t: t.cancelled() or t.exception())  # Failures show on the task card
         return info.to_dict()
 

@@ -1,4 +1,7 @@
-"""Voice for Gnosis: wake word, speech recognition, spoken replies and voice ID, all on-device."""
+"""Voice for Gnosis: wake word, speech recognition, spoken replies and voice ID.
+
+All on-device by default. Speech recognition and spoken replies can use ElevenLabs instead (see elevenlabs.py).
+"""
 
 from __future__ import annotations
 
@@ -24,6 +27,7 @@ def _expand(p: str | None) -> Path | None:
 async def run_voice(g: "Gnosis") -> None:
     """Runs the voice loop until cancelled. Heavy models load in a thread so the server stays responsive."""
     from gnosis.voice.audio import Microphone, Speaker
+    from gnosis.voice.elevenlabs import load_stt, wrap_tts
     from gnosis.voice.loop import VoiceConfig, VoiceLoop
     from gnosis.voice.stt import SpeechToText
     from gnosis.voice.tts import load_tts
@@ -34,8 +38,8 @@ async def run_voice(g: "Gnosis") -> None:
     cfg = g.settings.voice
     await g.events.publish("voice_state", state="loading")
     wake = await asyncio.to_thread(WakeWord, cfg.get("wake_model"), float(cfg.get("wake_threshold", 0.5)))
-    stt = await asyncio.to_thread(SpeechToText, cfg.get("stt_model", "small.en"))
-    tts = await asyncio.to_thread(load_tts, _expand(cfg.get("piper_voice")))
+    stt = await asyncio.to_thread(load_stt, cfg, lambda: SpeechToText(cfg.get("stt_model", "small.en")))
+    tts = wrap_tts(cfg, await asyncio.to_thread(load_tts, _expand(cfg.get("piper_voice"))))
     voice_id = None
     if cfg.get("voice_id", True):
         voice_id = await asyncio.to_thread(load_voice_id, g.settings.data_dir,

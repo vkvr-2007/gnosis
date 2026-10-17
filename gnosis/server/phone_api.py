@@ -145,7 +145,8 @@ def add_phone_routes(app: FastAPI, g) -> None:
         try:
             text = await asyncio.to_thread(g.transcribe_file, io.BytesIO(audio))
         except ImportError:
-            raise HTTPException(501, "Speech recognition isn't installed on the laptop (pip install -e .[voice])")
+            raise HTTPException(501, "Speech recognition isn't set up on the laptop: pip install -e .[voice], "
+                                "or set voice.stt to elevenlabs")
         if not text:
             return {"text": "", "task": None}
         info, task = g.orchestrator.submit(text, "phone")

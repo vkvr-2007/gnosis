@@ -42,6 +42,11 @@ voice:
   wake_model: null             # Path to a custom hey_gnosis.onnx; null uses the bundled "hey jarvis" model
   wake_threshold: 0.5          # Raise if it wakes by accident, lower if it misses you
   stt_model: small.en          # base.en is faster on slower laptops, small.en is more accurate
+  # ElevenLabs instead of the on-device models (needs ELEVENLABS_API_KEY). What you say after the wake word,
+  # and the spoken replies, then go to ElevenLabs. The wake word always stays on the laptop.
+  stt: local                   # local | elevenlabs
+  tts: local                   # local | elevenlabs
+  elevenlabs_voice: null       # A voice ID from your ElevenLabs voice library; null = "George"
   piper_voice: ~/.gnosis/voices/en_GB-alan-medium.onnx   # Missing file = built-in Windows voice
   voice_id: true               # Only the enrolled owner can give owner-level commands by voice
   voice_id_threshold: 0.30

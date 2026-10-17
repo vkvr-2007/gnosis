@@ -37,6 +37,8 @@ voice = [
     "webrtcvad-wheels>=2.0.11",
     "piper-tts>=1.3",
 ]
+# "Look through the camera" on the laptop.
+camera = ["opencv-python-headless>=4.9", "pillow>=10"]
 # Voice ID (speaker recognition). Pulls in PyTorch (CPU), about 1 GB.
 voiceid = ["speechbrain>=1.0", "torch>=2.2"]
 

@@ -91,6 +91,10 @@ Show Gnosis a task once and it can do it again. Say "watch me", do the task in a
 - **Skills are plain files you can read and edit.** Each one is a `SKILL.md` in `%USERPROFILE%\.gnosis\skills\<name>\`, with the steps listed in English and as JSON.
 - **A skill can't do more than you could ask for directly.** Saving one asks you first, and every step goes through the same approval rules as a normal request. Skills can't save, run or delete other skills, or change the rules.
 
+## Files and the camera
+
+Attach files and photos to any request with 📎 or 📷 on the dashboard, or 📷 in the phone app (which offers the phone's camera). Text files are read into the request; images are shown to the Nemotron vision model when Gnosis needs to look at them. You can also ask by voice, "Hey Jarvis, what am I holding?", and Gnosis takes one photo with the laptop's camera after you approve it (install with `pip install -e ".[camera]"`). Photos from the camera aren't saved, and attachments are deleted after a week.
+
 ## Hosted demo
 
 A cut-down Gnosis runs on a Nebius VM so you can try it without a Windows laptop: chat and approvals from your phone or browser, tasks, reminders, memory, saved skills and the coding agent. Ask for an invite link; each link works once. To run your own, see [deploy/README.md](deploy/README.md).
@@ -143,6 +147,8 @@ Everything voice-related runs on your laptop: your audio never leaves it.
 ```
 
 Say **"Hey Jarvis"** (the bundled wake word until you [train "Hey Gnosis"](docs/wake-word.md)), wait for the chime, and speak. After Gnosis answers it keeps listening for a few seconds, so you can follow up without the wake word. Say the wake word while it's talking to interrupt it, or say "stop".
+
+**ElevenLabs voices (optional).** For a more natural voice, or ElevenLabs' speech recognition, set `ELEVENLABS_API_KEY` as a user environment variable and set `voice.tts` and/or `voice.stt` to `elevenlabs` in `config/gnosis.yaml`. What you say after the wake word, and Gnosis's spoken replies, then go to ElevenLabs. The wake word always stays on the laptop, and if ElevenLabs can't be reached Gnosis falls back to the on-device voice.
 
 **Voice ID** makes sure only you can give owner-level commands by voice. Anyone else gets guest mode: music, the time and opening apps, but nothing personal.
 

@@ -30,6 +30,14 @@
   button { background: var(--accent); color: #001018; border: 0; border-radius: 8px; padding: 9px 14px; font: inherit; font-weight: 600; cursor: pointer; }
   button.no { background: transparent; color: var(--text); border: 1px solid var(--line); }
   label { color: var(--muted); font-size: 13px; display: flex; gap: 4px; align-items: center; }
+  button.icon { background: transparent; color: var(--text); border: 1px solid var(--line); padding: 8px 10px; }
+  #chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 12px; }
+  #chips:empty { display: none; }
+  .chip { font-size: 12px; border: 1px solid var(--line); border-radius: 999px; padding: 3px 8px; color: var(--muted); }
+  .chip button { background: none; color: var(--muted); padding: 0 0 0 4px; font-weight: 400; }
+  #camera-dialog { background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
+  #camera-dialog::backdrop { background: #000a; }
+  #camera-dialog video { width: 480px; max-width: 80vw; border-radius: 8px; display: block; margin-bottom: 10px; background: #000; }
   aside { display: flex; flex-direction: column; gap: 16px; min-height: 0; }
   #approvals { padding: 10px 14px; display: flex; flex-direction: column; gap: 10px; }
   #approvals:empty::after { content: "Nothing waiting for you."; color: var(--muted); font-size: 13px; }
@@ -122,12 +130,23 @@
     </div>
     <div class="view active" id="view-talk">
       <div id="chat"></div>
+      <div id="chips"></div>
       <form id="form">
+        <button type="button" class="icon" id="attach" title="Attach a file or image">📎</button>
+        <button type="button" class="icon" id="camera" title="Take a photo with the camera">📷</button>
+        <input type="file" id="file" multiple hidden>
         <input type="text" id="text" placeholder="Ask Gnosis anything…" autocomplete="off" autofocus>
         <label title="Keep this request on the local model"><input type="checkbox" id="private"> Private</label>
         <button>Send</button>
       </form>
     </div>
+    <dialog id="camera-dialog">
+      <video id="camera-video" autoplay playsinline muted></video>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button type="button" class="no" id="camera-cancel">Cancel</button>
+        <button type="button" id="camera-snap">Take photo</button>
+      </div>
+    </dialog>
     <div class="view" id="view-memory">
       <svg id="map" viewBox="-400 -300 800 600" preserveAspectRatio="xMidYMid meet"></svg>
       <div id="facts"></div>
@@ -317,16 +336,65 @@ function connect() {
 
 $("stop").onclick = () => fetch("/api/stop", {method: "POST"});
 
+// ---- Attachments: files and camera photos ---------------------------------
+let attached = [];  // {id, name, kind}
+function renderChips() {
+  $("chips").innerHTML = "";
+  attached.forEach((a, i) => {
+    const c = document.createElement("span");
+    c.className = "chip";
+    c.textContent = (a.kind === "image" ? "🖼 " : "📄 ") + a.name;
+    const x = document.createElement("button");
+    x.type = "button"; x.textContent = "×"; x.title = "Remove";
+    x.onclick = () => { attached.splice(i, 1); renderChips(); };
+    c.appendChild(x);
+    $("chips").appendChild(c);
+  });
+}
+async function upload(blob, name) {
+  if (attached.length >= 5) return say("err", "You can attach up to 5 files.");
+  const r = await fetch("/api/files?name=" + encodeURIComponent(name), {method: "POST", body: blob});
+  const data = await r.json();
+  if (!r.ok) return say("err", data.detail || "Couldn't attach " + name);
+  attached.push(data);
+  renderChips();
+}
+$("attach").onclick = () => $("file").click();
+$("file").onchange = async () => {
+  for (const f of $("file").files) await upload(f, f.name);
+  $("file").value = "";
+};
+let stream = null;
+function stopCamera() { if (stream) stream.getTracks().forEach((t) => t.stop()); stream = null; $("camera-dialog").close(); }
+$("camera").onclick = async () => {
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({video: true});
+  } catch (err) { return say("err", "Couldn't open the camera: " + err.message); }
+  $("camera-video").srcObject = stream;
+  $("camera-dialog").showModal();
+};
+$("camera-cancel").onclick = stopCamera;
+$("camera-snap").onclick = () => {
+  const v = $("camera-video"), c = document.createElement("canvas");
+  c.width = v.videoWidth; c.height = v.videoHeight;
+  c.getContext("2d").drawImage(v, 0, 0);
+  stopCamera();
+  c.toBlob((b) => upload(b, "camera-" + new Date().toISOString().slice(11, 19).replaceAll(":", "") + ".jpg"),
+           "image/jpeg", 0.85);
+};
+
 $("form").onsubmit = async (e) => {
   e.preventDefault();
-  const text = $("text").value.trim();
+  const files = attached.map((a) => a.id);
+  const text = $("text").value.trim() || (files.length ? "What's in this?" : "");
   if (!text) return;
   $("text").value = "";
-  say("you", text);
+  say("you", text + attached.map((a) => "\n📎 " + a.name).join(""));
+  attached = []; renderChips();
   try {
     // Runs in the background, so you can send the next request while this one works.
     const r = await fetch("/api/tasks", {method: "POST", headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({text, session_id: "dashboard", private: $("private").checked})});
+      body: JSON.stringify({text, files, session_id: "dashboard", private: $("private").checked})});
     const data = await r.json();
     if (!r.ok) return say("err", data.detail || "Something went wrong.");
     mine.add(data.id);

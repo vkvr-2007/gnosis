@@ -7,6 +7,7 @@ import sys
 from dataclasses import dataclass, field
 from typing import Any
 
+from gnosis.attachments import Inbox
 from gnosis.config import Settings
 from gnosis.core.audit import AuditLog
 from gnosis.core.events import EventBus
@@ -25,6 +26,7 @@ from gnosis.proactive import Notice, Notifier, Watchers
 from gnosis.scheduler import Job, JobStore, Scheduler, parse_time
 from gnosis.skills.builtin import register_builtin
 from gnosis.skills.desktop import register_desktop_tools
+from gnosis.skills.vision_tools import register_vision_tools
 from gnosis.skills.memory_tools import register_memory_tools
 from gnosis.skills.coder_tools import register_coder_tools
 from gnosis.skills.phone_tools import register_phone_tools
@@ -52,11 +54,23 @@ class Gnosis:
     devices: Any = None
     push: Any = None
     phone: Any = None
+    inbox: Any = None
     _stt: Any = None
     _jobs: set = field(default_factory=set)  # Routines running in the background
 
     def transcribe_file(self, file: Any) -> str:
         """Speech to text for a recording from the phone (any format ffmpeg/PyAV can read)."""
+        from gnosis.voice.elevenlabs import ElevenLabsSTT, api_key
+
+        cfg = self.settings.voice
+        if cfg.get("stt") == "elevenlabs" and api_key():
+            import httpx
+
+            try:
+                return ElevenLabsSTT(api_key(), cfg.get("elevenlabs_stt_model", "scribe_v1")).transcribe_bytes(
+                    file.read(), "phone-recording.webm")
+            except httpx.HTTPError:
+                file.seek(0)  # Fall back to the on-device model below
         from faster_whisper import decode_audio
 
         if self._stt is None:
@@ -149,6 +163,10 @@ def build(settings: Settings, llm: LLMClient | None = None) -> Gnosis:
     g.phone = Phone(subprocess_runner(adb) if adb else None, settings.data_dir / "phone.json")
     if settings.phone.get("adb", True):
         register_phone_tools(tools, g.phone, memory)
+
+    g.inbox = Inbox(settings.data_dir / "inbox")
+    g.inbox.clean()
+    register_vision_tools(tools, llm, g.inbox, camera=settings.desktop and sys.platform == "win32")
 
     sandbox = default_sandbox(settings.data_dir, settings.coder.get("distro", "Gnosis"))
     register_coder_tools(tools, sandbox, g.notifier, settings.coder.get("isolated"))
