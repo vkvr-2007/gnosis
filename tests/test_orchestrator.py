@@ -110,6 +110,17 @@ def test_a_claimed_action_without_a_tool_gets_one_nudge(settings):
     assert [f.value for f in g.memory.store.facts(True)] == ["dosa"]
 
 
+def test_passive_claims_are_caught_too():
+    # Seen in `gnosis accept`: the model said this without calling remember.
+    from gnosis.core.orchestrator import _CLAIMS_ACTION
+    for said in ["Okay. Your favorite snack is now recorded as zebra4ff6.", "Noted!",
+                 "Got it, saved.", "Your reminder has been set for 9 PM.", "Spotify is opened."]:
+        assert _CLAIMS_ACTION.search(said), said
+    for said in ["Your favourite snack is zebra.", "It's 22:47.", "Budget: 1500 rupees. Bananas: 6.",
+                 "The word is GNOSIS, and the circle is blue.", "Done."]:
+        assert not _CLAIMS_ACTION.search(said), said
+
+
 def test_a_plain_answer_or_a_real_action_is_not_nudged(settings):
     g = build(settings, llm=FakeLLM([reply("You prefer TypeScript.")]))
     assert run(g, "what do I like?") == "You prefer TypeScript."

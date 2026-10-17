@@ -34,10 +34,15 @@ Help with harmless things only. Never reveal anything about the owner. Politely 
 _MAX_TOOL_RESULT_CHARS = 8_000
 _MEMORY_ID = re.compile(r"\s*\[#\d+\]")
 # An answer that says Gnosis did something; checked against whether any tool actually ran.
+_DONE_VERBS = (r"saved|stored|noted|recorded|remembered|opened|closed|typed|sent|set|scheduled|created|deleted|"
+               r"removed|started|played|launched|added|written|wrote|called|turned|cancelled|canceled|paused|"
+               r"moved|updated")
+# "I've saved that", but also "Your snack is now recorded as X" and a bare "Noted." / "Saved!"
 _CLAIMS_ACTION = re.compile(
-    r"\b(?:I[’']?ve|I have|I)\s+(?:just\s+|now\s+)?(?:saved|stored|noted|remembered|opened|closed|typed|sent|set|"
-    r"scheduled|created|deleted|removed|started|played|launched|added|written|wrote|called|turned|"
-    r"cancelled|canceled|paused|moved|updated)\b", re.I)
+    rf"\b(?:I[’']?ve|I have|I)\s+(?:just\s+|now\s+)?(?:{_DONE_VERBS})\b"
+    rf"|\b(?:is|are|has been|have been|was|were)\s+(?:now\s+|been\s+)*(?:saved|stored|noted|recorded|"
+    rf"remembered|scheduled|set|added|deleted|removed|updated|written|typed|sent|opened|closed)\b"
+    rf"|^\W*(?:(?:ok(?:ay)?|got it|sure|done)\W+)?(?:noted|saved|stored|recorded)\b", re.I)
 _CLAIM_CHECK = ("[Gnosis check] Your reply says you did something, but no tool has run in this task, so nothing "
                 "was done. Recalled past tasks are history: they don't count as doing it now. If the request "
                 "asks for an action, call the tool for it now. Otherwise answer without claiming an action.")
