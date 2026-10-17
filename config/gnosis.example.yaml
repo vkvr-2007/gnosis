@@ -11,7 +11,7 @@ policy_file: config/policy.yaml
 kill_switch: ctrl+alt+j        # Global hotkey that stops everything Gnosis is doing
 
 orchestrator:
-  max_steps: 8                 # Tool-call rounds per request before Gnosis stops and reports
+  max_steps: 25                # Tool-call rounds per request before Gnosis stops and reports
   approval_timeout_s: 120      # How long an "ask" waits for your answer before it's treated as "no"
   max_parallel: 4              # Requests that can run at the same time (desktop tasks still take turns)
 
@@ -21,6 +21,10 @@ phone:
   # notifications and the microphone). Without it, set server.host to 0.0.0.0 to use your Wi-Fi.
   url: null
   adb: true                    # Phone control over ADB (scripts\get_adb.ps1, then `gnosis phone pair`)
+
+coder:
+  distro: Gnosis               # The WSL distro scripts\setup_wsl.ps1 creates
+  isolated: null               # Override whether code_run counts as sandboxed (true inside a container)
 
 proactive:
   morning_briefing: "08:00"    # Spoken briefing every day; null turns it off

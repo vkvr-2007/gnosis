@@ -47,8 +47,16 @@ tools:
   send_message: ask
   run_shell_windows: ask
   run_shell_sandbox: allow
-  git_push: ask
-  deploy: ask
+  # Coding agent. Code runs in the isolated "Gnosis" WSL distro (scripts/setup_wsl.ps1).
+  code_new_project: allow
+  code_write_file: allow
+  code_edit_file: allow
+  code_read_file: allow
+  code_list_files: allow
+  code_run: allow             # Asks anyway when there's no isolated sandbox (not on Windows/WSL)
+  code_open_in_vscode: allow
+  git_push: ask_once          # Asked once per project
+  deploy: ask_once            # Asked once per project
   purchase: deny
   edit_policy: deny
 

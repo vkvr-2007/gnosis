@@ -4,7 +4,7 @@
 
 Built for Track 03 (Personal AI) of the Nebius x NVIDIA Global AI Hackathon.
 
-> **Status:** build step 7 of 10. Working now: the brain, cloud and local model routing, the policy gate and audit log, the dashboard, long-term memory with a memory map, voice with voice ID, desktop control (open, close and operate Windows apps, with a screenshot fallback and a kill switch), parallel tasks, reminders, routines and proactive notices, and the phone (a companion app, plus calls and messages on Android). The coding agent comes next. See [the design](docs/architecture.md).
+> **Status:** build step 8 of 10. Working now: the brain, cloud and local model routing, the policy gate and audit log, the dashboard, long-term memory with a memory map, voice with voice ID, desktop control (open, close and operate Windows apps, with a screenshot fallback and a kill switch), parallel tasks, reminders, routines and proactive notices, the phone (a companion app, plus calls and messages on Android), and the coding agent (build, push to GitHub, deploy to Vercel). Teach mode comes next. See [the design](docs/architecture.md).
 
 ## How it works
 
@@ -67,6 +67,20 @@ Every request runs as its own task, so you can ask for the next thing while the 
 ```
 
 Then say "sync my contacts" once, and "call Amma" or "WhatsApp Rahul that I'm running late" works by name. Contacts are saved on the laptop as sensitive facts.
+
+## Coding, from idea to live URL
+
+"Build me a landing page for a coffee shop called Ember and deploy it." Gnosis creates the project, writes the code, runs the build, reads the errors and fixes them until it works, then pushes it to your GitHub and deploys it to Vercel. You get the link on screen and on your phone. Say "open it in VS Code" to watch.
+
+- **It codes in a sandbox.** Projects live in a separate WSL2 Ubuntu called "Gnosis", which can't see your Windows drives or start Windows programs. Set it up once:
+
+  ```powershell
+  .\scripts\setup_wsl.ps1      # About 1 GB: Ubuntu 24.04, Node 22, git, GitHub CLI
+  [Environment]::SetEnvironmentVariable('GH_TOKEN', '<GitHub token>', 'User')
+  [Environment]::SetEnvironmentVariable('VERCEL_TOKEN', '<Vercel token>', 'User')
+  ```
+
+- **Publishing asks first.** Pushing to GitHub and deploying each ask once per project. The tokens are only passed to those two commands, never to the code Gnosis writes.
 
 ## Quick start (Windows)
 
@@ -138,6 +152,7 @@ python -m venv .venv && .venv/bin/pip install -e ".[dev]"
 | `gnosis/skills/desktop/` | App finder and launcher, UI Automation (read, click, type, shortcuts), screenshot fallback, Spotify |
 | `gnosis/voice/` | Microphone and speaker, wake word, end-of-speech detection, speech-to-text, text-to-speech, voice ID, the voice loop |
 | `gnosis/skills/` | Tools Gnosis can use (built-ins and memory today; desktop, phone, coder and more next) |
+| `gnosis/coder/` | The coding sandbox (WSL2 distro, or a workspace folder) |
 | `gnosis/phone/` | Phone pairing and device tokens, Web Push, Android control over ADB |
 | `gnosis/server/` | Local FastAPI + WebSocket API, and the phone bridge |
 | `web/dashboard/` | Dashboard |

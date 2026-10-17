@@ -29,13 +29,14 @@ class Settings:
     data_dir: Path = field(default_factory=lambda: Path("~/.gnosis").expanduser())
     models: dict[str, Any] = field(default_factory=dict)
     policy: dict[str, Any] = field(default_factory=dict)
-    max_steps: int = 8
+    max_steps: int = 25  # Building a website takes many write-build-fix rounds
     approval_timeout_s: float = 120.0
     max_parallel: int = 4  # Tasks that may run at the same time
     voice: dict[str, Any] = field(default_factory=dict)
     kill_switch: str = "ctrl+alt+j"
     proactive: dict[str, Any] = field(default_factory=dict)
     phone: dict[str, Any] = field(default_factory=dict)
+    coder: dict[str, Any] = field(default_factory=dict)
     desktop: bool = True  # Register desktop control tools (Windows only)
 
     @property
@@ -58,13 +59,14 @@ def load_settings(config_path: str | Path | None = None) -> Settings:
         data_dir=resolve(raw.get("data_dir", "~/.gnosis")),
         models=_read_yaml(resolve(raw.get("models_file", "config/models.yaml"))),
         policy=_read_yaml(resolve(raw.get("policy_file", "config/policy.yaml"))),
-        max_steps=int(orch.get("max_steps", 8)),
+        max_steps=int(orch.get("max_steps", 25)),
         approval_timeout_s=float(orch.get("approval_timeout_s", 120)),
         max_parallel=int(orch.get("max_parallel", 4)),
         voice=raw.get("voice") or {},
         kill_switch=str(raw.get("kill_switch", "ctrl+alt+j")),
         proactive=raw.get("proactive") or {},
         phone=raw.get("phone") or {},
+        coder=raw.get("coder") or {},
     )
     settings.data_dir.mkdir(parents=True, exist_ok=True)
     return settings

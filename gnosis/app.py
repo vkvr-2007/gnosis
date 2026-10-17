@@ -17,6 +17,7 @@ from gnosis.core.policy import ApprovalManager, Grants, Policy
 from gnosis.core.tools import ToolRegistry
 from gnosis.memory.memory import Memory
 from gnosis.memory.store import MemoryStore
+from gnosis.coder.sandbox import default_sandbox
 from gnosis.phone.adb import Phone, find_adb, subprocess_runner
 from gnosis.phone.devices import Devices
 from gnosis.phone.push import WebPush
@@ -25,6 +26,7 @@ from gnosis.scheduler import Job, JobStore, Scheduler, parse_time
 from gnosis.skills.builtin import register_builtin
 from gnosis.skills.desktop import register_desktop_tools
 from gnosis.skills.memory_tools import register_memory_tools
+from gnosis.skills.coder_tools import register_coder_tools
 from gnosis.skills.phone_tools import register_phone_tools
 from gnosis.skills.scheduler_tools import register_scheduler_tools
 from gnosis.skills.task_tools import register_task_tools
@@ -142,6 +144,9 @@ def build(settings: Settings, llm: LLMClient | None = None) -> Gnosis:
     g.phone = Phone(subprocess_runner(adb) if adb else None, settings.data_dir / "phone.json")
     if settings.phone.get("adb", True):
         register_phone_tools(tools, g.phone, memory)
+
+    sandbox = default_sandbox(settings.data_dir, settings.coder.get("distro", "Gnosis"))
+    register_coder_tools(tools, sandbox, g.notifier, settings.coder.get("isolated"))
 
     morning = proactive.get("morning_briefing")
     if morning:

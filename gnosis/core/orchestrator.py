@@ -48,7 +48,7 @@ class Orchestrator:
     def __init__(self, llm: LLMClient, tools: ToolRegistry, policy: Policy,
                  approvals: ApprovalManager, audit: AuditLog, events: EventBus,
                  memory: Memory | None = None, grants: Grants | None = None,
-                 max_steps: int = 8, approval_timeout_s: float = 120.0, max_parallel: int = 4):
+                 max_steps: int = 25, approval_timeout_s: float = 120.0, max_parallel: int = 4):
         self.llm = llm
         self.grants = grants or Grants()
         self.memory = memory
