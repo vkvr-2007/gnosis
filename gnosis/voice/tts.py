@@ -20,6 +20,8 @@ def speakable(text: str) -> str:
     text = re.sub(r"```[\s\S]*?```", " (code shown on screen) ", text)
     text = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", text)
     text = re.sub(r"https?://\S+", "the link", text)
+    text = re.sub(r"\s*\[#\d+\]", "", text)  # Memory fact ids
+
     text = re.sub(r"[*_`#>|]", "", text)
     return re.sub(r"\s+", " ", text).strip()
 
