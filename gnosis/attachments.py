@@ -88,7 +88,9 @@ class Inbox:
             if a.kind == "text":
                 text = a.path.read_bytes()[:MAX_TEXT_CHARS * 4].decode("utf-8", errors="replace")[:MAX_TEXT_CHARS]
                 more = " (cut short)" if a.path.stat().st_size > len(text.encode()) else ""
-                parts.append(f'[Attached file "{a.name}"{more}]\n{text}\n[End of "{a.name}"]')
+                # Saying the text is right here stops models from trying read_file on the name.
+                parts.append(f'[Attached file "{a.name}"{more}. Its full text is below; no need to open it.]\n'
+                             f'{text}\n[End of "{a.name}"]')
             elif a.kind == "image":
                 parts.append(f'[Attached image "{a.name}", id {a.id}. Use look_at_image to see it.]')
             else:
