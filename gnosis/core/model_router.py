@@ -18,6 +18,9 @@ class Route:
     reason: str
     timeout_s: float = 60.0
     system_prefix: str | None = None  # e.g. "detailed thinking off" for Nemotron Nano
+    # Only these tools are offered to this model (None = all). A small local model reads every tool
+    # description on every call, so fewer tools means faster and more reliable answers.
+    tools: frozenset[str] | None = None
 
 
 class ModelRouter:
@@ -48,6 +51,7 @@ class ModelRouter:
             # A small model on a laptop GPU can take minutes to read Gnosis's prompt and tools.
             timeout_s=float(provider.get("timeout_s", 300 if on_device else 60)),
             system_prefix=spec.get("system_prefix"),
+            tools=frozenset(spec["tools"]) if spec.get("tools") else None,
         )
 
     def choose(self, role: str, tags: Iterable[str] = (), online: bool = True) -> Route:

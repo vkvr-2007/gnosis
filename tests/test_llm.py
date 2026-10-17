@@ -121,3 +121,24 @@ def test_small_model_tool_calls_written_as_text_still_work(settings):
     assert "tools" not in sent[-1] and "- get_time(): The time" in retry[0]["content"]
     assert retry[2] == {"role": "assistant", "content": "(called get_time({}))"}
     assert retry[3] == {"role": "user", "content": "Tool result: 10:00"}
+
+
+def test_a_role_can_limit_which_tools_its_model_sees():
+    import yaml
+    from pathlib import Path
+
+    cfg = yaml.safe_load(Path("config/models.offline.yaml").read_text(encoding="utf-8"))
+    client = LLMClient(ModelRouter(cfg))
+    seen = []
+
+    async def fake_call(route, messages, tools, **kw):
+        seen.append({t["function"]["name"] for t in tools})
+        return "ok"
+
+    client._call = fake_call
+    tools = [{"type": "function", "function": {"name": n, "parameters": {}}} for n in ("get_time", "deploy")]
+    asyncio.run(client.chat("planner", [{"role": "user", "content": "hi"}], tools=tools))
+    assert seen == [{"get_time"}]
+    # Without a list, the model gets every tool.
+    assert ModelRouter({"roles": {"local": {"provider": "p", "model": "m"}}, "providers": {
+        "p": {"base_url": "http://x", "on_device": True}}}).choose("local").tools is None

@@ -39,6 +39,13 @@ def strip_thinking(text: str | None) -> str | None:
     return _THINK.sub("", text).strip()
 
 
+def _for_route(tools: list[dict[str, Any]] | None, route: Route) -> list[dict[str, Any]] | None:
+    """The tools this route's model may see (its `tools` list in models.yaml), or all of them."""
+    if not tools or route.tools is None:
+        return tools
+    return [t for t in tools if t.get("function", t)["name"] in route.tools]
+
+
 def _with_prefix(messages: list[dict[str, Any]], prefix: str | None) -> list[dict[str, Any]]:
     if not prefix:
         return messages
@@ -171,6 +178,7 @@ class LLMClient:
         if not route.is_local:
             messages, redactions = _redact_messages(messages)
         messages = _with_prefix(messages, route.system_prefix)
+        tools = _for_route(tools, route)
         started = time.monotonic()
         params: dict[str, Any] = {"model": route.model, "messages": messages, **kwargs}
         if tools:
@@ -207,6 +215,7 @@ class LLMClient:
         **kwargs: Any,
     ) -> LLMResult:
         route = self.router.choose(role, tags, online=self.online)
+        tools = _for_route(tools, route)
         try:
             try:
                 return await self._call(route, messages, tools, **kwargs)

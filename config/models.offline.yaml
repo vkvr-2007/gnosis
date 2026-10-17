@@ -21,11 +21,18 @@ providers:
     api_key_env: null
     on_device: true
 
+# A 4B model reads every tool description on every call, so it only gets the everyday tools.
+# All 55 tools add about 6,000 tokens: a minute or more per call on Iris Xe, and worse tool choices.
+everyday_tools: &everyday_tools
+  [get_time, system_info, remember, search_memory, forget, open_app, close_app, list_windows,
+   focus_window, look_at_window, click, type_text, press_keys, read_screen, play_music,
+   set_reminder, list_reminders]
+
 roles:
-  planner: { provider: local, model: nemotron-nano-local, system_prefix: "detailed thinking off" }
-  fast:    { provider: local, model: nemotron-nano-local, system_prefix: "detailed thinking off" }
+  planner: { provider: local, model: nemotron-nano-local, system_prefix: "detailed thinking off", tools: *everyday_tools }
+  fast:    { provider: local, model: nemotron-nano-local, system_prefix: "detailed thinking off", tools: *everyday_tools }
   vision:  { provider: local, model: nemotron-nano-local }
-  local:   { provider: local, model: nemotron-nano-local, system_prefix: "detailed thinking off" }
+  local:   { provider: local, model: nemotron-nano-local, system_prefix: "detailed thinking off", tools: *everyday_tools }
   embed:   { provider: local_embed, model: nomic-embed-text }
 
 routing:
