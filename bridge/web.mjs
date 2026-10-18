@@ -116,6 +116,16 @@ export const SEARCH_ENGINES = [
 ]
 
 /**
+ * Adds an engine after the search APIs and before the result-page readers. browser.mjs adds a Google
+ * search in Gnosis's own Chrome this way (it can't be imported here: browser.mjs imports this file).
+ */
+export function useSearchEngine(engine) {
+  if (SEARCH_ENGINES.some((e) => e.name === engine.name)) return
+  const firstScraper = SEARCH_ENGINES.findIndex((e) => !e.enabled)
+  SEARCH_ENGINES.splice(firstScraper < 0 ? SEARCH_ENGINES.length : firstScraper, 0, engine)
+}
+
+/**
  * A web search, as the model sees it and as the bridge reads it.
  * @returns {Promise<{ text: string, structured: { query: string, results: { content: { title: string, url: string }[] }[] } }>}
  */

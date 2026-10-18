@@ -27,7 +27,7 @@ import { join } from 'node:path'
 import { env } from './identity.mjs'
 import { isOwnPage, redactSecrets, riskOfPageAction, touchesSecrets } from './gate.mjs'
 import { SEND_WORDS } from './allowances.mjs'
-import { youtubeSearch } from './web.mjs'
+import { useSearchEngine, youtubeSearch } from './web.mjs'
 
 // Only a conversation that can send pictures (Telegram) offers the phone, and the
 // tool says where a picture went — at the laptop she once said a screenshot was
@@ -155,6 +155,54 @@ async function connect() {
   })
   return connecting
 }
+
+/**
+ * A Google search in Gnosis's own Chrome, in a tab that closes again: { title, url, snippet }[].
+ *
+ * Web search for the brain (web.mjs). Without a search API key the bridge read Brave's and DuckDuckGo's
+ * result pages, and both cut it off after a handful of searches (HTTP 429 and a bot check, 2026-10-18);
+ * a real browser with a real profile is treated as a person.
+ */
+export async function googleInChrome(query) {
+  const b = await connect()
+  const page = await b.newPage()
+  try {
+    await page.goto(`https://www.google.com/search?hl=en&q=${encodeURIComponent(query)}`,
+      { waitUntil: 'domcontentloaded', timeout: LOAD_TIMEOUT_MS })
+    const { results, summary } = await page.evaluate(() => {
+      const out = []
+      const seen = new Set()
+      for (const h of document.querySelectorAll('#search a h3, #rso a h3')) {
+        const a = h.closest('a')
+        // Result links are opaque redirects (google.com/goto?url=…, 2026-10-18); the address is shown on
+        // the result as "https://www.bbc.com › weather › 1269843", so it is rebuilt from that.
+        const cite = a?.querySelector('cite')?.innerText ?? a?.closest('div')?.querySelector('cite')?.innerText ?? ''
+        let url = a?.href ?? ''
+        if (/^https?:\/\/(www\.)?google\./.test(url) || !/^https?:\/\//.test(url)) {
+          const shown = cite.split('›').map((s) => s.trim()).filter(Boolean)
+          // A long address is shortened on screen ("weather-fo..."): the cut part is dropped, not guessed.
+          if (shown.length > 1 && /(?:\.\.\.|…)$/.test(shown.at(-1))) shown.pop()
+          url = /^https?:\/\//.test(shown[0] ?? '') ? shown.join('/').replace(/(?:\.\.\.|…)$/, '') : ''
+        }
+        if (!url || seen.has(url)) continue
+        seen.add(url)
+        const block = a.closest('div[data-hveid], div.g, div.MjjYud')
+        const snippet = block?.querySelector('.VwiC3b, [data-sncf], .ITZIwc')?.innerText ?? ''
+        out.push({ title: h.innerText.trim(), url, snippet: snippet.replace(/\s+/g, ' ').trim() })
+        if (out.length >= 8) break
+      }
+      const text = document.querySelector('#search, #rso')?.innerText ?? ''
+      if (!out.length && /unusual traffic|not a robot/i.test(document.body.innerText)) throw new Error('Google asked for a captcha')
+      return { results: out, summary: text.replace(/\s+\n/g, '\n').slice(0, 700) }
+    })
+    // The top of the page often holds the answer itself (an overview, a weather or score card).
+    if (results.length && summary) results[0] = { ...results[0], snippet: `${results[0].snippet}\nTop of the results page: ${summary}` }
+    return results
+  } finally {
+    await page.close().catch(() => {})
+  }
+}
+useSearchEngine({ name: 'chrome', search: (query) => googleInChrome(query) })
 
 /**
  * Open an address in a new tab of her Chrome and bring it forward, without
