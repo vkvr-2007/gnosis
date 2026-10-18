@@ -262,3 +262,60 @@ def test_grid_marks_draw_and_pick():
     llm = FakeLLM([reply("3")])
     assert asyncio.run(vision.pick_mark(llm, out, marks, "the play button", set())).id == 3
     assert llm.calls[0]["role"] == "vision"
+
+
+# ---- YouTube, websites, and never typing into Gnosis itself ---------------------------
+
+YOUTUBE_PAGE = ('..."videoRenderer":{"videoId":"abcDEF12345","thumbnail":{},"title":{"runs":[{"text":"Funny '
+                'cats \u0026 kittens"}]}...'
+                '"videoRenderer":{"videoId":"abcDEF12345","title":{"runs":[{"text":"dup"}]}...'
+                '"videoRenderer":{"videoId":"zzzzzzzzzz9","title":{"runs":[{"text":"Cat \\"compilation\\""}]}')
+
+
+def test_youtube_results_are_read_in_order():
+    videos = apps.parse_youtube_results(YOUTUBE_PAGE)
+    assert [v["id"] for v in videos] == ["abcDEF12345", "zzzzzzzzzz9"]
+    assert videos[0]["title"] == "Funny cats & kittens" and videos[1]["title"] == 'Cat "compilation"'
+    assert videos[0]["url"] == "https://www.youtube.com/watch?v=abcDEF12345"
+    assert apps.parse_youtube_results("<html>no results</html>") == []
+
+
+def test_play_youtube_opens_the_first_video_playing(desk, monkeypatch):
+    # Seen on the laptop: "open YouTube and play a cat video" opened YouTube but nothing played.
+    monkeypatch.setattr(apps, "youtube_search", lambda q: apps.parse_youtube_results(YOUTUBE_PAGE))
+    out = desk.run("play_youtube", query="cat video")
+    assert out["playing"] == "Funny cats & kittens"
+    assert desk.urls == ["https://www.youtube.com/watch?v=abcDEF12345&autoplay=1"]
+    assert desk.fake.clicked == []  # No clicking or typing needed
+
+
+def test_play_youtube_says_so_when_it_cant_pick_a_video(desk, monkeypatch):
+    def offline(q):
+        raise OSError("no network")
+
+    monkeypatch.setattr(apps, "youtube_search", offline)
+    out = desk.run("play_youtube", query="cat video")
+    assert "Nothing is playing yet" in out["note"] and "playing" not in out
+    assert desk.urls == ["https://www.youtube.com/results?search_query=cat+video"]
+
+
+def test_open_website(desk):
+    assert desk.run("open_website", url="notebooklm.google.com") == {
+        "opened_website": "https://notebooklm.google.com"}
+    assert "error" in desk.run("open_website", url="javascript:alert(1)")
+    assert desk.urls == ["https://notebooklm.google.com"]
+    assert desk.run("open_app", name="NotebookLM")["opened_website"] == "https://notebooklm.google.com"
+
+
+def test_never_types_or_clicks_into_gnosis_itself(desk):
+    import os
+
+    desk.fake.foreground = lambda: {"title": "Gnosis", "app": "python", "handle": 1, "control": None,
+                                    "pid": os.getpid()}
+    desk.fake.type_text = lambda *a: pytest.fail("typed into Gnosis")
+    desk.fake.press = lambda *a: pytest.fail("pressed keys in Gnosis")
+    for tool, kw in [("type_text", {"text": "cat video"}), ("press_keys", {"keys": "enter"}),
+                     ("click", {"element_id": 2})]:
+        with pytest.raises(PermissionError, match="Gnosis itself"):
+            desk.run(tool, **kw)
+    assert desk.fake.clicked == []

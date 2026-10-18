@@ -72,7 +72,7 @@ async def run_voice(g: "Gnosis") -> None:
                      on_audio_drain=mic.drain, on_stop_command=g.stop_all,
                      on_error=lambda e: g.audit.write("voice_error", error=e))
     if hasattr(wake, "barge_in"):
-        wake.barge_in = bool(cfg.get("barge_in", True))
+        wake.barge_in = bool(cfg.get("barge_in", False))
     g.notifier.speakers.append(loop.say)  # Reminders and other notices are spoken too
     g.voice = loop
     talk_key = cfg.get("talk_key", "ctrl+space")

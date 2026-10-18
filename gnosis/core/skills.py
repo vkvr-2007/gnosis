@@ -23,9 +23,9 @@ class Skill:
 
 
 SKILLS = [
-    Skill("core", "time, system info, memory, opening and closing apps, music, reminders",
+    Skill("core", "time, system info, memory, opening and closing apps, websites, YouTube, music, reminders",
           ("get_time", "system_info", "remember", "search_memory", "forget", "open_app", "close_app",
-           "play_music", "set_reminder")),
+           "play_music", "play_youtube", "open_website", "set_reminder")),
     Skill("desktop", "operate the open window: read it, click, type, press keys, look at the screen",
           ("list_windows", "focus_window", "look_at_window", "click", "click_element", "type_text", "press_keys",
            "read_screen", "look_at_screen", "vision_click"),

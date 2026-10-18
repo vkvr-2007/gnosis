@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from urllib.parse import quote
+from typing import Any
+from urllib.parse import quote, quote_plus
 
 try:
     from rapidfuzz import fuzz, process
@@ -68,7 +70,42 @@ WEB_FALLBACKS = {
     "github": "https://github.com",
     "google docs": "https://docs.google.com",
     "google sheets": "https://sheets.google.com",
+    "google": "https://www.google.com",
+    "notebooklm": "https://notebooklm.google.com",
+    "notebook lm": "https://notebooklm.google.com",
+    "gemini": "https://gemini.google.com",
+    "google drive": "https://drive.google.com",
+    "google calendar": "https://calendar.google.com",
+    "linkedin": "https://www.linkedin.com",
 }
+
+_VIDEO = re.compile(r'"videoRenderer":\{"videoId":"([\w-]{11})".*?"title":\{"runs":\[\{"text":"((?:[^"\\]|\\.)*)"', re.S)
+
+
+def youtube_search_url(query: str) -> str:
+    return "https://www.youtube.com/results?search_query=" + quote_plus(query)
+
+
+def parse_youtube_results(html: str, limit: int = 3) -> list[dict]:
+    """The videos on a YouTube search results page, in order (ads and Shorts shelves aren't videoRenderers)."""
+    out, seen = [], set()
+    for vid, title in _VIDEO.findall(html):
+        if vid not in seen:
+            seen.add(vid)
+            out.append({"id": vid, "title": json.loads(f'"{title}"'),
+                        "url": f"https://www.youtube.com/watch?v={vid}"})
+        if len(out) >= limit:
+            break
+    return out
+
+
+def youtube_search(query: str, client: Any = None) -> list[dict]:
+    import httpx
+
+    r = (client or httpx.Client(timeout=10, follow_redirects=True)).get(
+        youtube_search_url(query), headers={"Accept-Language": "en", "User-Agent": "Mozilla/5.0"})
+    r.raise_for_status()
+    return parse_youtube_results(r.text)
 
 
 def start_menu_dirs() -> list[Path]:

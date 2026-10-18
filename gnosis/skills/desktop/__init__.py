@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import functools
+import os
 import re
 import sys
 import time
@@ -53,6 +54,14 @@ class DesktopRunner:
     @property
     def last_elements(self) -> list:
         return self._desktop.last if self._desktop else []
+
+
+def _not_gnosis(d) -> None:
+    """Typing, clicking and keys never go into Gnosis's own window. Seen on the laptop: after opening
+    YouTube, focus came back to Gnosis and "cat video" was typed into Gnosis itself."""
+    if d.foreground().get("pid") == os.getpid():
+        raise PermissionError("The front window is Gnosis itself, not the app. Bring the app to the front "
+                              "first with focus_window, or use play_youtube / open_website for web pages.")
 
 
 def _wait_for_window(d, name: str, timeout_s: float = 10.0) -> dict | None:
@@ -156,7 +165,7 @@ def register_desktop_tools(registry: ToolRegistry, llm: Any, runner: DesktopRunn
                     "required": ["element_id"]},
                    escalate=risky_click)
     async def click(element_id: int, double: bool = False) -> str:
-        return await runner.run(lambda d: d.click(int(element_id), double))
+        return await runner.run(lambda d: _not_gnosis(d) or d.click(int(element_id), double))
 
     async def risky_type(args: dict) -> str | None:
         """Typing into a document that already has text could change the owner's work."""
@@ -177,6 +186,7 @@ def register_desktop_tools(registry: ToolRegistry, llm: Any, runner: DesktopRunn
                                  if RISKY_BUTTON.search(str(args.get("name", ""))) else None))
     async def click_element(name: str, control_type: str | None = None) -> str:
         def find_and_click(d) -> str | None:
+            _not_gnosis(d)
             deadline = time.monotonic() + 6
             while True:
                 e = d.find_by_name(name, {control_type} if control_type else None)
@@ -201,12 +211,12 @@ def register_desktop_tools(registry: ToolRegistry, llm: Any, runner: DesktopRunn
                     "required": ["text"]},
                    escalate=risky_type)
     async def type_text(text: str, element_id: int | None = None, replace: bool = False) -> str:
-        return await runner.run(lambda d: d.type_text(text, element_id, replace))
+        return await runner.run(lambda d: _not_gnosis(d) or d.type_text(text, element_id, replace))
 
     @tool("press_keys", "Press a keyboard shortcut, e.g. 'ctrl+s', 'alt+f4', 'enter', 'ctrl+a delete'.",
                    {"type": "object", "properties": {"keys": {"type": "string"}}, "required": ["keys"]})
     async def press_keys(keys: str) -> str:
-        return await runner.run(lambda d: d.press(keys))
+        return await runner.run(lambda d: _not_gnosis(d) or d.press(keys))
 
     # ---- screen ----------------------------------------------------------------
 
@@ -271,13 +281,48 @@ def register_desktop_tools(registry: ToolRegistry, llm: Any, runner: DesktopRunn
             return {"error": f"'{target}' looks like it acts on your behalf. Use look_at_window and click "
                              "so you can approve it."}
         x, y = mark.center
-        await runner.run(lambda d: d.click_at(x, y))
+        await runner.run(lambda d: _not_gnosis(d) or d.click_at(x, y))
         return {"clicked": target, "at": [x, y]}
+
+    # ---- YouTube and websites -------------------------------------------------------
+    # These open a link: no clicking or typing, so they don't need the mouse and keyboard.
+
+    @registry.tool("play_youtube",
+                   "Find a video on YouTube and play it in the browser (e.g. 'cat video', 'lofi beats', "
+                   "'Interstellar trailer'). Use this for any 'play ... on YouTube' or 'play a ... video'.",
+                   {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]})
+    async def play_youtube(query: str) -> dict:
+        try:
+            videos = await asyncio.to_thread(apps.youtube_search, query)
+        except Exception as e:
+            videos, error = [], f"{type(e).__name__}: {e}"
+        else:
+            error = None
+        if not videos:
+            apps.open_url(apps.youtube_search_url(query))
+            return {"opened_search": apps.youtube_search_url(query),
+                    "note": "Couldn't pick a video" + (f" ({error})" if error else "") +
+                            ", so I opened the search results instead. Nothing is playing yet."}
+        video = videos[0]
+        apps.open_url(video["url"] + "&autoplay=1")
+        return {"playing": video["title"], "url": video["url"], "in": "the default browser"}
+
+    @registry.tool("open_website", "Open a web page in the default browser.",
+                   {"type": "object", "properties": {"url": {"type": "string"}}, "required": ["url"]})
+    async def open_website(url: str) -> dict:
+        url = url.strip()
+        if not re.match(r"^https?://", url):
+            url = "https://" + url
+        if not re.match(r"^https?://[\w.-]+(?::\d+)?(?:[/?#]\S*)?$", url):
+            return {"error": f"That doesn't look like a web address: {url}"}
+        apps.open_url(url)
+        return {"opened_website": url}
 
     # ---- music -----------------------------------------------------------------
 
     @tool("play_music",
-                   "Play a song, artist or playlist on Spotify (the app if installed, otherwise the website).",
+                   "Play a song, artist or playlist on Spotify (the app if installed, otherwise the website). For YouTube "
+                   "videos use play_youtube.",
                    {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]})
     async def play_music(query: str) -> dict:
         await asyncio.to_thread(index.refresh)

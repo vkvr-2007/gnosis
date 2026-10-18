@@ -170,7 +170,8 @@ class Desktop:
             app = psutil.Process(top.ProcessId).name().removesuffix(".exe")
         except Exception:
             app = ""
-        return {"title": top.Name, "app": app, "handle": top.NativeWindowHandle, "control": top}
+        return {"title": top.Name, "app": app, "handle": top.NativeWindowHandle, "control": top,
+                "pid": top.ProcessId}
 
     # ---- inside the window -------------------------------------------------
 

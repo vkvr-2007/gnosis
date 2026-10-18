@@ -77,8 +77,9 @@ def test_echo_is_gnosis_hearing_itself():
     assert not is_echo("anything", "")
 
 
-def caught(text, speaking=True, said="It's 9 PM. Hey Gnosis is my name. Stop by any time."):
+def caught(text, speaking=True, said="It's 9 PM. Hey Gnosis is my name. Stop by any time.", barge_in=True):
     wake = PhraseWake(transcribe=lambda audio: text, detector=loud)
+    wake.barge_in = barge_in
     wake.speaking, wake.spoken_text = (lambda: speaking), (lambda: said)
     return (wake.kind, wake.command) if wake._caught(text) else None
 
@@ -92,6 +93,10 @@ def test_what_is_heard_while_gnosis_talks():
     assert caught("ok") is None                       # Too short to be a new request
     assert caught("stop", speaking=False) is None      # Not talking: only the wake phrase counts
     assert caught("open spotify and play jazz", speaking=False) is None
+    # Off by default: other people talking nearby mustn't cut Gnosis off. "stop" still works.
+    assert caught("open spotify and play jazz", barge_in=False) is None
+    assert caught("stop", barge_in=False) == ("stop", "")
+    assert PhraseWake(transcribe=lambda a: "", detector=loud).barge_in is False
 
 
 class ScriptedWake(FakeWake):
@@ -300,3 +305,22 @@ def test_the_page_can_show_the_current_voice_state(settings):
     page = client.get("/").text
     for state in ("sleeping", "listening", "thinking", "working", "speaking"):
         assert f".face.{state}" in page, state
+
+
+def test_an_answer_still_being_written_is_waited_for_not_an_error():
+    # Seen on the laptop: every streamed voice answer failed with "InvalidStateError: Result is not set",
+    # because the whole answer was read as soon as the first sentence was ready.
+    loop, speaker, orch, wake = make("what time is it")
+    said, errors = [], []
+    loop.tts = recording_tts(said)
+    loop.on_error = errors.append
+
+    async def handle(text, session_id="default", tags=None, owner=True, on_text=None, on_tool=None):
+        await on_text("It's 9 PM. ")
+        await asyncio.sleep(0.1)  # Still writing the rest
+        await on_text("Sleep well.")
+        return "It's 9 PM. Sleep well."
+
+    orch.handle = handle
+    asyncio.run(say_without_wake(loop))
+    assert errors == [] and said == ["It's 9 PM.", "Sleep well."]

@@ -337,6 +337,7 @@ class VoiceLoop:
             await self._speak_and_follow_up(answer)
 
     async def _answer_of(self, work: asyncio.Task) -> str:
+        await asyncio.wait({work})  # Waits for the whole answer; the first sentence is often spoken long before
         try:
             return work.result()
         except asyncio.CancelledError:

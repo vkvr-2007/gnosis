@@ -102,7 +102,7 @@ class PhraseWake:
         # Set by the voice loop, for telling the owner's voice from Gnosis's own coming back through the mic
         self.speaking: Callable[[], bool] = lambda: False
         self.spoken_text: Callable[[], str] = lambda: ""
-        self.barge_in = True  # Any new request (3+ words, not an echo) interrupts too, not only "stop"
+        self.barge_in = False  # True: any new request (3+ words, not an echo) interrupts too, not only "stop"
 
     def _caught(self, text: str) -> bool:
         speaking = self.speaking()

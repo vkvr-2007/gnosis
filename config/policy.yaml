@@ -46,6 +46,8 @@ tools:
   type_text: allow
   press_keys: allow
   play_music: allow
+  play_youtube: allow
+  open_website: allow
   read_screen: allow          # Text stays on the laptop (local model)
   look_at_image: allow       # Images you attached yourself
   look_through_camera: ask    # Takes a photo and sends it to the cloud vision model, so it asks every time
@@ -71,7 +73,7 @@ tools:
   edit_policy: deny
 
 # What someone other than the owner may ask for by voice (voice ID didn't match).
-guest_tools: [get_time, open_app, close_app, play_music, set_volume]
+guest_tools: [get_time, open_app, close_app, play_music, play_youtube, set_volume]
 
 filesystem:
   read:  ["~/Documents", "~/Desktop", "~/Downloads", "~/.gnosis/workspace"]

@@ -53,6 +53,6 @@ voice:
   voice_id_threshold: 0.30
   follow_up_s: 4               # Keep listening this long after answering, without the wake word
   talk_key: ctrl+space         # Press to talk (also interrupts Gnosis); null turns it off
-  barge_in: true               # Saying a new request over Gnosis interrupts it ("stop" and "wait" always do)
+  barge_in: false              # true: any new request said over Gnosis interrupts it (also other people talking nearby). "stop", "wait", the wake word and the talk key always do
   input_device: null           # null = default microphone
   output_device: null
