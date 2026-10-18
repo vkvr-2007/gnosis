@@ -26,7 +26,8 @@ import { homedir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 import { z } from 'zod'
 import { BUILTINS } from './builtins.mjs'
-import { modelFor } from './models.mjs'
+import { loadModels, modelFor } from './models.mjs'
+import { IDENTITY } from './identity.mjs'
 
 // ---- tools -------------------------------------------------------------------------
 
@@ -237,6 +238,58 @@ export const CLAIM_CHECK = (request) =>
 export const requestText = (content) =>
   String(content ?? '').split('\n').filter((l) => !/^\[(?:Now|Depth)\b/.test(l)).join('\n').trim()
 
+// ---- private work ------------------------------------------------------------------------
+
+/**
+ * What counts as private, from config/models.json "private": words in a request that ask for it, and
+ * tools whose output is the owner's own data (their files, the text of their windows). Private work
+ * runs on the on-device model ("local" role) with its short list of tools.
+ */
+export function privacyRules(cfg = loadModels()) {
+  const p = cfg.private ?? {}
+  return {
+    words: new RegExp(p.words ?? '(?!)', 'i'),
+    tools: new Set(p.tools ?? []),
+    localTools: new Set(cfg.roles.local?.tools ?? []),
+    localRoute: modelFor('local', cfg),
+    localSystem: localSystemPrompt(IDENTITY.name, cfg.roles.local?.systemPrefix),
+  }
+}
+
+export const PRIVATE_NOTE = '[private, kept on the laptop]'
+
+/**
+ * The on-device model's own short system prompt. The full persona is about 3,000 words; with the tools
+ * it made a 5,163-token prompt that the laptop's integrated GPU gave up on ("Vulkan device lost",
+ * 2026-10-18). Nemotron Nano also needs "detailed thinking off" first, or it reasons at length.
+ */
+export function localSystemPrompt(name, prefix = 'detailed thinking off') {
+  return `${prefix}\nYou are ${name}, a personal assistant speaking out loud to the one person you work for, ` +
+    'on their Windows laptop. This request is private, so you are running on the laptop itself. ' +
+    'Answer in one or two short spoken sentences, plain words, no markdown. Use a tool for anything about ' +
+    "the laptop or their files; never guess and never say you did something you didn't. " +
+    "Each message starts with [Now: …], the local time: use it, don't read it out.\n" +
+    // A 4B model uses tools far more reliably with the exact command in front of it: without these it
+    // told the owner how to check the battery instead of checking it (2026-10-18).
+    'You CAN run commands on this laptop with the PowerShell tool. Examples:\n' +
+    '- battery: (Get-CimInstance Win32_Battery).EstimatedChargeRemaining\n' +
+    '- free disk space: Get-PSDrive C | Select-Object Used,Free\n' +
+    '- running apps: Get-Process | Where-Object MainWindowTitle | Select-Object Name,MainWindowTitle\n' +
+    '- open an app: Start-Process notepad\n' +
+    'Run the command, then say the result in a sentence.'
+}
+
+/**
+ * After a private turn, what the cloud model could later see of it is blanked: tool output and Gnosis's
+ * own replies (which may quote that data). The owner's own words stay, so the conversation still reads.
+ */
+export function redactTurn(history, from) {
+  for (let i = Math.max(from, 0); i < history.length; i++) {
+    const m = history[i]
+    if (m.role === 'tool' || (m.role === 'assistant' && m.content)) history[i] = { ...m, content: PRIVATE_NOTE }
+  }
+}
+
 // ---- query() ----------------------------------------------------------------------------
 
 /** The SDK's query(): an async iterable of SDK messages, plus interrupt() and close(). */
@@ -245,11 +298,15 @@ export function query({ prompt, options = {} }) {
     systemPrompt = '', model, maxTurns = 24, includePartialMessages = false, canUseTool,
     resume, persistSession = true, abortController, outputFormat, cwd = homedir(),
   } = options
-  const route = modelFor(model)
+  const cloudRoute = modelFor(model)
+  const privacy = privacyRules()
   const toolset = collectTools(options)
-  const toolDefs = [...toolset].map(([name, t]) => ({
+  const defOf = ([name, t]) => ({
     type: 'function', function: { name, description: String(t.description ?? '').slice(0, 1024), parameters: t.parameters },
-  }))
+  })
+  const toolDefs = [...toolset].map(defOf)
+  // The small on-device model gets only the everyday tools: every schema costs it time and accuracy.
+  const localToolDefs = [...toolset].filter(([name]) => privacy.localTools.has(name)).map(defOf)
   const sessionId = resume && loadSession(resume) ? resume : randomUUID()
   let history = (resume && loadSession(resume)) || []
   const system = outputFormat?.type === 'json_schema'
@@ -277,20 +334,33 @@ export function query({ prompt, options = {} }) {
     const asksAction = toolDefs.length > 0 && ASKS_ACTION.test(request)
     let acted = false
     let checked = false
+    // Private: asked for in words ("privately"), or once a tool has read the owner's own data. From then
+    // on this turn thinks on the laptop, and nothing from it is sent to the cloud later.
+    let isPrivate = privacy.words.test(request)
+    const turnStart = history.length - 1
+    const goPrivate = (why) => {
+      if (!isPrivate) console.log(`[gnosis] private from here on (${why}): thinking on the laptop`)
+      isPrivate = true
+    }
+    if (isPrivate) console.log('[gnosis] a private request: thinking on the laptop')
     try {
       for (;;) {
         if (++turns > maxTurns) {
           push({ type: 'result', subtype: 'error_max_turns', session_id: sessionId, is_error: true })
           return
         }
+        const route = isPrivate ? privacy.localRoute : cloudRoute
+        const tools = isPrivate ? localToolDefs : toolDefs
         let text = ''
         // An action asked for and nothing done yet: the reply is held back until it's clear a tool runs,
         // because what streams is spoken at once and a false "Done!" can't be taken back.
         const hold = asksAction && !acted && !checked
-        const { toolCalls } = await streamChat({
+        let toolCalls
+        try {
+          ({ toolCalls } = await streamChat({
           route,
-          messages: [{ role: 'system', content: system }, ...history],
-          tools: toolDefs,
+          messages: [{ role: 'system', content: route.onDevice ? privacy.localSystem : system }, ...history],
+          tools,
           signal,
           onText: (delta) => {
             text += delta
@@ -303,7 +373,19 @@ export function query({ prompt, options = {} }) {
               push({ type: 'stream_event', event: { type: 'content_block_start', content_block: { type: 'tool_use', id: call.id, name: call.name, input: {} } } })
             }
           },
-        })
+          }))
+        } catch (err) {
+          if (!route.onDevice || err?.name === 'AbortError' || signal.aborted) throw err
+          // Never the cloud instead: private stays private, so the owner is told plainly.
+          console.warn(`[gnosis] the private model isn't reachable: ${err?.message ?? err}`)
+          answer = "That one's private, so I'd think about it on the laptop, but my private model isn't running. " +
+            'Nothing was sent to the cloud.'
+          if (includePartialMessages) {
+            push({ type: 'stream_event', event: { type: 'content_block_delta', delta: { type: 'text_delta', text: answer } } })
+          }
+          history.push({ role: 'assistant', content: answer })
+          break
+        }
         const inputs = toolCalls.map((c) => {
           try {
             return JSON.parse(c.arguments || '{}')
@@ -339,6 +421,7 @@ export function query({ prompt, options = {} }) {
           if (signal.aborted) throw new DOMException('Interrupted', 'AbortError')
           const result = await runTool(call, inputs[i], signal)
           history.push({ role: 'tool', tool_call_id: call.id, content: result.text || '(no output)' })
+          if (privacy.tools.has(call.name) && !result.isError) goPrivate(call.name)
           push({
             type: 'user',
             message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: call.id, content: result.text, is_error: result.isError === true }] },
@@ -347,6 +430,7 @@ export function query({ prompt, options = {} }) {
           })
         }
       }
+      if (isPrivate) redactTurn(history, turnStart)
       if (persistSession) saveSession(sessionId, history)
       const done = { type: 'result', subtype: 'success', is_error: false, result: answer, session_id: sessionId,
                      total_cost_usd: null }
@@ -363,6 +447,7 @@ export function query({ prompt, options = {} }) {
     } catch (err) {
       if (err?.name === 'AbortError' || signal.aborted) {
         // Interrupted: what was said so far stays in the conversation, the turn ends.
+        if (isPrivate) redactTurn(history, turnStart)
         if (persistSession) saveSession(sessionId, history)
         push({ type: 'result', subtype: 'error_during_execution', is_error: true, session_id: sessionId })
         return
@@ -393,7 +478,7 @@ export function query({ prompt, options = {} }) {
   }
 
   async function main() {
-    push({ type: 'system', subtype: 'init', session_id: sessionId, model: route.model,
+    push({ type: 'system', subtype: 'init', session_id: sessionId, model: cloudRoute.model,
            tools: [...toolset.keys()],
            mcp_servers: Object.keys(options.mcpServers ?? {}).map((name) => ({ name, status: 'connected' })) })
     try {

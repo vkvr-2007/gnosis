@@ -265,3 +265,94 @@ test('which requests ask for an action', async () => {
     assert.ok(!ASKS_ACTION.test(s), s)
   assert.equal(requestText('[Depth 8/10 · complex]\n[Now: Sun]\nopen it'), 'open it')
 })
+
+// -- private work stays on the laptop --------------------------------------------------------
+
+function routedApi(...replies) {
+  const calls = []
+  const fetchImpl = async (url, init) => {
+    const body = JSON.parse(init.body)
+    calls.push({ local: url.startsWith('http://127.0.0.1:8081'), body })
+    return sse(replies.shift() ?? say('(no more replies)'))
+  }
+  return { fetchImpl, calls }
+}
+
+async function withFetch(fetchImpl, fn) {
+  globalThis.__fetch = globalThis.fetch
+  globalThis.fetch = fetchImpl
+  try {
+    return await fn()
+  } finally {
+    globalThis.fetch = globalThis.__fetch
+  }
+}
+
+const allow = async (n, input) => ({ behavior: 'allow', updatedInput: input })
+
+test('a request that says it is private thinks on the laptop, with the short tool list', async () => {
+  const { fetchImpl, calls } = routedApi(say('Done privately.'))
+  await withFetch(fetchImpl, async () => {
+    const msgs = await collect(query({ prompt: 'Privately, what is in my diary?', options: {
+      tools: ['Read', 'WebSearch'], persistSession: false, canUseTool: allow } }))
+    assert.equal(msgs.at(-1).result, 'Done privately.')
+  })
+  assert.equal(calls.length, 1)
+  assert.equal(calls[0].local, true)
+  assert.equal(calls[0].body.model, 'nemotron-nano-local')
+  assert.deepEqual(calls[0].body.tools.map((t) => t.function.name), ['Read'])
+})
+
+test("once a tool reads the owner's data, the rest of the turn is local, and the cloud never sees it later", async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'gnosis-'))
+  writeFileSync(join(dir, 'note.txt'), 'secret plans: launch on Friday')
+  const { fetchImpl, calls } = routedApi(call('c1', 'Read', { file_path: join(dir, 'note.txt') }),
+    say('Your note says the launch is on Friday.'), say('You are welcome.'))
+  await withFetch(fetchImpl, async () => {
+    const session = query({ prompt: (async function* () {
+      yield { message: { content: 'read my note.txt' } }
+      yield { message: { content: 'thanks' } }
+    })(), options: { tools: ['Read'], persistSession: false, canUseTool: allow } })
+    const msgs = []
+    for await (const m of session) {
+      msgs.push(m)
+      if (msgs.filter((x) => x.type === 'result').length === 2) break
+    }
+    session.close()
+  })
+  assert.deepEqual(calls.map((c) => c.local), [false, true, false])
+  const later = JSON.stringify(calls[2].body.messages)
+  assert.ok(!later.includes('secret plans'), 'the file contents reached the cloud')
+  assert.ok(!later.includes('launch is on Friday'), 'the private answer reached the cloud')
+  assert.ok(later.includes('[private, kept on the laptop]'))
+  assert.ok(later.includes('read my note.txt'))
+})
+
+test("if the private model isn't running, Gnosis says so and nothing goes to the cloud", async () => {
+  const calls = []
+  const fetchImpl = async (url) => {
+    calls.push(url)
+    throw new TypeError('fetch failed')
+  }
+  await withFetch(fetchImpl, async () => {
+    const msgs = await collect(query({ prompt: 'keep this private: what is my salary?', options: {
+      includePartialMessages: true, persistSession: false } }))
+    const result = msgs.at(-1)
+    assert.equal(result.is_error, false)
+    assert.match(result.result, /private model isn't running\. Nothing was sent to the cloud\./)
+  })
+  assert.ok(calls.every((u) => u.startsWith('http://127.0.0.1:8081')))
+})
+
+test('the on-device model gets its own short prompt, starting with "detailed thinking off"', async () => {
+  const { fetchImpl, calls } = routedApi(say('Ninety percent.'))
+  await withFetch(fetchImpl, async () => {
+    await collect(query({ prompt: 'Privately, how full is my battery?', options: {
+      systemPrompt: 'THE FULL PERSONA '.repeat(500), tools: ['PowerShell'], persistSession: false, canUseTool: allow } }))
+  })
+  const system = calls[0].body.messages[0].content
+  assert.match(system, /^detailed thinking off\nYou are Gnosis/)
+  assert.ok(!system.includes('THE FULL PERSONA'))
+  assert.ok(system.length < 1400)
+  assert.match(system, /EstimatedChargeRemaining/)
+})
