@@ -51,6 +51,8 @@ import { openRemote, proxyError, vetTarget, PROXY_UA } from './net.mjs'
 import { renderPage } from './page.mjs'
 import { modelFor } from './models.mjs'
 import { createMemory, memoryServer } from './memory.mjs'
+import { describeImages, visionServer } from './vision.mjs'
+import { useImageDescriber } from './sdk.mjs'
 import { createJobStore, createNotifier, createWatchers, scheduleServer, setBriefing, startSchedule } from './schedule.mjs'
 
 const MEMORY = createMemory()
@@ -787,6 +789,33 @@ const RESEARCHER_ASK =
   '[Researcher mode is on: answer this with deep_research, passing the question made self-contained ' +
   '(resolve "it" or "that" from our conversation). Then say the verdict in one or two sentences.]'
 
+/**
+ * The webcam, through the face: its window asks the browser for one frame (src/lib/bridge.ts) and
+ * sends it back. Pending asks by id; ten seconds for the first-time camera prompt.
+ */
+const CAMERA_ASKS = new Map()
+function cameraFrame() {
+  const [send] = HEARING.faces
+  if (!send) return Promise.reject(new Error('my window is not open'))
+  const id = `cam-${Date.now().toString(36)}`
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      CAMERA_ASKS.delete(id)
+      reject(new Error('no picture came back in time'))
+    }, 15_000)
+    CAMERA_ASKS.set(id, (frame) => {
+      clearTimeout(timer)
+      CAMERA_ASKS.delete(id)
+      if (frame.jpeg) resolve(frame.jpeg)
+      else reject(new Error(frame.error || 'no picture'))
+    })
+    send({ type: 'camera', id })
+  })
+}
+
+// Pictures from apps_screenshot and browser_screenshot are described to the brain (vision.mjs).
+useImageDescriber(describeImages)
+
 const BRAIN = createBrain({
   model: MODEL,
   effort: EFFORT,
@@ -794,6 +823,7 @@ const BRAIN = createBrain({
   // Shared by every conversation (the window, Telegram, jobs): Gnosis's long-term memory (memory.mjs).
   mcpServers: {
     ayra_memory: memoryServer(MEMORY),
+    ayra_vision: visionServer({ camera: cameraFrame }),
     ayra_schedule: scheduleServer({
       store: SCHEDULE,
       get notifier() { return NOTIFIER },
@@ -1273,6 +1303,11 @@ wss.on('connection', (socket, req) => {
       FACE.who = msg.who === 'you' || msg.who === 'her' ? msg.who : ''
       FACE.by = msg.by === 'name' || msg.by === 'press' ? msg.by : ''
       FACE.at = Date.now()
+    }
+
+    // A webcam frame the face took for look_through_camera.
+    if (msg.type === 'camera_frame' && typeof msg.id === 'string') {
+      CAMERA_ASKS.get(msg.id)?.({ jpeg: typeof msg.jpeg === 'string' ? msg.jpeg : '', error: String(msg.error ?? '') })
     }
 
     // She has started listening (pause what's playing) or gone back to standby (resume it).

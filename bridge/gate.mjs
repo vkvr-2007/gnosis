@@ -472,6 +472,10 @@ export function createGate({ allowWrites, laptop = false, connectors = DEFAULT_C
       // A routine runs later as an ordinary request, with every call reviewed here as usual.
       if (server === 'ayra_schedule') return true
 
+      // Eyes (vision.mjs): look at the screen or through the webcam, and click by sight like apps_click.
+      // vision_click refuses anything that sends, pays, deletes or confirms, before and after it looks.
+      if (server === 'ayra_vision') return true
+
       const tool = mcpToolOf(name)
       if (EFFECTFUL_VERB.test(tool) && !VETO_EXEMPT.has(`${server}__${tool}`)) {
         return allowWrites

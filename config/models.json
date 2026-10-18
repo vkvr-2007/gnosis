@@ -34,6 +34,16 @@
         }
       }
     },
+    "vision": {
+      "provider": "nvidia",
+      "model": "nvidia/nemotron-3.5-super-vl-120b-a12b",
+      "_about": "Reads pictures for the brain (bridge/vision.mjs): the screen, the webcam, screenshots.",
+      "extraBody": {
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        }
+      }
+    },
     "local": {
       "provider": "local",
       "model": "nemotron-nano-local",

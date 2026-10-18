@@ -54,6 +54,15 @@ const jsonSchemaOf = (shape) => {
   }
 }
 
+/**
+ * How a picture a tool brought back is put into words for the brain (vision.mjs describeImages, set by
+ * server.mjs): (result, request, { signal }) → result. Without it a picture stays a note.
+ */
+let describeImages = null
+export function useImageDescriber(fn) {
+  describeImages = fn
+}
+
 /** A CallToolResult's content as text for the model; images become a note (Nemotron reads text). */
 function contentText(result) {
   if (result == null) return ''
@@ -228,7 +237,7 @@ export async function streamChat({ route, messages, tools, signal, onText, onToo
 export const ASKS_ACTION = new RegExp(
   String.raw`^\W*(?:(?:hey\s+|ok(?:ay)?\s+)?g?nosis\W+)?(?:(?:please|can you|could you|would you|will you|now)\W+)*` +
   String.raw`(?:open|close|type|play|pause|resume|launch|remind|set|send|save|delete|remove|schedule|cancel|turn|` +
-  String.raw`click|press|switch|focus|minimi[sz]e|maximi[sz]e|go to|search|find|run|start|stop|mute|unmute|remember|forget|note down)\b`,
+  String.raw`click|press|switch|focus|minimi[sz]e|maximi[sz]e|go to|search|find|run|start|stop|mute|unmute|remember|forget|note down|look)\b`,
   'i')
 
 /** A reply that says it is about to do something rather than doing it. */
@@ -472,7 +481,9 @@ export function query({ prompt, options = {} }) {
         }
         for (const [i, call] of toolCalls.entries()) {
           if (signal.aborted) throw new DOMException('Interrupted', 'AbortError')
-          const result = await runTool(call, inputs[i], signal)
+          let result = await runTool(call, inputs[i], signal)
+          // A picture goes to the vision model and comes back as words, never on a private turn.
+          if (describeImages && !isPrivate && !result.isError) result = await describeImages(result, request, { signal })
           history.push({ role: 'tool', tool_call_id: call.id, content: result.text || '(no output)' })
           if (privacy.tools.has(call.name) && !result.isError) {
             const found = findPII(result.text)

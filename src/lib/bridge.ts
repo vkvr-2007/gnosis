@@ -203,8 +203,37 @@ function dispatch(ws: WebSocket) {
     } else if (msg.type === 'notice' && typeof msg.text === 'string') {
       // A reminder, a routine's answer, a battery warning (bridge/schedule.mjs): say it now.
       onNotice?.(msg.text)
+    } else if (msg.type === 'camera' && typeof msg.id === 'string') {
+      // look_through_camera (bridge/vision.mjs): one webcam frame, sent back as a JPEG.
+      const id = msg.id
+      void cameraFrame().then(
+        (jpeg) => socket?.send(JSON.stringify({ type: 'camera_frame', id, jpeg })),
+        (err) => socket?.send(JSON.stringify({ type: 'camera_frame', id, error: String(err?.message ?? err) })),
+      )
     }
   })
+}
+
+/** One frame from the webcam as base64 JPEG; the camera is on only for this moment. */
+async function cameraFrame(): Promise<string> {
+  const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 1280, height: 720 } })
+  try {
+    const video = document.createElement('video')
+    video.muted = true
+    video.playsInline = true
+    video.srcObject = stream
+    await video.play()
+    // The first frames are dark while the camera sets its exposure.
+    await new Promise((r) => setTimeout(r, 700))
+    const canvas = document.createElement('canvas')
+    canvas.width = video.videoWidth || 1280
+    canvas.height = video.videoHeight || 720
+    canvas.getContext('2d')?.drawImage(video, 0, 0, canvas.width, canvas.height)
+    video.pause()
+    return canvas.toDataURL('image/jpeg', 0.8).split(',')[1] ?? ''
+  } finally {
+    for (const t of stream.getTracks()) t.stop()
+  }
 }
 
 function connect(): Promise<WebSocket> {
