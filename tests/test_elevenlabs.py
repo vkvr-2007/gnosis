@@ -79,3 +79,20 @@ def test_a_bad_key_is_reported_once_but_missing_permissions_are_not():
     no_user_read = replying(401, {"code": "missing_permissions", "message": "needs user_read"})
     assert elevenlabs.key_problem("sk_1", client=no_user_read) is None
     assert elevenlabs.key_problem("sk_1", client=replying(200, {})) is None
+
+
+def test_a_voice_the_account_cant_use_is_reported():
+    from gnosis.voice import elevenlabs
+
+    def client(status, detail=None):
+        return httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(status, json={"detail": detail})))
+
+    # Seen on the laptop: a library voice on a free plan.
+    paid = {"code": "paid_plan_required", "message": "Free users cannot use library voices via the API."}
+    assert elevenlabs.voice_problem("k", "v1", client(402, paid)) == paid["message"]
+    assert elevenlabs.voice_problem("k", "v1", client(200)) is None
+
+    def offline(request):
+        raise httpx.ConnectError("no network")
+
+    assert elevenlabs.voice_problem("k", "v1", httpx.Client(transport=httpx.MockTransport(offline))) is None

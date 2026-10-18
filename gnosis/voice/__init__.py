@@ -27,7 +27,7 @@ def _expand(p: str | None) -> Path | None:
 async def run_voice(g: "Gnosis") -> None:
     """Runs the voice loop until cancelled. Heavy models load in a thread so the server stays responsive."""
     from gnosis.voice.audio import Microphone, Speaker
-    from gnosis.voice.elevenlabs import api_key, key_problem, load_stt, warm, wrap_tts
+    from gnosis.voice.elevenlabs import api_key, key_problem, load_stt, voice_problem, warm, wrap_tts
     from gnosis.voice.loop import VoiceConfig, VoiceLoop
     from gnosis.voice.stt import SpeechToText
     from gnosis.voice.tts import load_tts
@@ -43,6 +43,13 @@ async def run_voice(g: "Gnosis") -> None:
         if problem:
             g.audit.write("voice", note=f"ElevenLabs is off, using the on-device voice instead: {problem}")
             cfg = {**cfg, "stt": "local", "tts": "local"}
+    if cfg.get("tts") == "elevenlabs" and cfg.get("elevenlabs_voice"):
+        # A chosen voice that this account can't use would fail every sentence; use the default one instead.
+        problem = await asyncio.to_thread(voice_problem, api_key(), cfg["elevenlabs_voice"])
+        if problem:
+            g.audit.write("voice_error", error=f"ElevenLabs voice {cfg['elevenlabs_voice']} can't be used, "
+                                               f"using the default voice instead: {problem}")
+            cfg = {**cfg, "elevenlabs_voice": None}
     wake = await asyncio.to_thread(load_wake, cfg)
     stt = await asyncio.to_thread(load_stt, cfg, lambda: SpeechToText(cfg.get("stt_model", "small.en")))
     tts = wrap_tts(cfg, await asyncio.to_thread(load_tts, _expand(cfg.get("piper_voice"))))

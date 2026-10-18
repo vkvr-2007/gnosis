@@ -48,6 +48,25 @@ def key_problem(key: str | None, client: httpx.Client | None = None) -> str | No
     return None
 
 
+def voice_problem(key: str, voice: str, client: httpx.Client | None = None) -> str | None:
+    """Why ElevenLabs won't speak with this voice (e.g. a library voice on a free plan), or None. A failed
+    connection counts as no problem: the per-sentence fallback handles that."""
+    try:
+        r = (client or httpx.Client(timeout=15)).post(
+            f"{API}/text-to-speech/{voice}", params={"output_format": "pcm_16000"},
+            headers={"xi-api-key": key}, json={"text": "Hi.", "model_id": "eleven_flash_v2_5"})
+    except httpx.HTTPError:
+        return None
+    if r.status_code < 400:
+        return None
+    try:
+        detail = r.json().get("detail") or {}
+    except ValueError:
+        detail = {}
+    message = detail.get("message") if isinstance(detail, dict) else str(detail)
+    return message or f"HTTP {r.status_code}"
+
+
 def to_wav(audio: np.ndarray, rate: int = _RATE) -> bytes:
     if audio.dtype != np.int16:
         audio = (np.clip(audio, -1, 1) * 32767).astype(np.int16)
