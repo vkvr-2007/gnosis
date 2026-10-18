@@ -533,7 +533,7 @@ export function browserServer({ allowWrites, channel, approve, emitBlade, sendPh
       guard(async ({ url, newTab = true }) => {
         const target = safeUrl(url)
         if (!target) return fail('Only web addresses (http or https) can be opened.')
-        if (isOwnPage(target)) return fail("That is Gnosis's own window; her tools leave it alone.")
+        if (isOwnPage(target)) return fail("That is Gnosis's own window; his tools leave it alone.")
         const b = await connect()
         const page = newTab ? await b.newPage() : await pick(me)
         await page.goto(target, { waitUntil: 'domcontentloaded', timeout: LOAD_TIMEOUT_MS }).catch(() => {})

@@ -1,189 +1,132 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
-import { useStore, accentFor, type Phase } from '../store'
+import { useStore, type Phase } from '../store'
 import { answerApproval } from '../lib/bridge'
 import { Suggestions } from './Suggestions'
-import { BladeSweep, Blades } from './Blades'
+import { Blades } from './Blades'
 import { IDENTITY } from '../identity'
 
-/** Standby in hands-free: she is waiting for her name, not for Space. */
-const HANDS_FREE_STANDBY = `HANDS-FREE — SAY "${IDENTITY.name.toUpperCase()}" OR PRESS SPACE`
+/**
+ * Gnosis's interface (gnosis.css).
+ *
+ * Built on AYRA's, with its behaviour kept and its look replaced: Gnosis stands on the left, the
+ * conversation reads as a calm column on the right, the state is a word in a pill rather than a
+ * colour change, and what a tool is doing is a line in the conversation rather than a banner.
+ * Sentence case throughout; one warm accent.
+ */
 
 const statusText: Record<Phase, string> = {
-  offline: 'OFFLINE',
-  boot: 'INITIALISING',
-  dormant: 'STANDBY — PRESS SPACE TO TALK',
-  waking: 'ONLINE',
-  listening: 'LISTENING — SPACE TO SEND',
-  thinking: 'PROCESSING',
-  tooling: 'ACCESSING SYSTEMS',
-  speaking: 'RESPONDING',
+  offline: 'Off',
+  boot: 'Waking up',
+  dormant: 'Ready',
+  waking: 'Here',
+  listening: 'Listening',
+  thinking: 'Thinking',
+  tooling: 'Working on it',
+  speaking: 'Speaking',
 }
 
-function Corner({ at }: { at: 'tl' | 'tr' | 'bl' | 'br' }) {
-  return <div className={`corner corner-${at}`} />
+const hintFor: Partial<Record<Phase, string>> = {
+  dormant: 'Press Space to talk',
+  listening: 'Space to send',
+  speaking: 'Esc to stop',
 }
 
-/* ------------------------------------------------------------------ decode */
-
-/**
- * The glyphs the ghost is drawn from. Uppercase, digits and rules only: the
- * point is that the unresolved text reads as *machine*, so lowercase letters
- * and anything with a descender are left out — they look like badly rendered
- * words rather than an unfinished decode.
- */
-const GLYPHS = '/\\|<>[]{}=+*#%&$0123456789ABCDEFGHJKLMNPQRSTUVWXYZ'
-
-/** Characters of noise shown ahead of the resolved text. */
-const GHOST = 22
-/** Repaint interval for the scramble. ~24fps is plenty for glyph noise. */
-const FRAME_MS = 42
-/** Floor on the resolve rate, characters per second. */
-const MIN_RATE = 110
-/** The frontier is never allowed to trail the streamed text by longer. */
-const MAX_LAG_MS = 420
-
-function scramble(s: string, seed: number) {
-  let out = ''
-  for (let i = 0; i < s.length; i++) {
-    const c = s[i]
-    // Whitespace is left alone so word shapes and line breaks hold still while
-    // the glyphs underneath churn.
-    if (c === ' ' || c === '\n' || c === '\t') {
-      out += c
-      continue
-    }
-    out += GLYPHS[(seed * 7919 + i * 104729 + c.charCodeAt(0)) % GLYPHS.length]
+/** A tool's name as a person would say it: "mcp__ayra_browser__browser_open" → "Opening a page". */
+export function toolPhrase(name: string): string {
+  const tool = name.split('__').pop() ?? name
+  const known: Record<string, string> = {
+    browser_play_youtube: 'Finding a video on YouTube',
+    browser_open: 'Opening a page',
+    browser_read: 'Reading the page',
+    browser_click: 'Clicking in Chrome',
+    browser_type: 'Typing in Chrome',
+    browser_tabs: 'Looking at your tabs',
+    browser_close: 'Closing a tab',
+    apps_open: 'Opening an app',
+    apps_read: 'Reading the window',
+    apps_click: 'Clicking in the app',
+    apps_type: 'Typing in the app',
+    apps_close: 'Closing the app',
+    WebSearch: 'Searching the web',
+    WebFetch: 'Reading a page',
+    PowerShell: 'Running a command',
+    Read: 'Reading a file',
+    Write: 'Writing a file',
+    Edit: 'Editing a file',
+    Glob: 'Looking for files',
+    Grep: 'Searching your files',
+    research: 'Researching',
+    deep_research: 'Researching in depth',
   }
-  return out
+  if (known[tool]) return known[tool]
+  const words = tool.replace(/^(?:apps|browser|jobs|rules)_/, '').replace(/[_-]+/g, ' ').trim()
+  return words ? `${words[0].toUpperCase()}${words.slice(1)}` : 'Working'
 }
 
+/* ------------------------------------------------------------- word reveal */
+
 /**
- * JARVIS's lines, arriving the way a computer would produce them.
- *
- * The hard part is not the effect, it is that the text underneath is *live*.
- * The store appends a token at a time, so this component re-renders dozens of
- * times a second with a slightly longer string, and the naive implementation —
- * scramble the whole thing, resolve it over N milliseconds — restarts the
- * animation on every token and never finishes decoding anything.
- *
- * So the frontier is a ref and only ever moves forward. Everything behind it
- * has settled and is plain text that will never animate again; a short window
- * ahead of it is noise; the rest is present in the DOM but invisible, which
- * keeps the line wrapping identical to the finished paragraph and means the
- * accessibility tree always holds the real sentence. The rate scales with how
- * far behind the frontier has fallen, so a single token drips and a 300
- * character burst clears inside MAX_LAG_MS — the decode must never be the
- * reason the transcript trails the voice.
- *
- * The rAF loop repaints on a 42ms gate rather than every frame, and stops dead
- * the moment the frontier catches up.
+ * Gnosis's replies arrive a word at a time, fading in as they stream, where AYRA's decoded out of
+ * glyph noise. Only the words not yet shown animate: a token landing mid-reply never restarts the
+ * ones before it, and the full sentence is always in the DOM for screen readers.
  */
-function DecodeText({ text }: { text: string }) {
+function WordReveal({ text }: { text: string }) {
   const reduced = useReducedMotion()
-  const settled = useRef(0)
-  const raf = useRef(0)
-  const latest = useRef(text)
-  const [tick, bump] = useState(0)
-
+  const shown = useRef(0)
+  const words = text.split(/(\s+)/)
+  const before = shown.current
   useEffect(() => {
-    // The running loop reads the length through this ref rather than through
-    // its own closure, so a token landing mid-sweep simply extends the target
-    // instead of leaving the loop chasing a length that is already stale.
-    latest.current = text
-
-    if (reduced) {
-      settled.current = text.length
-      return
-    }
-    if (raf.current || settled.current >= text.length) return
-
-    let prev = performance.now()
-    let painted = 0
-
-    const step = (now: number) => {
-      // Clamped so a backgrounded tab does not resolve the whole answer in one
-      // enormous frame the moment it comes back.
-      const dt = Math.min(now - prev, 120) / 1000
-      prev = now
-
-      const target = latest.current.length
-      const rate = Math.max(MIN_RATE, (target - settled.current) / (MAX_LAG_MS / 1000))
-      settled.current = Math.min(target, settled.current + rate * dt)
-
-      if (now - painted >= FRAME_MS) {
-        painted = now
-        bump((n) => n + 1)
-      }
-
-      if (settled.current < latest.current.length) {
-        raf.current = requestAnimationFrame(step)
-      } else {
-        raf.current = 0
-        bump((n) => n + 1)
-      }
-    }
-    raf.current = requestAnimationFrame(step)
-  }, [text, reduced])
-
-  useEffect(
-    () => () => {
-      if (raf.current) cancelAnimationFrame(raf.current)
-      raf.current = 0
-    },
-    [],
-  )
-
-  const n = Math.floor(settled.current)
-  if (reduced || n >= text.length) return <>{text}</>
-
+    shown.current = words.length
+  })
+  if (reduced) return <>{text}</>
   return (
     <>
-      {text.slice(0, n)}
-      <span className="decode-ghost">{scramble(text.slice(n, n + GHOST), tick)}</span>
-      <span className="decode-veil">{text.slice(n + GHOST)}</span>
+      {words.map((w, i) =>
+        i < before || /^\s+$/.test(w) ? (
+          <span key={i}>{w}</span>
+        ) : (
+          <span key={i} className="word-in" style={{ animationDelay: `${Math.min(i - before, 12) * 28}ms` }}>
+            {w}
+          </span>
+        ),
+      )}
     </>
   )
 }
 
-/* ------------------------------------------------------------------- meter */
+/* ----------------------------------------------------------------- level */
 
 /**
- * The SIGNAL meter, painting itself.
- *
- * It used to read the level through the HUD, which re-rendered the whole HUD —
- * transcript, rails, badges — on every change, up to sixty times a second while
- * the microphone heard anything. Now only these two elements change, written
- * directly, the way the avatar's mouth is.
+ * Five small bars that follow the microphone and the voice, written straight onto the elements so the
+ * interface doesn't re-render on every level change (AYRA's SIGNAL meter did the same, as a rail).
  */
-function Meter() {
-  const fill = useRef<HTMLDivElement>(null)
-  const pct = useRef<HTMLDivElement>(null)
+function LevelBars() {
+  const bars = useRef<HTMLSpanElement[]>([])
   useEffect(
     () =>
       useStore.subscribe((s, prev) => {
         if (s.level === prev.level) return
-        if (fill.current) fill.current.style.height = `${s.level * 100}%`
-        if (pct.current) pct.current.textContent = `${(s.level * 100).toFixed(0).padStart(3, '0')}%`
+        bars.current.forEach((b, i) => {
+          const shape = [0.55, 0.85, 1, 0.8, 0.5][i]
+          if (b) b.style.transform = `scaleY(${Math.max(0.15, Math.min(1, s.level * 1.6 * shape))})`
+        })
       }),
     [],
   )
   return (
-    <>
-      <div className="meter">
-        <div className="meter-fill" ref={fill} style={{ height: '0%' }} />
-      </div>
-      <div className="rail-item mono" ref={pct}>
-        000%
-      </div>
-    </>
+    <span className="level" aria-hidden="true">
+      {[0, 1, 2, 3, 4].map((i) => (
+        <span key={i} ref={(el) => { if (el) bars.current[i] = el }} />
+      ))}
+    </span>
   )
 }
 
 /* ----------------------------------------------------------------- approve */
 
 /**
- * The owner's Approve card: what AYRA wants to do, exactly, and why she asks.
+ * The owner's Approve card: what Gnosis wants to do, exactly, and why he asks.
  * Yes / No by click, by the Y and N keys, or by saying it. Only the oldest is
  * shown; the rest wait their turn.
  */
@@ -202,17 +145,17 @@ function ApproveCard() {
       <div className="approve-detail">{waiting.detail || waiting.tool}</div>
       <div className="approve-acts">
         <button className="approve-yes" onClick={() => pick(true)}>
-          Yes <kbd>Y</kbd>
+          Allow <kbd>Y</kbd>
         </button>
         <button className="approve-no" onClick={() => pick(false)}>
-          No <kbd>N</kbd>
+          Don't <kbd>N</kbd>
         </button>
         {waiting.always && (
           <button className="approve-always" onClick={() => pick(true, true)} title="Yes, and don't ask again here">
             {waiting.always} <kbd>A</kbd>
           </button>
         )}
-        {more > 0 && <span className="approve-more">+{more} waiting</span>}
+        {more > 0 && <span className="approve-more">{more} more waiting</span>}
       </div>
     </div>
   )
@@ -228,155 +171,101 @@ export function Hud() {
   const caption = useStore((s) => s.caption)
   const turns = useStore((s) => s.turns)
   const activeTool = useStore((s) => s.activeTool)
-  const connected = useStore((s) => s.connected)
   const error = useStore((s) => s.error)
   const voice = useStore((s) => s.voice)
 
-  // One variable on the root carries the phase colour into every .hud-* rule.
-  const colour = accentFor(phase)
+  const handsFree = hearing === 'hands-free'
+  const status = researching && (phase === 'thinking' || phase === 'tooling') ? 'Researching' : statusText[phase]
+  const hint = phase === 'dormant' && handsFree ? `Say "${IDENTITY.name}" or press Space` : hintFor[phase]
 
   return (
-    <div className="hud" style={{ ['--accent' as string]: colour }}>
-      {/* First in the tree on purpose. Everything after it is positioned with
-          `z-index: auto`, so paint order is document order and the sweep stays
-          behind the transcript and the panels without a z-index war. */}
-      <BladeSweep />
+    <div className="hud" data-phase={phase}>
+      {/* No tool "sweep" (AYRA's diagonal streaks and the raw tool name): the activity line in the
+          conversation says what is happening, in words. */}
 
-      <Corner at="tl" />
-      <Corner at="tr" />
-      <Corner at="bl" />
-      <Corner at="br" />
-
-      <header className="hud-top">
-        <div className="brand">
-          <span className="brand-mark">{IDENTITY.wordmark}</span>
-          <span className="brand-sub">{IDENTITY.tagline}</span>
+      <header className="g-top">
+        <div className="g-brand">
+          <img className="g-mark" src="/favicon.svg" alt="" />
+          <span className="g-name">{IDENTITY.name}</span>
         </div>
-
-        <div className="status">
-          <span className="dot" />
-          <span className="status-text">
-            {phase === 'dormant' && hearing === 'hands-free'
-              ? HANDS_FREE_STANDBY
-              : researching && (phase === 'thinking' || phase === 'tooling')
-                ? 'RESEARCHING'
-                : statusText[phase]}
-          </span>
-          {/* Researcher mode (R): every question goes to the researcher. */}
+        <div className="g-status" role="status">
+          <LevelBars />
+          <span className="g-status-word">{status}</span>
+          {hint && <span className="g-status-hint">{hint}</span>}
+        </div>
+        <div className="g-modes">
+          {handsFree && <span className="g-chip">Hands-free</span>}
           {researching && (
-            <span className="hud-mode" role="status" title="Researcher mode — R to go back to normal">
-              <i aria-hidden="true" />
-              RESEARCHER
+            <span className="g-chip" title="Researcher mode, R to turn it off">
+              Researcher
             </span>
           )}
         </div>
       </header>
 
-      {/* Left rail: which integrations are live */}
-      <aside className="rail rail-left">
-        <div className="rail-title">SYSTEMS</div>
-        {connected.map((c) => (
-          <div key={c} className="rail-item">
-            <span className="tick" />
-            {c}
-          </div>
-        ))}
-        <div className="rail-item">
-          <span className="tick" />
-          Web
-        </div>
-      </aside>
-
-      {/* Right rail: live telemetry, mostly for flavour */}
-      <aside className="rail rail-right">
-        <div className="rail-title">SIGNAL</div>
-        <Meter />
-      </aside>
-
-      <AnimatePresence>
-        {activeTool && (
-          <motion.div
-            className="tool-badge"
-            // Anchored to the TOP of the frame, not the middle. The old home was
-            // viewport-centre plus a fixed drop, which on a tall or square
-            // window landed the headline straight on top of the bottom
-            // transcript — two elements pinned to different edges of the screen
-            // were always going to meet somewhere. Up here it sits in its own
-            // band with the rest of the status chrome and can never collide with
-            // the log. Framer owns `transform` on an animated element, so the
-            // centring (x: -50%) lives in these props, not the stylesheet.
-            initial={{ opacity: 0, x: '-50%', y: -8, filter: 'blur(6px)' }}
-            animate={{ opacity: 1, x: '-50%', y: 0, filter: 'blur(0px)' }}
-            exit={{ opacity: 0, x: '-50%', y: -8, filter: 'blur(6px)' }}
-            transition={{ type: 'spring', stiffness: 300, damping: 26 }}
-          >
-            <span className="tool-kicker">
-              <span className="spinner" />
-              accessing
-            </span>
-            <span className="tool-name">{activeTool.replace(/[_-]/g, ' ')}</span>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* The latest exchange — what you said and her answer — on its own panel */}
-      <div className="log">
+      {/* The conversation: the last few exchanges, newest at the bottom. */}
+      <section className="g-convo" aria-live="polite">
         <AnimatePresence initial={false}>
-          {turns.slice(-2).map((t) => (
+          {turns.slice(-4).map((t, i, shownTurns) => (
             <motion.div
               key={t.id}
-              className={`log-line log-${t.role}`}
-              initial={{ opacity: 0, y: 14 }}
+              className={`g-turn g-${t.role}${i < shownTurns.length - 2 ? ' g-older' : ''}`}
+              layout="position"
+              initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0 }}
-              transition={{ type: 'spring', stiffness: 320, damping: 32 }}
+              transition={{ type: 'spring', stiffness: 260, damping: 30 }}
             >
-              <span className="log-who">{t.role === 'user' ? 'YOU' : IDENTITY.name}</span>
-              {/* Only the assistant's half decodes. What the user said was
-                  never transmitted from anywhere — dressing it up as machine
-                  output would be a lie about where the words came from. */}
-              <span className="log-text">
-                {t.role === 'assistant' ? <DecodeText text={t.text} /> : t.text}
-              </span>
+              <span className="g-who">{t.role === 'user' ? 'You' : IDENTITY.name}</span>
+              <p className="g-text">{t.role === 'assistant' ? <WordReveal text={t.text} /> : t.text}</p>
             </motion.div>
           ))}
         </AnimatePresence>
-      </div>
 
-      <AnimatePresence>
-        {caption && (
-          <motion.div
-            className="caption"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-          >
-            {caption}
-          </motion.div>
+        <AnimatePresence>
+          {caption && (
+            <motion.p className="g-caption" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+              {caption}
+            </motion.p>
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {activeTool && (
+            <motion.div
+              className="g-activity"
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+            >
+              <span className="g-activity-pulse" aria-hidden="true" />
+              {toolPhrase(activeTool)}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {!turns.length && !caption && phase === 'dormant' && (
+          <p className="g-empty">Ask about anything: the weather, a video to play, a file, a question to research.</p>
         )}
-      </AnimatePresence>
 
-      {/* The one surface: everything AYRA shows lands here. */}
+        {error && <p className="g-error">{error}</p>}
+      </section>
+
+      {/* The one surface: everything Gnosis shows lands here. */}
       <Blades />
 
       <ApproveCard />
 
       <Suggestions />
 
-      {error && <div className="error">{error}</div>}
-
-      <footer className="hud-bottom">
-        <span className="hint">
-          <kbd>Space</kbd> talk · <kbd>Space</kbd> again send · <kbd>Space</kbd><kbd>Space</kbd> stop ·{' '}
-          <kbd>W</kbd> hands-free {hearing === 'hands-free' ? 'on' : 'off'} · <kbd>R</kbd> researcher{' '}
-          {researching ? 'on' : 'off'} · <kbd>L</kbd> still
-          {voice && (
-            <>
-              {' · '}
-              <kbd>V</kbd> voice: {voice.replace(/\(.*?\)/g, '').trim()}
-            </>
-          )}
-        </span>
+      <footer className="g-keys">
+        <span><kbd>Space</kbd> talk</span>
+        <span><kbd>Esc</kbd> stop</span>
+        <span><kbd>W</kbd> hands-free {handsFree ? 'on' : 'off'}</span>
+        <span><kbd>R</kbd> research {researching ? 'on' : 'off'}</span>
+        <span><kbd>D</kbd> diagnostics</span>
+        {voice && <span><kbd>V</kbd> {voice.replace(/\(.*?\)/g, '').trim()}</span>}
       </footer>
     </div>
   )

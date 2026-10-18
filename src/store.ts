@@ -363,15 +363,19 @@ export const useStore = create<State>((set) => ({
 }))
 
 /** Colour identity per phase — shared by the avatar and the HUD. */
+/**
+ * Gnosis says what state he is in with words and motion, not colour (AYRA had a colour per phase):
+ * one amber accent throughout, dimmer only while off or waking.
+ */
 export const phaseColor: Record<Phase, string> = {
-  offline: '#0d4a4a',
-  boot: '#17b3b3',
-  dormant: '#12908f',
-  waking: '#5cf2ef',
-  listening: '#19d8d2',
-  thinking: '#f0a93c',
-  tooling: '#a97bff',
-  speaking: '#3ef2a8',
+  offline: '#6c7078',
+  boot: '#ef9a4c',
+  dormant: '#ef9a4c',
+  waking: '#ef9a4c',
+  listening: '#ef9a4c',
+  thinking: '#ef9a4c',
+  tooling: '#ef9a4c',
+  speaking: '#ef9a4c',
 }
 
 /** What colour the interface is right now. */

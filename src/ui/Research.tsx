@@ -146,7 +146,7 @@ function ResearcherBoard({ r, expanded, onMore }: { r: Research; expanded: boole
           <i aria-hidden="true" />
           {pill.text}
         </span>
-        <span className="rs-rank">RESEARCHER</span>
+        <span className="rs-rank">Researcher</span>
         <span className="rs-timer">
           <Elapsed status={r.status} mode={r.mode} startedAt={r.startedAt} ms={r.ms} />
         </span>

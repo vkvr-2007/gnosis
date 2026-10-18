@@ -1,0 +1,346 @@
+/*
+ * Gnosis's look, laid over the stylesheet inherited from AYRA (index.css), which keeps the
+ * structure of the cards, the research board and the diagnostics.
+ *
+ * AYRA was a sci-fi heads-up display: cyan on black, Chakra Petch in wide-tracked capitals,
+ * scanlines, corner brackets, glyph-scramble text, a colour per state. Gnosis is a calm companion:
+ * graphite with warm off-white text and one amber accent, Outfit in sentence case, Geist Mono only
+ * for small details, the state said in words, and the conversation as a readable column beside him.
+ *
+ * Corners: 16px for panels and cards, full pill for buttons, chips and the status.
+ */
+
+:root {
+  --bg: #0e1013;
+  --surface: #16191e;
+  --surface-2: #1d2127;
+  --line: rgba(236, 232, 225, 0.09);
+  --line-strong: rgba(236, 232, 225, 0.16);
+  --text: #ece8e1;
+  --muted: #9a9ea6;
+  --faint: #80848c;
+  --ember: #ef9a4c;
+  --ember-soft: rgba(239, 154, 76, 0.14);
+  --danger: #ef7a6d;
+  --interface: var(--ember);
+  --accent: var(--ember);
+  --radius: 16px;
+  font-family: 'Outfit Variable', 'Outfit', system-ui, sans-serif;
+  color-scheme: dark;
+}
+
+html,
+body,
+#root {
+  background:
+    radial-gradient(1200px 700px at 22% 58%, rgba(239, 154, 76, 0.07), transparent 60%),
+    var(--bg);
+}
+
+/* No scanlines. */
+body::after { display: none; }
+
+kbd {
+  font-family: 'Geist Mono', ui-monospace, monospace;
+  font-size: 11px;
+  color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid var(--line-strong);
+  border-bottom-width: 2px;
+  border-radius: 6px;
+  padding: 1px 6px;
+}
+
+/* ---------------------------------------------------------------- the frame */
+
+.hud {
+  color: var(--text);
+  font-size: 15px;
+  text-transform: none;
+  letter-spacing: normal;
+}
+/* Everything inherited from AYRA was set in spaced-out capitals; Gnosis speaks in sentence case. */
+.hud *, .approve *, .bl *, .diag *, .sugg * {
+  text-transform: none !important;
+  letter-spacing: normal !important;
+}
+
+.g-top {
+  position: absolute;
+  top: 20px;
+  left: 28px;
+  right: 28px;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  pointer-events: none;
+}
+.g-brand { display: flex; align-items: center; gap: 10px; }
+.g-mark { width: 26px; height: 26px; }
+.g-name { font-size: 17px; font-weight: 600; color: var(--text); }
+
+.g-status {
+  justify-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 16px 7px 12px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: 0 8px 30px rgba(6, 7, 9, 0.35);
+}
+.g-status-word { font-weight: 500; color: var(--text); font-size: 14px; }
+.g-status-hint { color: var(--muted); font-size: 13px; }
+.g-status-hint::before { content: ''; display: inline-block; width: 1px; height: 12px; background: var(--line-strong); margin-right: 10px; vertical-align: -1px; }
+
+.level { display: inline-flex; align-items: center; gap: 2px; height: 14px; }
+.level span {
+  width: 3px;
+  height: 14px;
+  border-radius: 2px;
+  background: var(--ember);
+  transform: scaleY(0.15);
+  transform-origin: 50% 50%;
+  transition: transform 80ms linear;
+}
+.hud[data-phase='offline'] .level span,
+.hud[data-phase='dormant'] .level span { background: var(--faint); }
+
+.g-modes { justify-self: end; display: flex; gap: 8px; }
+.g-chip {
+  font-size: 12.5px;
+  color: var(--ember);
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--ember) 45%, transparent);
+  background: var(--ember-soft);
+}
+
+/* ------------------------------------------------------------ conversation */
+
+.g-convo {
+  position: absolute;
+  right: 6vw;
+  top: 50%;
+  transform: translateY(-46%);
+  width: min(560px, 44vw);
+  max-height: 66vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 22px;
+  overflow: hidden;
+  pointer-events: auto;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 64px);
+  mask-image: linear-gradient(to bottom, transparent 0, #000 64px);
+  transition: right 0.5s cubic-bezier(0.16, 1, 0.3, 1), width 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.g-turn { display: flex; flex-direction: column; gap: 4px; transition: opacity 0.4s ease; }
+.g-who { font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; color: var(--faint); }
+.g-text { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.g-assistant .g-text { font-size: 22px; line-height: 1.45; color: var(--text); font-weight: 400; }
+.g-user .g-text { font-size: 16px; line-height: 1.5; color: var(--muted); }
+.g-assistant .g-who { color: var(--ember); }
+.g-older { opacity: 0.42; }
+.g-older .g-text { font-size: 16px; }
+
+.word-in { display: inline; animation: gWord 0.32s cubic-bezier(0.16, 1, 0.3, 1) both; }
+@keyframes gWord { from { opacity: 0; filter: blur(2px) } to { opacity: 1; filter: none } }
+
+.g-caption { margin: 0; font-size: 17px; color: var(--muted); font-style: italic; }
+.g-activity {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  align-self: flex-start;
+  font-size: 14px;
+  color: var(--ember);
+  padding: 6px 14px 6px 12px;
+  border-radius: 999px;
+  background: var(--ember-soft);
+}
+.g-activity-pulse {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ember);
+  animation: gPulse 1.2s ease-in-out infinite;
+}
+@keyframes gPulse { 0%, 100% { opacity: 0.35; transform: scale(0.8) } 50% { opacity: 1; transform: scale(1.1) } }
+.g-empty { margin: 0; font-size: 17px; line-height: 1.5; color: var(--muted); max-width: 30ch; }
+.g-error { margin: 0; font-size: 14px; color: var(--danger); }
+
+.g-keys {
+  position: absolute;
+  left: 28px;
+  bottom: 18px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  font-size: 12.5px;
+  color: var(--muted);
+  pointer-events: none;
+}
+.g-keys span { display: inline-flex; align-items: center; gap: 6px; }
+
+/* ------------------------------------------------------------------ him */
+
+.avatar { justify-items: start; }
+.avatar-stage {
+  margin-left: 7vw;
+  transform: translateY(1vh);
+  width: min(58vh, 500px, 42vw);
+}
+/* A card is open on the right: the conversation moves under him, and he steps back a little. */
+html[data-cards='1'] .avatar-stage { transform: translateY(-10vh) scale(0.8); }
+html[data-cards='1'] .g-convo {
+  right: auto;
+  left: 7vw;
+  top: auto;
+  bottom: 64px;
+  transform: none;
+  width: min(460px, 40vw);
+  max-height: 30vh;
+}
+html[data-cards='1'] .g-assistant .g-text { font-size: 18px; }
+
+/* ------------------------------------------------------------------ cards */
+
+.bl {
+  background: var(--surface) !important;
+  border: 1px solid var(--line) !important;
+  border-radius: var(--radius) !important;
+  box-shadow: 0 24px 70px rgba(6, 7, 9, 0.5) !important;
+  color: var(--text);
+}
+.bl-front { border-color: color-mix(in srgb, var(--ember) 40%, transparent) !important; }
+.blades-stack { right: 28px; top: 84px; }
+
+/* ---------------------------------------------------------------- approve */
+
+.approve {
+  background: var(--surface) !important;
+  border: 1px solid var(--ember) !important;
+  border-radius: var(--radius) !important;
+  box-shadow: 0 30px 90px rgba(6, 7, 9, 0.6) !important;
+  color: var(--text) !important;
+  font-family: inherit !important;
+}
+.approve-kicker { color: var(--ember) !important; font-size: 14px !important; }
+.approve-detail { border-radius: 10px; background: var(--surface-2) !important; color: var(--text); }
+.approve-acts button {
+  border-radius: 999px !important;
+  padding: 7px 16px !important;
+  font-family: inherit !important;
+  font-size: 14px !important;
+  color: var(--text) !important;
+  border: 1px solid var(--line-strong) !important;
+  background: var(--surface-2) !important;
+}
+.approve-acts .approve-yes { background: var(--ember) !important; border-color: var(--ember) !important; color: #1b1208 !important; }
+.approve-acts button:active { transform: translateY(1px); }
+
+/* --------------------------------------------------------- start and wake */
+
+.g-start {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center start;
+  padding-left: 9vw;
+  background:
+    radial-gradient(900px 600px at 30% 50%, rgba(239, 154, 76, 0.08), transparent 65%),
+    var(--bg);
+}
+.g-start-card { display: flex; flex-direction: column; align-items: flex-start; gap: 14px; max-width: 420px; }
+.g-start-mark { width: 56px; height: 56px; }
+.g-start-title { margin: 6px 0 0; font-size: clamp(40px, 6vw, 64px); font-weight: 600; line-height: 1.05; color: var(--text); }
+.g-start-sub { margin: 0; font-size: 17px; line-height: 1.5; color: var(--muted); }
+.g-start-button {
+  margin-top: 10px;
+  font: 500 16px/1 inherit;
+  font-family: inherit;
+  color: #1b1208;
+  background: var(--ember);
+  border: 0;
+  border-radius: 999px;
+  padding: 14px 34px;
+  cursor: pointer;
+  box-shadow: 0 10px 30px rgba(239, 154, 76, 0.22);
+  transition: transform 0.15s ease, box-shadow 0.2s ease;
+}
+.g-start-button:hover { box-shadow: 0 12px 36px rgba(239, 154, 76, 0.32); }
+.g-start-button:active { transform: translateY(1px) scale(0.99); }
+.g-start-button:focus-visible { outline: 2px solid var(--text); outline-offset: 3px; }
+.g-start-key { margin: 0; font-size: 13px; color: var(--muted); }
+
+.g-boot {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-content: center start;
+  padding-left: 9vw;
+  gap: 14px;
+  background: var(--bg);
+}
+.g-boot-mark { width: 56px; height: 56px; }
+.g-boot-word { margin: 0; font-size: 20px; color: var(--text); }
+.g-boot-line { width: 220px; height: 2px; border-radius: 2px; background: var(--line); overflow: hidden; }
+.g-boot-line span { display: block; height: 100%; width: 100%; background: var(--ember); transform-origin: left; animation: gFill 2.2s cubic-bezier(0.4, 0, 0.2, 1) both; }
+@keyframes gFill { from { transform: scaleX(0) } to { transform: scaleX(1) } }
+
+/* --------------------------------------------------------- narrow windows */
+
+@media (max-width: 760px) {
+  .g-top { grid-template-columns: 1fr auto; }
+  .g-modes { display: none; }
+  .g-status-hint { display: none; }
+  .avatar { justify-items: center; }
+  .avatar-stage { margin-left: 0; transform: translateY(-20vh) scale(0.8); width: min(70vw, 360px); }
+  .g-convo,
+  html[data-cards='1'] .g-convo {
+    left: 16px;
+    right: 16px;
+    top: auto;
+    bottom: 56px;
+    transform: none;
+    width: auto;
+    max-height: 42vh;
+  }
+  .g-assistant .g-text { font-size: 18px; }
+  .g-keys { left: 16px; right: 16px; }
+  .g-keys span:nth-child(n + 4) { display: none; }
+  .g-start, .g-boot { place-items: center; place-content: center; padding: 16px; }
+  .g-start-card { align-items: center; text-align: center; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .word-in, .g-activity-pulse, .g-boot-line span { animation: none; }
+  .g-convo { transition: none; }
+}
+
+/* The card's resize grip and auto-close timer are kept (they work), quieter than AYRA's markings. */
+.bl-grip { opacity: 0.35; transition: opacity 0.2s ease; }
+.bl:hover .bl-grip { opacity: 0.8; }
+.bl-timer { opacity: 0.5; }
+
+/* Diagnostics (D) and the research board, in Gnosis's palette. */
+.diag {
+  background: var(--surface) !important;
+  border: 1px solid var(--line) !important;
+  border-radius: var(--radius) !important;
+  box-shadow: 0 24px 70px rgba(6, 7, 9, 0.5) !important;
+  font-family: 'Geist Mono', ui-monospace, monospace !important;
+  font-size: 12px !important;
+  color: var(--text) !important;
+}
+.diag-head { font-family: 'Outfit Variable', system-ui, sans-serif; font-size: 15px; font-weight: 600; color: var(--text) !important; }
+.diag-sec { color: var(--ember) !important; font-family: 'Outfit Variable', system-ui, sans-serif; font-size: 13px; }
+.diag-k { color: var(--muted) !important; }
+.diag-v { color: var(--text) !important; }
+.diag-ok { color: var(--ember) !important; }
+.diag-bad { color: var(--danger) !important; }
+.rs-rank { color: var(--ember) !important; }

@@ -1,55 +1,34 @@
 import { useStore } from '../store'
+import { IDENTITY } from '../identity'
 
 /**
- * The start gate.
+ * The start screen.
  *
- * Browsers refuse to play audio or start speech synthesis until the user has
- * interacted with the page, so something has to be clicked before JARVIS can
- * make a sound. Rather than hide that behind a permissions banner, it's the
- * cold open: a dead interface waiting to be switched on.
+ * Browsers refuse to play audio or open the microphone until the page has been clicked, so something
+ * has to be pressed before Gnosis can speak. AYRA made it a cold open (an INITIALISE ring); Gnosis
+ * asks plainly, with one button.
  *
- * Deliberately NOT wrapped in AnimatePresence, and the reason is worth keeping.
- *
- * It used to be, for the sake of a blur-and-fade on the way out, and the exit
- * never completed — the node reached opacity 0 and then stayed in the DOM for
- * the rest of the session. Which would be a cosmetic non-event, except this is
- * a `position: fixed; inset: 0` button: invisible, unremovable, and the topmost
- * hit-testable thing under every single point on the screen.
- *
- * Everything that aims by hit-testing died on it. Hand control resolves its
- * target with elementFromPoint, so every pinch — focus, grab, drag, close —
- * landed on an invisible button instead of a blade, silently, with no error and
- * nothing on screen to suggest why. It cost an entire evening of looking at the
- * gesture code, which was fine.
- *
- * Two attempted fixes failed and are worth recording so nobody re-attempts
- * them. Giving the child a `key` did not make the exit complete. Adding a
- * phase-dependent `pointerEvents` did not help either, because AnimatePresence
- * renders an exiting child from a frozen snapshot of its last props — inside
- * that copy the phase is forever 'offline', so a guard written in terms of it
- * can never fire.
- *
- * A plain conditional cannot strand anything. The fade-in survives because
- * mounting is not the dangerous direction; the fade-out is gone, and the boot
- * sequence takes the screen immediately anyway, so there is nothing to see.
+ * Deliberately NOT wrapped in AnimatePresence (AYRA's finding): an exit animation on a full-screen
+ * element that never finished left an invisible layer over everything. A plain conditional cannot
+ * strand anything.
  */
 export function Ignition({ onStart }: { onStart: () => void }) {
   const phase = useStore((s) => s.phase)
   if (phase !== 'offline') return null
 
   return (
-    <button className="ignition" onClick={onStart}>
-      {/*
-        Spun by CSS rather than framer. As a motion element with
-        `repeat: Infinity` it was one of the things keeping the exit from ever
-        finishing — AnimatePresence waits for a leaving subtree's animations,
-        and an infinite one never ends.
-      */}
-      <span className="ignition-ring" />
-      <span className="ignition-label">
-        <span className="ignition-word">INITIALISE</span>
-        <span className="ignition-sub">click, or press space, to power up</span>
-      </span>
-    </button>
+    <div className="g-start">
+      <div className="g-start-card">
+        <img className="g-start-mark" src="/favicon.svg" alt="" />
+        <h1 className="g-start-title">{IDENTITY.name}</h1>
+        <p className="g-start-sub">Your assistant on this laptop. He listens when you press Space.</p>
+        <button className="g-start-button" onClick={onStart} autoFocus>
+          Start
+        </button>
+        <p className="g-start-key">
+          or press <kbd>Space</kbd>
+        </p>
+      </div>
+    </div>
   )
 }

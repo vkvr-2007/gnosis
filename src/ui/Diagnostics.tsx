@@ -92,7 +92,7 @@ export function Diagnostics() {
 
   return (
     <div className="diag" aria-live="polite">
-      <div className="diag-head">DIAGNOSTICS · D to close</div>
+      <div className="diag-head">Diagnostics <span className="diag-k">D to close</span></div>
 
       <div className="diag-verdict">
         <span className={earsOk ? 'diag-ok' : 'diag-bad'}>
@@ -103,8 +103,8 @@ export function Diagnostics() {
         </span>
       </div>
 
-      <div className="diag-sec">LISTENING</div>
-      <Row k="recogniser" v={v.running ? 'running' : 'STOPPED'} bad={!v.running} />
+      <div className="diag-sec">Listening</div>
+      <Row k="recogniser" v={v.running ? 'running' : 'stopped'} bad={!v.running} />
       <Row k="sessions" v={String(v.sessions ?? 0)} />
       <Row
         k="silent for"
@@ -119,7 +119,7 @@ export function Diagnostics() {
       <Row k="last drop" v={v.dropped || '—'} bad={Boolean(v.dropped)} />
       <Row k="error" v={v.lastError || '—'} bad={Boolean(v.lastError)} />
 
-      <div className="diag-sec">SPEAKING · press T to test</div>
+      <div className="diag-sec">Speaking <span className="diag-k">T to test</span></div>
       <Row k="engine" v={String(t.engine ?? 'system')} />
       <Row k="voice" v={String(t.voice || '—')} />
       <Row k="handed to OS" v={String(t.spoken ?? 0)} />

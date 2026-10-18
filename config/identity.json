@@ -1,7 +1,7 @@
 {
   "_about": "Who Gnosis is. Read by the bridge (bridge/identity.mjs) and the face (src/identity.ts). Change identity here and nowhere else.",
   "name": "Gnosis",
-  "wordmark": "G.N.O.S.I.S.",
+  "wordmark": "Gnosis",
   "tagline": "Personal Intelligence System",
   "honorific": "boss",
   "language": "en-IN",
@@ -13,7 +13,25 @@
     "_elevenLabsId": "George, a built-in ElevenLabs voice. The owner's chosen voice oaGwHLz3csUaSnc2NBD4 is a library voice, which ElevenLabs only allows on a paid plan (402 paid_plan_required, 2026-10-18); put it here once the account allows it."
   },
   "wake": {
-    "names": ["gnosis", "nosis", "noses", "nossis", "nosys", "nosus", "noesis", "gnoses", "gnossis", "nauses", "nausis"],
-    "prefixedOnly": ["genesis", "gnostic", "neurosis", "mosis", "nose"]
+    "names": [
+      "gnosis",
+      "nosis",
+      "noses",
+      "nossis",
+      "nosys",
+      "nosus",
+      "noesis",
+      "gnoses",
+      "gnossis",
+      "nauses",
+      "nausis"
+    ],
+    "prefixedOnly": [
+      "genesis",
+      "gnostic",
+      "neurosis",
+      "mosis",
+      "nose"
+    ]
   }
 }

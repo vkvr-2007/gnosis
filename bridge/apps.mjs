@@ -268,7 +268,7 @@ export function formatRead({ window, items = [], more = false }, maxText = MAX_T
  * Her own window (the face, with the Approve card) is out of bounds: pressing
  * in it could answer her own request.
  */
-const OWN = "That is Gnosis's own window; her tools leave it alone."
+const OWN = "That is Gnosis's own window; his tools leave it alone."
 
 const text = (t) => ({ content: [{ type: 'text', text: t }] })
 const fail = (t) => ({ isError: true, content: [{ type: 'text', text: t }] })
