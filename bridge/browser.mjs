@@ -27,6 +27,7 @@ import { join } from 'node:path'
 import { env } from './identity.mjs'
 import { isOwnPage, redactSecrets, riskOfPageAction, touchesSecrets } from './gate.mjs'
 import { SEND_WORDS } from './allowances.mjs'
+import { youtubeSearch } from './web.mjs'
 
 // Only a conversation that can send pictures (Telegram) offers the phone, and the
 // tool says where a picture went — at the laptop she once said a screenshot was
@@ -491,6 +492,43 @@ export function browserServer({ allowWrites, channel, approve, emitBlade, sendPh
         await page.bringToFront().catch(() => {})
         me.current = page
         return text(await read(page, me.attr))
+      }),
+    ),
+
+    tool(
+      'browser_play_youtube',
+      "Find a video on YouTube and play it in the owner's Chrome. Use this for any \"play … on YouTube\" or " +
+        '"play a … video", rather than searching YouTube by hand. It reports what is really playing.',
+      { query: z.string().describe('What to search YouTube for, e.g. "cat video" or "lofi beats".') },
+      guard(async ({ query }) => {
+        let videos
+        try {
+          videos = await youtubeSearch(query)
+        } catch (err) {
+          return fail(`YouTube couldn't be searched just now (${err.message}).`)
+        }
+        if (!videos.length) return fail(`YouTube found no videos for "${query}".`)
+        const video = videos[0]
+        const b = await connect()
+        const page = await b.newPage()
+        await page.goto(video.url, { waitUntil: 'domcontentloaded', timeout: LOAD_TIMEOUT_MS }).catch(() => {})
+        await page.bringToFront().catch(() => {})
+        me.current = page
+        // Checked, not assumed: the player is given a few seconds, and started by hand if Chrome held it.
+        const state = await page.evaluate(async () => {
+          const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+          for (let i = 0; i < 16; i++) {
+            const v = document.querySelector('video')
+            if (v && !v.paused && v.currentTime > 0) return { playing: true }
+            if (v && v.paused && i === 6) v.play().catch(() => {})
+            await wait(500)
+          }
+          return { playing: false, player: Boolean(document.querySelector('video')) }
+        }).catch(() => ({ playing: false, player: false }))
+        return state.playing
+          ? text(`Playing "${video.title}" on YouTube in Chrome.`)
+          : fail(`Opened "${video.title}" on YouTube in Chrome, but it is not playing yet` +
+              (state.player ? ' — the player is paused.' : ' — the player did not load.'))
       }),
     ),
 

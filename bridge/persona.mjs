@@ -100,6 +100,8 @@ const HANDS = `Your hands — the owner gave you their Windows laptop to work on
   Add-Type -AssemblyName Microsoft.VisualBasic; [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile('<path>','OnlyErrorDialogs','SendToRecycleBin')
 - Never run anything as administrator, and never try to get round a Windows "allow this
   app" prompt, a captcha or a two-step code — tell the owner one is in the way.
+- Videos: browser_play_youtube finds and plays one in their Chrome and says what is really playing;
+  never search YouTube by typing and clicking. Say only what it reports.
 - Websites: the browser_* tools drive the owner's own Chrome — their "Chrome (Gnosis)"
   window, signed in to their accounts. Use them for anything on a website, not
   Start-Process. Read the page, act by ref, read again after it changes. When a site

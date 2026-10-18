@@ -215,6 +215,28 @@ export async function streamChat({ route, messages, tools, signal, onText, onToo
   return { text, toolCalls: calls.filter((c) => c.name), usage }
 }
 
+// ---- the claim check (from Gnosis v2) -------------------------------------------------------
+
+/**
+ * A request that asks Gnosis to do something. Answered with no tool run — "Opening Notepad now…",
+ * "Notepad closed.", "Playing now. Enjoy!" — nothing was done, whatever the wording (seen again and
+ * again with Nemotron in v2's acceptance runs, 2026-10-17/18). Not "remember": memory works by itself.
+ */
+export const ASKS_ACTION = new RegExp(
+  String.raw`^\W*(?:(?:hey\s+|ok(?:ay)?\s+)?g?nosis\W+)?(?:(?:please|can you|could you|would you|will you|now)\W+)*` +
+  String.raw`(?:open|close|type|play|pause|resume|launch|remind|set|send|save|delete|remove|schedule|cancel|turn|` +
+  String.raw`click|press|switch|focus|minimi[sz]e|maximi[sz]e|go to|search|find|run|start|stop|mute|unmute)\b`,
+  'i')
+
+export const CLAIM_CHECK = (request) =>
+  '[Gnosis check] Your reply says or implies the request was done, but no tool has run in this turn, so ' +
+  `nothing was done. The request is: ${request}\nIf it asks for an action, call the tool for it now. ` +
+  "Otherwise answer it without claiming an action. Don't reply to this check itself."
+
+/** The owner's own words in a message: without the bridge's [Now: …] stamp and [Depth …] line. */
+export const requestText = (content) =>
+  String(content ?? '').split('\n').filter((l) => !/^\[(?:Now|Depth)\b/.test(l)).join('\n').trim()
+
 // ---- query() ----------------------------------------------------------------------------
 
 /** The SDK's query(): an async iterable of SDK messages, plus interrupt() and close(). */
@@ -251,6 +273,10 @@ export function query({ prompt, options = {} }) {
     const signal = AbortSignal.any([turnAbort.signal, ...(outerAbort ? [outerAbort] : [])])
     let answer = ''
     let turns = 0
+    const request = requestText(userContent)
+    const asksAction = toolDefs.length > 0 && ASKS_ACTION.test(request)
+    let acted = false
+    let checked = false
     try {
       for (;;) {
         if (++turns > maxTurns) {
@@ -258,6 +284,9 @@ export function query({ prompt, options = {} }) {
           return
         }
         let text = ''
+        // An action asked for and nothing done yet: the reply is held back until it's clear a tool runs,
+        // because what streams is spoken at once and a false "Done!" can't be taken back.
+        const hold = asksAction && !acted && !checked
         const { toolCalls } = await streamChat({
           route,
           messages: [{ role: 'system', content: system }, ...history],
@@ -265,7 +294,7 @@ export function query({ prompt, options = {} }) {
           signal,
           onText: (delta) => {
             text += delta
-            if (includePartialMessages) {
+            if (includePartialMessages && !hold) {
               push({ type: 'stream_event', event: { type: 'content_block_delta', delta: { type: 'text_delta', text: delta } } })
             }
           },
@@ -282,6 +311,19 @@ export function query({ prompt, options = {} }) {
             return null
           }
         })
+        if (hold && !toolCalls.length) {
+          // Answered an action with words alone: one nudge, and the held reply is never shown or spoken.
+          checked = true
+          console.log(`[gnosis] claim check: "${request.slice(0, 80)}" was answered without a tool`)
+          history.push({ role: 'assistant', content: text || '(no reply)' },
+            { role: 'user', content: CLAIM_CHECK(request) })
+          continue
+        }
+        if (hold && text && includePartialMessages) {
+          // Held text that came with a tool call: the tool is running, so it can go out now.
+          push({ type: 'stream_event', event: { type: 'content_block_delta', delta: { type: 'text_delta', text } } })
+        }
+        if (toolCalls.length) acted = true
         push({ type: 'assistant', message: { role: 'assistant', content: [
           ...(text ? [{ type: 'text', text }] : []),
           ...toolCalls.map((c, i) => ({ type: 'tool_use', id: c.id, name: c.name, input: inputs[i] ?? {} })),

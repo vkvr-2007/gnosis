@@ -165,3 +165,31 @@ export async function webFetch(url, { fetchImpl = fetch, signal } = {}) {
   const text = /html/i.test(type) || /^\s*</.test(raw) ? htmlToText(raw) : raw
   return { code: res.status, url: res.url || url, text: text.slice(0, PAGE_TEXT_MAX) }
 }
+
+// ---- YouTube ------------------------------------------------------------------------------
+// Ported from Gnosis v2 (play_youtube). Measured on the owner's laptop, 2026-10-18: asked to play a cat
+// video, the model searched YouTube by typing and clicking and opened "Easy tab management" — the
+// results page also holds ads and promoted items. Reading the page's own list of videos picks a real one.
+
+const VIDEO = /"videoRenderer":\{"videoId":"([\w-]{11})"[\s\S]*?"title":\{"runs":\[\{"text":"((?:[^"\\]|\\.)*)"/g
+
+export const youtubeSearchUrl = (query) => `https://www.youtube.com/results?search_query=${encodeURIComponent(query).replace(/%20/g, '+')}`
+
+/** The videos on a YouTube results page, in order: { id, title, url }. Ads and Shorts aren't videoRenderers. */
+export function parseYouTubeResults(html, limit = 3) {
+  const out = []
+  const seen = new Set()
+  for (const [, id, title] of String(html).matchAll(VIDEO)) {
+    if (seen.has(id)) continue
+    seen.add(id)
+    out.push({ id, title: JSON.parse(`"${title}"`), url: `https://www.youtube.com/watch?v=${id}` })
+    if (out.length >= limit) break
+  }
+  return out
+}
+
+export async function youtubeSearch(query, { fetchImpl = fetch, signal } = {}) {
+  const res = await fetchImpl(youtubeSearchUrl(query), { headers: { 'User-Agent': UA, 'Accept-Language': 'en' }, signal })
+  if (!res.ok) throw new Error(`YouTube search failed: HTTP ${res.status}`)
+  return parseYouTubeResults(await res.text())
+}

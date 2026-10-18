@@ -222,3 +222,46 @@ test('web search tries engines in order and answers in the shape sources.mjs rea
   const none = await webSearch('x', { engines: [engines[1]] })
   assert.equal(none.text, 'No results found for "x".')
 })
+
+// -- the claim check ------------------------------------------------------------------------
+
+test('an action answered without a tool is nudged once, and the false claim is never streamed', async () => {
+  const { fetchImpl, sent } = fakeApi(say('Playing now. Enjoy!'), call('c1', 'mcp__m__play', {}), say('Playing "Cats".'))
+  globalThis.__fetch = globalThis.fetch
+  globalThis.fetch = fetchImpl
+  try {
+    const m = createSdkMcpServer({ name: 'm', tools: [tool('play', 'Play.', {}, async () => ({ content: [{ type: 'text', text: 'ok' }] }))] })
+    const msgs = await collect(query({ prompt: '[Now: Sun 18 Oct, 10:30]\nOpen YouTube and play a cat video', options: {
+      mcpServers: { m }, includePartialMessages: true, persistSession: false,
+      canUseTool: async (n, input) => ({ behavior: 'allow', updatedInput: input }) } }))
+    const streamed = msgs.filter((x) => x.event?.type === 'content_block_delta').map((x) => x.event.delta.text).join('')
+    assert.equal(streamed, 'Playing "Cats".')
+    assert.equal(msgs.at(-1).result, 'Playing "Cats".')
+    assert.match(sent[1].messages.at(-1).content, /^\[Gnosis check\][\s\S]*The request is: Open YouTube and play a cat video/)
+  } finally {
+    globalThis.fetch = globalThis.__fetch
+  }
+})
+
+test('questions stream at once, and are never held or nudged', async () => {
+  const { fetchImpl, sent } = fakeApi(say('It is ', 'ninety-six.'))
+  globalThis.__fetch = globalThis.fetch
+  globalThis.fetch = fetchImpl
+  try {
+    const msgs = await collect(query({ prompt: 'What is 12 times 8?', options: { tools: ['WebSearch'],
+      includePartialMessages: true, persistSession: false } }))
+    assert.equal(msgs.filter((x) => x.event?.type === 'content_block_delta').length, 2)
+    assert.equal(sent.length, 1)
+  } finally {
+    globalThis.fetch = globalThis.__fetch
+  }
+})
+
+test('which requests ask for an action', async () => {
+  const { ASKS_ACTION, requestText } = await import('../bridge/sdk.mjs')
+  for (const s of ['Open YouTube and play a cat video', 'hey gnosis, close notepad', 'Can you set a reminder',
+    'please turn the volume down', 'search the web for the IPL score']) assert.ok(ASKS_ACTION.test(s), s)
+  for (const s of ['What time is it?', 'Is Notepad open?', 'Write me a poem', 'Tell me a joke', 'What does open source mean?'])
+    assert.ok(!ASKS_ACTION.test(s), s)
+  assert.equal(requestText('[Depth 8/10 · complex]\n[Now: Sun]\nopen it'), 'open it')
+})
