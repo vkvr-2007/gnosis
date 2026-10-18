@@ -186,3 +186,53 @@ html[data-cards='1'] .avatar-stage { transform: translate(-21vw, -11vh) scale(0.
 @keyframes avZ { 0% { opacity: 0; transform: translate(0, 6px) } 30% { opacity: 1 } 100% { opacity: 0; transform: translate(8px, -14px) } }
 @keyframes avEar { 0% { opacity: 0; transform: translateX(-6px) } 40% { opacity: 1 } 100% { opacity: 0; transform: translateX(6px) } }
 @keyframes avDrip { 0%, 20% { transform: translateY(0); opacity: 0 } 35% { opacity: 1 } 100% { transform: translateY(16px); opacity: 0 } }
+
+/* ------------------------------------------------------------------ Gnosis
+   His shirt, headphones, laptop and mug, and his own movements: headphones on and a slow nod while
+   he listens, a hand in his hair while he thinks, typing while he works, a quick salute hello. */
+
+/* Black, with a cool rim so he stands off the dark background. */
+.avatar .av-sleeve, .avatar .av-blazer { fill: #202228; stroke: #4a4e58; stroke-width: 1.8 }
+.avatar .av-cuff { fill: #1a1c21; stroke: #4a4e58; stroke-width: 1 }
+.avatar .av-seam { fill: none; stroke: #33363e; stroke-width: 1.5 }
+.avatar .av-collar { fill: none; stroke: #3a3d46; stroke-width: 5; stroke-linecap: round }
+.avatar .av-hp-neck { opacity: 0; transition: opacity 0.25s ease }
+.avatar .av-hp-neck.on { opacity: 1 }
+.avatar .av-fx-phones .av-hp-band { stroke-width: 8 }
+
+.avatar .av-laptop-lid { fill: #b9bdc6; stroke: #7b808a; stroke-width: 1.5 }
+.avatar .av-laptop-base { fill: #d4d7de; stroke: #7b808a; stroke-width: 1 }
+.avatar .av-laptop-logo { fill: color-mix(in srgb, var(--av-accent) 25%, transparent) }
+.avatar .av-laptop-g { fill: none; stroke: var(--av-accent); stroke-width: 2.4; stroke-linecap: round }
+.avatar .av-mug rect { fill: #e9e5de; stroke: #9a958c; stroke-width: 1.5 }
+.avatar .av-mug-handle { fill: none; stroke: #9a958c; stroke-width: 5; stroke-linecap: round }
+.avatar .av-mug-g { fill: none; stroke: var(--av-accent); stroke-width: 2.2; stroke-linecap: round }
+.avatar .av-steam { fill: none; stroke: rgba(255, 255, 255, 0.45); stroke-width: 2; stroke-linecap: round; animation: gnSteam 2.4s ease-in-out infinite }
+
+/* Head: a slow nod to the music while listening (AYRA tilted towards her raised hand);
+   tilted the other way while thinking, eyes up. */
+.avatar[data-pose="listen"] .av-tilt { transform: none; animation: gnNod 1.6s ease-in-out infinite }
+.avatar[data-pose="think"] .av-tilt { transform: rotate(5deg) }
+.avatar[data-pose="think"] .av-iris { transform: translate(3px, -6px) }
+.avatar[data-pose="think"] .av-fx-dots { transform: translateX(-190px); }
+.avatar[data-pose="magic"] .av-tilt { transform: rotate(0deg) translateY(4px) }
+.avatar[data-pose="magic"] .av-iris { transform: translateY(5px) }
+
+/* Hands: a scratch, typing (the two hands taking turns), a salute that snaps up and holds. */
+.avatar .av-arm-think.on .av-hand { animation: gnScratch 0.5s ease-in-out infinite alternate }
+.avatar .av-arm-magic-l.on .av-hand { animation: gnType 0.32s ease-in-out infinite alternate }
+.avatar .av-arm-magic-r.on .av-hand { animation: gnType 0.32s ease-in-out infinite alternate-reverse }
+.avatar .av-arm-wave.on .av-hand { animation: gnSalute 1.8s cubic-bezier(0.2, 0.8, 0.2, 1) infinite }
+.avatar .av-arm-talk.on .av-hand { animation: gnGesture 2.2s ease-in-out infinite }
+
+@keyframes gnNod { 0%, 100% { transform: translateY(0) rotate(0) } 50% { transform: translateY(4px) rotate(-1.5deg) } }
+@keyframes gnScratch { from { transform: rotate(-6deg) translateY(0) } to { transform: rotate(6deg) translateY(-3px) } }
+@keyframes gnType { from { transform: translateY(0) } to { transform: translateY(-5px) } }
+@keyframes gnSalute { 0% { transform: rotate(-30deg) } 18%, 80% { transform: rotate(0) } 100% { transform: rotate(-30deg) } }
+@keyframes gnGesture { 0%, 100% { transform: rotate(6deg) translateY(0) } 50% { transform: rotate(-10deg) translateY(-5px) } }
+@keyframes gnSteam { 0%, 100% { opacity: 0.2; transform: translateY(0) } 50% { opacity: 0.7; transform: translateY(-4px) } }
+
+@media (prefers-reduced-motion: reduce) {
+  .avatar .av-tilt, .avatar .av-hand, .avatar .av-steam { animation: none !important }
+}
+.avatar .av-wave { fill: none; stroke: #4a5266; stroke-width: 2.4; stroke-linecap: round; opacity: 0.7 }

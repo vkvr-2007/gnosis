@@ -5,7 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Avatar preview</title>
     <!-- Development only: the character on his own, in one pose. /avatar.html?pose=talk -->
-    <style>html, body { margin: 0; height: 100%; background: #02060b; }</style>
+    <style>
+      html, body { margin: 0; height: 100%; background: #02060b; }
+      /* ?capture=1 (npm run mascot): just him, on nothing, holding still. */
+      html.capture, html.capture body { background: transparent; }
+      html.capture .avatar { place-items: start; }
+      html.capture .avatar-stage { transform: none !important; width: 400px !important; margin: 0 !important; }
+      html.capture .avatar-halo { display: none; }
+      html.capture .avatar-figure { -webkit-mask-image: none; mask-image: none; animation: none; }
+      html.capture .avatar * { animation-play-state: paused !important; animation-delay: 0s !important; transition: none !important; }
+    </style>
   </head>
   <body>
     <div id="root"></div>

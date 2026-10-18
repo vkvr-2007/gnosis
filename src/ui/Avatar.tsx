@@ -248,29 +248,29 @@ export function Avatar() {
               </radialGradient>
             </defs>
 
-            {/* Behind everything: the back of his short hair, tilting with the head. */}
+            {/* Behind everything: the back of his wavy hair, tilting with the head. */}
             <g className="av-tilt">
-              <path fill="url(#av-hair-back)" d="M112,168 C106,104 148,62 200,62 C252,62 294,104 288,168 C286,190 280,206 272,214 L128,214 C120,206 114,190 112,168 Z" />
+              <path fill="url(#av-hair-back)" d="M108,170 C100,100 146,56 200,56 C254,56 300,100 292,170 C296,186 290,200 280,208 C284,218 276,226 266,224 L134,224 C124,226 116,218 120,208 C110,200 104,186 108,170 Z" />
             </g>
 
-            {/* Neck, the hood behind it, and the hoodie. */}
-            <path className="av-hood" d="M128,318 C120,284 150,262 200,262 C250,262 280,284 272,318 C252,302 228,296 200,296 C172,296 148,302 128,318 Z" />
+            {/* Neck and his black shirt. */}
             <path className="av-skin-plain" d="M184,250 L184,312 Q200,320 216,312 L216,250 Z" />
             <path fill="#f0c3ac" d="M184,262 Q200,280 216,262 L216,276 Q200,290 184,276 Z" />
             <path
               className="av-blazer"
-              d="M46,440 C52,370 100,330 156,316 C170,312 186,312 200,330 C214,312 230,312 244,316 C300,330 348,370 354,440 Z"
+              d="M46,440 C52,370 100,330 154,316 C168,312 180,310 184,306 Q200,326 216,306 C220,310 232,312 246,316 C300,330 348,370 354,440 Z"
             />
-            <path className="av-seam" d="M156,316 C172,326 186,330 200,330 C214,330 228,326 244,316 M120,360 L132,440 M280,360 L268,440" />
-            {/* Drawstrings, with their metal tips. */}
-            <path className="av-string" d="M188,330 C186,350 184,368 182,384 M212,330 C214,350 216,368 218,384" />
-            <rect className="av-aglet" x="179" y="383" width="6" height="12" rx="2.5" />
-            <rect className="av-aglet" x="215" y="383" width="6" height="12" rx="2.5" />
+            {/* The crew neck's ribbed band, and the folds where the sleeves meet the body. */}
+            <path className="av-collar" d="M182,305 Q200,330 218,305" />
+            <path className="av-seam" d="M118,362 C124,388 128,414 130,440 M282,362 C276,388 272,414 270,440" />
 
-            {/* Headphones round his neck: the band behind, a cup on each side. */}
-            <path className="av-hp-band" d="M152,302 C150,282 170,270 200,270 C230,270 250,282 248,302" />
-            <EarCup x={152} y={306} side={-1} />
-            <EarCup x={248} y={306} side={1} />
+            {/* Headphones round his neck: the band behind, a cup on each side. They go on his ears while
+                he listens (and while he sleeps) — Gnosis's own listening pose, where AYRA cupped her ear. */}
+            <g className={`av-hp-neck${on(!look.fx.includes('phones'))}`}>
+              <path className="av-hp-band" d="M152,302 C150,282 170,270 200,270 C230,270 250,282 248,302" />
+              <EarCup x={152} y={306} side={-1} />
+              <EarCup x={248} y={306} side={1} />
+            </g>
 
             {/* The head, tilting as one piece. */}
             <g className="av-tilt av-head">
@@ -312,15 +312,25 @@ export function Avatar() {
               <path className={mouth('worried')} d="M189,250 Q200,242 211,250" />
               <path className={mouth('sleep')} d="M195,248 Q200,252 205,248" />
 
-              {/* Short, tousled hair: a messy fringe swept to one side and short sideburns. */}
+              {/* Wavy hair: a fringe of soft rounded waves swept to his right, and waves at the sides. */}
               <path
                 fill="url(#av-hair)"
-                d="M110,170 C100,100 146,52 202,52 C258,52 304,98 292,170 C288,150 282,138 274,130 C276,146 272,158 266,166 C262,142 252,126 238,116 C240,134 234,146 224,154 C222,132 212,118 198,110 C196,128 186,140 172,146 C176,128 172,118 164,112 C154,128 146,138 134,144 C138,130 136,122 130,118 C122,132 116,148 114,166 Z"
+                d="M108,176 C98,104 146,56 202,56 C262,56 308,102 296,174 C292,150 280,138 266,146 C272,166 262,180 248,174 C246,150 230,138 214,148 C220,168 208,182 194,174 C190,150 174,140 158,150 C164,170 152,182 138,174 C136,154 124,146 114,158 C111,164 109,170 108,176 Z"
               />
-              <path fill="url(#av-hair)" d="M114,150 C110,170 110,192 116,208 C120,196 122,182 126,168 Z" />
-              <path fill="url(#av-hair)" d="M286,150 C290,170 290,192 284,208 C280,196 278,182 274,168 Z" />
-              <path className="av-shine-hair" d="M150,88 Q196,66 244,82" />
-              <path className="av-shine-hair thin" d="M166,104 Q186,92 206,96" />
+              <path fill="url(#av-hair)" d="M116,148 C104,162 108,178 114,188 C108,198 112,210 120,214 C122,200 120,190 126,180 C122,170 124,160 128,152 Z" />
+              <path fill="url(#av-hair)" d="M284,148 C296,162 292,178 286,188 C292,198 288,210 280,214 C278,200 280,190 274,180 C278,170 276,160 272,152 Z" />
+              <path className="av-shine-hair" d="M140,92 Q160,74 182,84 Q204,94 226,78 Q246,66 262,84" />
+              <path className="av-wave" d="M128,128 Q146,110 164,124 Q182,138 200,120 Q218,104 236,120 Q254,136 272,118" />
+              <path className="av-wave" d="M150,104 Q168,90 186,102 Q204,114 222,98 Q238,86 254,98" />
+
+              {/* The headphones, on his ears. */}
+              <g className={fx('phones')}>
+                <path className="av-hp-band" d="M114,190 C108,92 292,92 286,190" />
+                <rect className="av-hp-cup" x="104" y="170" width="24" height="44" rx="11" />
+                <rect className="av-hp-cup" x="272" y="170" width="24" height="44" rx="11" />
+                <rect className="av-hp-light" x="112" y="182" width="7" height="20" rx="3.5" />
+                <rect className="av-hp-light" x="281" y="182" width="7" height="20" rx="3.5" />
+              </g>
 
               <path className="av-brow av-brow-l" d="M144,160 Q162,153 182,157" />
               <path className="av-brow av-brow-r" d="M218,157 Q238,153 256,160" />
@@ -349,25 +359,28 @@ export function Avatar() {
               <Sparkle x={318} y={260} s={0.7} d={1} />
               <Sparkle x={86} y={286} s={0.8} d={1.4} />
             </g>
-            <g className={fx('orb')}>
-              <circle cx="200" cy="318" r="34" fill="url(#av-orb)" />
-              <circle cx="200" cy="318" r="8" fill="#fffdf2" />
+            <g className={fx('laptop')}>
+              <rect className="av-laptop-lid" x="128" y="348" width="144" height="86" rx="9" />
+              <circle className="av-laptop-logo" cx="200" cy="391" r="11" />
+              <path className="av-laptop-g" d="M205,386 A6,6 0 1 0 206,393 H200" />
+              <rect className="av-laptop-base" x="112" y="430" width="176" height="10" rx="4" />
             </g>
 
             {/* Arms, one set per gesture; CSS shows the one that fits the pose. */}
-            <Arm name="wave" active={arm('wave')} base={[52, 440]} wrist={[92, 252]} angle={-12} hand="open" />
-            <Arm name="listen" active={arm('listen')} base={[350, 440]} wrist={[316, 240]} angle={16} hand="open" />
-            <Arm name="think" active={arm('think')} base={[300, 440]} wrist={[232, 312]} angle={-25} hand="point" />
-            <Arm name="talk" active={arm('talk')} base={[346, 440]} wrist={[302, 336]} angle={18} hand="open" />
-            <Arm name="magic-l" active={arm('magic-l')} base={[70, 440]} wrist={[130, 372]} angle={-30} hand="open" />
-            <Arm name="magic-r" active={arm('magic-r')} base={[330, 440]} wrist={[270, 372]} angle={30} hand="open" />
-            <Arm name="snack" active={arm('snack')} base={[300, 440]} wrist={[250, 292]} angle={-40} hand="fist">
-              <g className="av-bread" transform="translate(205 251) rotate(-8)">
-                <path d="M-34,-6 C-36,-18 -20,-24 0,-22 C22,-24 38,-16 34,-4 C32,8 18,11 0,9 C-20,11 -34,8 -34,-6 Z" />
-                <circle cx="-14" cy="-8" r="2.6" />
-                <circle cx="4" cy="-12" r="2.2" />
-                <circle cx="18" cy="-5" r="2.6" />
-                <circle cx="-2" cy="2" r="2" />
+            {/* Arms, one set per gesture; CSS shows the one that fits the pose. Gnosis's own: a salute
+                hello, a hand in his hair while he thinks, typing while he works, a mug of coffee. */}
+            <Arm name="wave" active={arm('wave')} base={[348, 440]} wrist={[292, 176]} angle={-62} hand="open" />
+            <Arm name="listen" active={arm('listen')} base={[350, 440]} wrist={[300, 224]} angle={8} hand="open" />
+            <Arm name="think" active={arm('think')} base={[56, 440]} wrist={[116, 160]} angle={22} hand="open" />
+            <Arm name="talk" active={arm('talk')} base={[52, 440]} wrist={[100, 330]} angle={-22} hand="open" />
+            <Arm name="magic-l" active={arm('magic-l')} base={[64, 440]} wrist={[150, 414]} angle={-70} hand="fist" />
+            <Arm name="magic-r" active={arm('magic-r')} base={[336, 440]} wrist={[250, 414]} angle={70} hand="fist" />
+            <Arm name="snack" active={arm('snack')} base={[300, 440]} wrist={[252, 300]} angle={-12} hand="fist">
+              <g className="av-mug" transform="translate(248 262)">
+                <path className="av-steam" d="M-8,-34 q-5,-7 0,-14 q5,-7 0,-14 M6,-32 q-5,-7 0,-14 q5,-7 0,-14" />
+                <rect x="-20" y="-22" width="40" height="44" rx="7" />
+                <path className="av-mug-handle" d="M20,-12 q16,0 16,12 q0,12 -16,12" />
+                <path className="av-mug-g" d="M5,-4 A6,6 0 1 0 6,3 H0" />
               </g>
             </Arm>
           </svg>

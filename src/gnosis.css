@@ -121,10 +121,10 @@ kbd {
 
 .g-convo {
   position: absolute;
-  right: 6vw;
+  right: calc(150px + 3vw); /* clear of the keys on the right edge */
   top: 50%;
   transform: translateY(-46%);
-  width: min(560px, 44vw);
+  width: min(560px, 42vw);
   max-height: 66vh;
   display: flex;
   flex-direction: column;
@@ -173,16 +173,18 @@ kbd {
 
 .g-keys {
   position: absolute;
-  left: 28px;
-  bottom: 18px;
+  right: 24px;
+  bottom: 24px;
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px 18px;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
   font-size: 12.5px;
   color: var(--muted);
   pointer-events: none;
 }
-.g-keys span { display: inline-flex; align-items: center; gap: 6px; }
+/* The owner: the keys on the right, one under another. Key first, then what it does, right-aligned. */
+.g-keys span { display: inline-flex; align-items: center; gap: 8px; flex-direction: row-reverse; }
 
 /* ------------------------------------------------------------------ him */
 
@@ -215,7 +217,7 @@ html[data-cards='1'] .g-assistant .g-text { font-size: 18px; }
   color: var(--text);
 }
 .bl-front { border-color: color-mix(in srgb, var(--ember) 40%, transparent) !important; }
-.blades-stack { right: 28px; top: 84px; }
+.blades-stack { right: 170px; top: 84px; }
 
 /* ---------------------------------------------------------------- approve */
 
@@ -311,7 +313,9 @@ html[data-cards='1'] .g-assistant .g-text { font-size: 18px; }
     max-height: 42vh;
   }
   .g-assistant .g-text { font-size: 18px; }
-  .g-keys { left: 16px; right: 16px; }
+  .g-keys { left: 16px; right: 16px; bottom: 16px; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 6px 14px; }
+  .g-keys span { flex-direction: row; }
+  .blades-stack { right: 16px; }
   .g-keys span:nth-child(n + 4) { display: none; }
   .g-start, .g-boot { place-items: center; place-content: center; padding: 16px; }
   .g-start-card { align-items: center; text-align: center; }

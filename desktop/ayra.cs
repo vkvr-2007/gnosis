@@ -866,14 +866,15 @@ namespace Gnosis
     }
   }
 
-  // The bubble: AYRA on top of every app (the owner's choice, 2026-10-13).
-  //   - a click is Space (POST /talk): she listens, sends, or stops and listens;
-  //     a double click stops everything; the owner's app stays in front
-  //   - it glows by her phase and flashes when hands-free hears her name
-  //   - one line beside it: what she heard, or what she is saying
-  //   - drag it anywhere; right-click for hands-free, her window, hiding it
-  //   - out of the way of a full-screen app (a video, a game)
-  // Her state comes from the bridge's /face (tray only), polled 5 times a second.
+  // The bubble: Gnosis himself, on the desktop.
+  //   - only while the desktop is in front (the owner, 2026-10-18: AYRA's bubble sat on top of every
+  //     app; Gnosis's stays on the desktop and steps away when an app is in front)
+  //   - it is the mascot, drawn in the pose for what he is doing (desktop/mascot, npm run mascot);
+  //     his mouth moves while he speaks, and a soft amber glow shows he is busy
+  //   - a click is Space (POST /talk): he listens, sends, or stops and listens
+  //   - one line beside it: what he heard, or what he is saying
+  //   - drag it anywhere; right-click for hands-free, his window, hiding it
+  // His state comes from the bridge's /face (tray only), polled 5 times a second.
   class Bubble : LayeredForm
   {
     readonly Config config;
@@ -882,7 +883,7 @@ namespace Gnosis
     readonly ContextMenuStrip menu;
     readonly ToolStripMenuItem handsFreeItem;
     readonly System.Windows.Forms.Timer anim;
-    readonly Bitmap face;
+    readonly Dictionary<string, Bitmap> frames;
     readonly int body, pad;
     readonly float scale;
     readonly string place;
@@ -890,7 +891,7 @@ namespace Gnosis
     int faces;
     DateTime flashUntil = DateTime.MinValue, lastBusy = DateTime.MinValue, lastDraw = DateTime.MinValue;
     readonly DateTime started = DateTime.Now;
-    bool dragging, down, fullscreen, wanted = true;
+    bool dragging, down, onDesktop, wanted = true;
     Point grab;
     volatile bool closing;
 
@@ -902,10 +903,11 @@ namespace Gnosis
       this.openWindow = openWindow;
       this.hideMe = hideMe;
       using (var g = Graphics.FromHwnd(IntPtr.Zero)) scale = g.DpiX / 96f;
-      body = (int)(52 * scale);
-      pad = (int)(12 * scale);
-      Size = new Size(body + 2 * pad, body + 2 * pad);
-      face = LoadFace(config.Icon);
+      body = (int)(96 * scale);
+      pad = (int)(10 * scale);
+      // His pictures are 192 × 252: the bubble keeps that shape.
+      Size = new Size(body + 2 * pad, (int)(body * 252f / 192f) + 2 * pad);
+      frames = LoadFrames(Path.Combine(config.Root, "desktop", "mascot"));
       place = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Gnosis", "bubble.txt");
       Location = Restore();
       caption = new Caption(scale);
@@ -935,9 +937,39 @@ namespace Gnosis
 
     public bool Wanted { get { return wanted; } }
 
-    // Her face from ayra.ico, its largest picture. scripts/icon.mjs stores every
-    // size as PNG, which .NET Framework's Icon.ToBitmap turns into static (seen
-    // 2026-10-13), so the PNG is read from the file itself.
+    // His pictures, one per state (scripts/mascot.mjs): sleep, idle, wave, listen, think, work, talk,
+    // talk2 (mouth nearly shut), oops. A missing one falls back to idle.
+    static Dictionary<string, Bitmap> LoadFrames(string dir)
+    {
+      var all = new Dictionary<string, Bitmap>();
+      foreach (var name in new[] { "sleep", "idle", "wave", "listen", "think", "work", "talk", "talk2", "oops" })
+      {
+        try
+        {
+          var file = Path.Combine(dir, name + ".png");
+          if (File.Exists(file)) using (var img = Image.FromFile(file)) all[name] = new Bitmap(img);
+        }
+        catch { }
+      }
+      return all;
+    }
+
+    Bitmap Frame(double t)
+    {
+      string name;
+      if (phase == "offline" || phase == "boot") name = "sleep";
+      else if (phase == "waking") name = "wave";
+      else if (phase == "listening") name = "listen";
+      else if (phase == "thinking") name = "think";
+      else if (phase == "tooling") name = "work";
+      else if (phase == "speaking") name = (int)(t * 6) % 2 == 0 ? "talk" : "talk2"; // his mouth moving
+      else name = "idle";
+      Bitmap b;
+      if (frames.TryGetValue(name, out b)) return b;
+      return frames.TryGetValue("idle", out b) ? b : null;
+    }
+
+    // The old round face, from the icon file: used only if his pictures are missing.
     static Bitmap LoadFace(string path)
     {
       try
@@ -1035,10 +1067,10 @@ namespace Gnosis
           using (var r = new StreamReader(res.GetResponseStream(), Encoding.UTF8)) body = r.ReadToEnd();
         }
         catch { body = null; }
-        var full = Fullscreen();
+        var desk = DesktopInFront();
         try
         {
-          if (!closing && IsHandleCreated) BeginInvoke((Action)delegate { Take(body, full); });
+          if (!closing && IsHandleCreated) BeginInvoke((Action)delegate { Take(body, desk); });
         }
         catch { }
         Thread.Sleep(200);
@@ -1053,7 +1085,7 @@ namespace Gnosis
       catch { return m.Groups[1].Value; }
     }
 
-    void Take(string body, bool full)
+    void Take(string body, bool desk)
     {
       var was = phase;
       var wasBy = by;
@@ -1072,7 +1104,7 @@ namespace Gnosis
       if (Busy(phase)) lastBusy = DateTime.Now;
       // Her name heard: a flash, so the owner knows at once that she heard.
       if (phase == "listening" && by == "name" && (was != "listening" || wasBy != "name")) flashUntil = DateTime.Now.AddMilliseconds(700);
-      fullscreen = full;
+      onDesktop = desk;
       Arrange();
     }
 
@@ -1081,7 +1113,7 @@ namespace Gnosis
     // Shown or hidden, and the caption beside it.
     void Arrange()
     {
-      var show = wanted && !fullscreen;
+      var show = wanted && onDesktop;
       if (show && !Visible) { Show(); Draw(); }
       if (!show && Visible) Hide();
       // The last answer stays a few seconds after she finishes, then fades.
@@ -1091,59 +1123,54 @@ namespace Gnosis
       caption.Say(line, who == "you", Bounds);
     }
 
-    // The glow by phase; animated while something is happening.
+    // Him, in the pose for what he is doing; a soft amber glow behind him while he is busy.
     void Draw()
     {
       if (!Visible || !IsHandleCreated) return;
       lastDraw = DateTime.Now;
       var t = (DateTime.Now - started).TotalSeconds;
-      Color ring;
-      float glow, sweep = 0;
-      if (phase == "offline" || phase == "boot") { ring = Color.FromArgb(110, 120, 130); glow = 0.15f; }
-      else if (phase == "listening" || phase == "waking") { ring = Color.FromArgb(56, 189, 248); glow = 0.55f + 0.35f * (float)Math.Abs(Math.Sin(t * 4)); }
-      else if (phase == "thinking" || phase == "tooling") { ring = Color.FromArgb(245, 158, 11); glow = 0.45f; sweep = (float)(t * 360 % 360); }
-      else if (phase == "speaking") { ring = Color.FromArgb(244, 114, 182); glow = 0.45f + 0.35f * (float)Math.Abs(Math.Sin(t * 6)); }
-      else if (hearing == "hands-free") { ring = Color.FromArgb(34, 211, 238); glow = 0.25f + 0.15f * (float)Math.Abs(Math.Sin(t * 1.2)); }
-      else { ring = Color.FromArgb(45, 212, 191); glow = 0.2f; }
-      var flash = DateTime.Now < flashUntil;
-      if (flash) { ring = Color.White; glow = 1f; }
+      var amber = Color.FromArgb(239, 154, 76);
+      float glow = 0f;
+      if (phase == "listening" || phase == "waking") glow = 0.45f + 0.25f * (float)Math.Abs(Math.Sin(t * 3));
+      else if (phase == "thinking" || phase == "tooling") glow = 0.35f + 0.2f * (float)Math.Abs(Math.Sin(t * 2));
+      else if (phase == "speaking") glow = 0.4f;
+      else if (hearing == "hands-free" && phase == "dormant") glow = 0.12f;
+      if (DateTime.Now < flashUntil) glow = 1f; // his name heard
 
-      var w = Width;
-      using (var bmp = new Bitmap(w, Height, System.Drawing.Imaging.PixelFormat.Format32bppArgb))
+      using (var bmp = new Bitmap(Width, Height, System.Drawing.Imaging.PixelFormat.Format32bppArgb))
       using (var g = Graphics.FromImage(bmp))
       {
         g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
         g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
-        // The soft halo: rings fading outwards.
-        for (int i = pad; i > 0; i -= 2)
+        var area = new Rectangle(pad, pad, Width - 2 * pad, Height - 2 * pad);
+        if (glow > 0)
         {
-          var a = (int)(glow * 110 * (1 - (float)i / pad));
-          using (var p = new Pen(Color.FromArgb(Math.Max(0, Math.Min(255, a)), ring), 2))
-            g.DrawEllipse(p, pad - i, pad - i, body + 2 * i - 1, body + 2 * i - 1);
-        }
-        var disc = new Rectangle(pad, pad, body, body);
-        using (var b = new SolidBrush(Color.FromArgb(235, 12, 18, 28))) g.FillEllipse(b, disc);
-        if (face != null)
-        {
-          using (var clip = new System.Drawing.Drawing2D.GraphicsPath())
+          using (var path = new System.Drawing.Drawing2D.GraphicsPath())
           {
-            var inner = Rectangle.Inflate(disc, -(int)(3 * scale), -(int)(3 * scale));
-            clip.AddEllipse(inner);
-            g.SetClip(clip);
-            g.DrawImage(face, inner);
-            g.ResetClip();
+            path.AddEllipse(area.Left - pad, area.Top + area.Height / 6, area.Width + 2 * pad, area.Height);
+            using (var brush = new System.Drawing.Drawing2D.PathGradientBrush(path))
+            {
+              brush.CenterColor = Color.FromArgb((int)(150 * Math.Min(1f, glow)), amber);
+              brush.SurroundColors = new[] { Color.FromArgb(0, amber) };
+              g.FillPath(brush, path);
+            }
           }
+        }
+        var frame = Frame(t);
+        if (frame != null)
+        {
+          g.DrawImage(frame, area);
           if (phase == "offline")
-            using (var dim = new SolidBrush(Color.FromArgb(120, 12, 18, 28))) g.FillEllipse(dim, disc);
+            using (var veil = new SolidBrush(Color.FromArgb(70, 14, 16, 19)))
+              g.FillRectangle(veil, area);
         }
-        using (var p = new Pen(Color.FromArgb((int)(120 + 135 * Math.Min(1f, glow)), ring), 2.5f * scale))
+        else
         {
-          if (sweep > 0 || phase == "thinking" || phase == "tooling")
-          {
-            using (var faint = new Pen(Color.FromArgb(70, ring), 2.5f * scale)) g.DrawEllipse(faint, disc);
-            g.DrawArc(p, disc, sweep, 100);
-          }
-          else g.DrawEllipse(p, disc);
+          // No pictures (npm run mascot not run): the old round face.
+          var disc = new Rectangle(pad, pad, Width - 2 * pad, Width - 2 * pad);
+          using (var b = new SolidBrush(Color.FromArgb(235, 14, 16, 19))) g.FillEllipse(b, disc);
+          var face = LoadFace(config.Icon);
+          if (face != null) using (face) g.DrawImage(face, Rectangle.Inflate(disc, -(int)(3 * scale), -(int)(3 * scale)));
         }
         Present(bmp);
       }
@@ -1179,23 +1206,25 @@ namespace Gnosis
       catch { }
     }
 
-    // A full-screen app in front (a video, a game, a slideshow): stay out of its way.
-    bool Fullscreen()
+    // Is the desktop in front? (Progman and WorkerW are the desktop; after Win+D, or with everything
+    // minimised, one of them has the focus.) The taskbar, the Start menu and the tray keep whatever
+    // was decided before, so clicking the tray icon doesn't make him blink away.
+    bool lastDesk;
+    bool DesktopInFront()
     {
       try
       {
         var h = Native.GetForegroundWindow();
-        if (h == IntPtr.Zero) return false;
+        if (h == IntPtr.Zero) return lastDesk;
         var cls = new StringBuilder(64);
         Native.GetClassName(h, cls, cls.Capacity);
         var c = cls.ToString();
-        if (c == "Progman" || c == "WorkerW" || c == "Shell_TrayWnd") return false;
-        Gdi.RECT r;
-        if (!Gdi.GetWindowRect(h, out r)) return false;
-        var b = Screen.FromHandle(h).Bounds;
-        return r.Left <= b.Left && r.Top <= b.Top && r.Right >= b.Right && r.Bottom >= b.Bottom;
+        if (c == "Progman" || c == "WorkerW") return lastDesk = true;
+        if (c == "Shell_TrayWnd" || c == "Shell_SecondaryTrayWnd" || c == "NotifyIconOverflowWindow" ||
+            c == "Windows.UI.Core.CoreWindow" || c == "TopLevelWindowForOverflowXamlIsland") return lastDesk;
+        return lastDesk = false;
       }
-      catch { return false; }
+      catch { return lastDesk; }
     }
   }
 

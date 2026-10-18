@@ -32,12 +32,12 @@ export type Look = {
 }
 
 export const LOOKS: Record<Pose, Look> = {
-  sleep: { eyes: 'closed', mouth: 'sleep', arms: [], fx: ['zzz'] },
+  sleep: { eyes: 'closed', mouth: 'sleep', arms: [], fx: ['zzz', 'phones'] },
   idle: { eyes: 'open', mouth: 'smile', arms: [], fx: [] },
   wave: { eyes: 'open', mouth: 'grin', arms: ['wave'], fx: ['sparkles'] },
-  listen: { eyes: 'open', mouth: 'smile', arms: ['listen'], fx: ['ear'] },
+  listen: { eyes: 'open', mouth: 'smile', arms: [], fx: ['phones'] }, // Gnosis: headphones on, nodding along
   think: { eyes: 'open', mouth: 'o', arms: ['think'], fx: ['dots'] },
-  magic: { eyes: 'open', mouth: 'smile', arms: ['magic-l', 'magic-r'], fx: ['sparkles', 'orb'] },
+  magic: { eyes: 'open', mouth: 'smile', arms: ['magic-l', 'magic-r'], fx: ['laptop'] },
   talk: { eyes: 'open', mouth: 'talk', arms: ['talk'], fx: [] },
   oops: { eyes: 'open', mouth: 'worried', arms: [], fx: ['sweat'] },
   snack: { eyes: 'happy', mouth: 'nom', arms: ['snack'], fx: [] },
