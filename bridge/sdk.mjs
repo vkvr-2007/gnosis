@@ -28,6 +28,7 @@ import { z } from 'zod'
 import { BUILTINS } from './builtins.mjs'
 import { loadModels, modelFor } from './models.mjs'
 import { IDENTITY } from './identity.mjs'
+import { createMemory } from './memory.mjs'
 import { createPrivateMemory, findPII, privateAnswer, privateStatement, sensitiveRequest } from './privacy.mjs'
 
 // ---- tools -------------------------------------------------------------------------
@@ -222,12 +223,12 @@ export async function streamChat({ route, messages, tools, signal, onText, onToo
 /**
  * A request that asks Gnosis to do something. Answered with no tool run — "Opening Notepad now…",
  * "Notepad closed.", "Playing now. Enjoy!" — nothing was done, whatever the wording (seen again and
- * again with Nemotron in v2's acceptance runs, 2026-10-17/18). Not "remember": memory works by itself.
+ * again with Nemotron in v2's acceptance runs, 2026-10-17/18). "remember" too: memory.mjs saves only through its tool.
  */
 export const ASKS_ACTION = new RegExp(
   String.raw`^\W*(?:(?:hey\s+|ok(?:ay)?\s+)?g?nosis\W+)?(?:(?:please|can you|could you|would you|will you|now)\W+)*` +
   String.raw`(?:open|close|type|play|pause|resume|launch|remind|set|send|save|delete|remove|schedule|cancel|turn|` +
-  String.raw`click|press|switch|focus|minimi[sz]e|maximi[sz]e|go to|search|find|run|start|stop|mute|unmute)\b`,
+  String.raw`click|press|switch|focus|minimi[sz]e|maximi[sz]e|go to|search|find|run|start|stop|mute|unmute|remember|forget|note down)\b`,
   'i')
 
 export const CLAIM_CHECK = (request) =>
@@ -302,6 +303,14 @@ export function privateSystem(privacy, request) {
     `and say it only when they ask for it):\n${memories.map((m) => `- ${m.text}`).join('\n')}`
 }
 
+// ---- memory -----------------------------------------------------------------------------
+
+let sharedMemory = null
+const defaultMemory = () => (sharedMemory ??= createMemory())
+
+/** The system prompt with what Gnosis remembers that bears on this request, if anything. */
+export const withMemory = (system, recall) => (recall ? `${system}\n\n${recall}` : system)
+
 // ---- query() ----------------------------------------------------------------------------
 
 /** The SDK's query(): an async iterable of SDK messages, plus interrupt() and close(). */
@@ -312,6 +321,9 @@ export function query({ prompt, options = {} }) {
   } = options
   const cloudRoute = modelFor(model)
   const privacy = options.privacy ?? privacyRules() // options.privacy: tests give their own memory
+  // Long-term memory (memory.mjs) for the owner's own conversations: the brain gives them the memory
+  // server. Research agents and other one-off sessions don't recall or record anything.
+  const memory = options.memory ?? (options.mcpServers?.ayra_memory ? defaultMemory() : null)
   const toolset = collectTools(options)
   const defOf = ([name, t]) => ({
     type: 'function', function: { name, description: String(t.description ?? '').slice(0, 1024), parameters: t.parameters },
@@ -390,7 +402,8 @@ export function query({ prompt, options = {} }) {
         try {
           ({ toolCalls } = await streamChat({
           route,
-          messages: [{ role: 'system', content: route.onDevice ? privateSystem(privacy, request) : system }, ...history],
+          messages: [{ role: 'system', content: withMemory(route.onDevice ? privateSystem(privacy, request) : system,
+            memory?.recallText(request, { includeSensitive: route.onDevice, actionRequest: asksAction })) }, ...history],
           tools,
           signal,
           onText: (delta) => {
@@ -465,6 +478,14 @@ export function query({ prompt, options = {} }) {
         }
       }
       if (isPrivate) redactTurn(history, turnStart)
+      // The exchange, as a line of history for later recall: never a private one.
+      else if (memory && answer && !keep && !recalled) {
+        try {
+          memory.addEpisode(request, answer)
+        } catch (err) {
+          console.warn('[gnosis] could not save the exchange to memory:', err?.message ?? err)
+        }
+      }
       if (persistSession) saveSession(sessionId, history)
       const done = { type: 'result', subtype: 'success', is_error: false, result: answer, session_id: sessionId,
                      total_cost_usd: null }

@@ -464,6 +464,10 @@ export function createGate({ allowWrites, laptop = false, connectors = DEFAULT_C
       // offered with writes on.
       if (server === 'ayra_jobs') return true
 
+      // Gnosis's memory (memory.mjs): remember, search and forget facts in his own memory file on the
+      // laptop. It reaches nothing of the owner's and nothing outside.
+      if (server === 'ayra_memory') return true
+
       const tool = mcpToolOf(name)
       if (EFFECTFUL_VERB.test(tool) && !VETO_EXEMPT.has(`${server}__${tool}`)) {
         return allowWrites

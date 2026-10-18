@@ -50,6 +50,9 @@ import { fileURLToPath } from 'node:url'
 import { openRemote, proxyError, vetTarget, PROXY_UA } from './net.mjs'
 import { renderPage } from './page.mjs'
 import { modelFor } from './models.mjs'
+import { createMemory, memoryServer } from './memory.mjs'
+
+const MEMORY = createMemory()
 
 const PORT = Number(env('BRIDGE_PORT', 8787))
 
@@ -783,9 +786,8 @@ const BRAIN = createBrain({
   model: MODEL,
   effort: EFFORT,
   gate: GATE,
-  // None of the owner's own MCP servers for now: the clean interface is web
-  // search only, and each server comes back as its own step (PLAN.md).
-  mcpServers: {},
+  // Shared by every conversation (the window, Telegram, jobs): Gnosis's long-term memory (memory.mjs).
+  mcpServers: { ayra_memory: memoryServer(MEMORY) },
   audit: AUDIT,
   // How long an idle conversation is worth continuing after a reload.
   resumeHours: Number(env('RESUME_HOURS', 6)),
