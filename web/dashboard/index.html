@@ -591,6 +591,12 @@ async function loadMemory() {
   });
 }
 
+// The conversation so far, kept on disk, so it's still here after Gnosis restarts.
+fetch("/api/conversation").then((r) => r.json()).then((rows) => {
+  rows.forEach((m) => m.role === "user"
+    ? say("you", (m.session === "voice" ? "🎙 " : "") + m.content)
+    : say("gnosis", m.content));
+}).catch(() => {});
 loadJobs();
 fetch("/api/tasks").then((r) => r.json()).then((list) => { list.forEach((t) => tasks.set(t.id, t)); renderTasks(); });
 fetch("/api/approvals").then((r) => r.json()).then((list) =>

@@ -10,6 +10,7 @@ from typing import Any
 from gnosis.attachments import Inbox
 from gnosis.config import Settings
 from gnosis.core.audit import AuditLog
+from gnosis.core.conversation import ConversationStore
 from gnosis.core.events import EventBus
 from gnosis.core.llm import LLMClient
 from gnosis.core.model_router import ModelRouter
@@ -140,6 +141,7 @@ def build(settings: Settings, llm: LLMClient | None = None) -> Gnosis:
                                 max_steps=settings.max_steps,
                                 approval_timeout_s=settings.approval_timeout_s,
                                 max_parallel=settings.max_parallel)
+    orchestrator.conversation = ConversationStore(settings.db_path)
     register_task_tools(tools, orchestrator)
     skills = SkillStore(settings.data_dir / "skills")
     register_teach_tools(tools, orchestrator, skills)

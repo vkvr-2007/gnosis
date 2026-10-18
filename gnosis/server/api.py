@@ -203,6 +203,11 @@ def create_app(g: Gnosis) -> FastAPI:
         g.audit.write("memory_edit", action="forget_episode", episode_id=episode_id)
         return {"ok": True}
 
+    @app.get("/api/conversation")
+    async def conversation(limit: int = 60) -> list[dict]:
+        """The recent conversation (typed and spoken), so the window shows it again after a restart."""
+        return g.orchestrator.conversation.transcript(min(max(limit, 1), 500))
+
     @app.post("/api/voice/talk")
     async def talk() -> dict:
         """Same as the talk key: listen now (and stop talking if Gnosis is)."""

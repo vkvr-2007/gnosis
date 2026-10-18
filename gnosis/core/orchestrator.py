@@ -111,6 +111,7 @@ class Orchestrator:
         self.max_steps = max_steps
         self.approval_timeout_s = approval_timeout_s
         self._history: dict[str, list[dict[str, Any]]] = defaultdict(list)
+        self.conversation: Any = None  # A ConversationStore: keeps the conversation across restarts
         self._running: dict[str, asyncio.Task] = {}
         self.tasks: dict[str, TaskInfo] = {}
         self.locks = ResourceLocks()
@@ -255,6 +256,9 @@ class Orchestrator:
         task_id, text, session_id, owner = info.id, info.text, info.session, info.owner
         _CURRENT.set((info, tags, owner))
 
+        if session_id not in self._history and self.conversation is not None and owner:
+            # First request in this session since Gnosis started: pick the conversation up where it was
+            self._history[session_id] = self.conversation.recent(session_id, 2 * _HISTORY_TURNS)
         history = self._history[session_id]
         messages: list[dict[str, Any]] = [{"role": "system", "content": SYSTEM_PROMPT}]
         if not owner:
@@ -325,6 +329,9 @@ class Orchestrator:
 
         history.extend([{"role": "user", "content": text}, {"role": "assistant", "content": answer}])
         del history[: max(0, len(history) - 2 * _HISTORY_TURNS)]
+        if self.conversation is not None and owner:  # Guests' conversations aren't kept
+            self.conversation.add(session_id, "user", text)
+            self.conversation.add(session_id, "assistant", answer)
         self.audit.write("answer", task_id=task_id, text=answer)
         await self.events.publish("task_finished", task_id=task_id, answer=answer, session=session_id)
         if self.memory and owner:

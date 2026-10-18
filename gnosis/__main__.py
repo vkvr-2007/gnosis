@@ -31,10 +31,25 @@ def _serve(args: argparse.Namespace) -> None:
 
 def _app(args: argparse.Namespace) -> None:
     from gnosis.config import load_settings
+
+    settings = load_settings(args.config)
+    if sys.stdout is None or sys.stderr is None:
+        # Started from the Start menu (pythonw): no console, so output and crashes go to a log instead of
+        # failing on a missing stream.
+        log = open(settings.data_dir / "gnosis-app.log", "a", buffering=1, encoding="utf-8")  # noqa: SIM115
+        sys.stdout, sys.stderr = sys.stdout or log, sys.stderr or log
     from gnosis.window import run_app
 
     _harden()
-    sys.exit(run_app(load_settings(args.config), voice=args.voice))
+    sys.exit(run_app(settings, voice=args.voice))
+
+
+def _shortcut(args: argparse.Namespace) -> None:
+    from gnosis.config import load_settings
+    from gnosis.window.shortcut import install
+
+    for link in install(load_settings(args.config).data_dir, voice=not args.no_voice, desktop=args.desktop):
+        print(f"Made {link}")
 
 
 def _harden() -> None:
@@ -181,6 +196,10 @@ def main() -> None:
     app = sub.add_parser("app", help="Gnosis in its own window, with a tray icon")
     app.add_argument("--voice", action="store_true", help='Listen for "Hey Gnosis" on the microphone')
     app.set_defaults(func=_app)
+    short = sub.add_parser("shortcut", help="Add Gnosis to the Start menu (opens `gnosis app --voice`)")
+    short.add_argument("--desktop", action="store_true", help="Also put one on the desktop")
+    short.add_argument("--no-voice", action="store_true", help="Open without the microphone")
+    short.set_defaults(func=_shortcut)
     sub.add_parser("enroll").set_defaults(func=_enroll)
     sub.add_parser("chat").set_defaults(func=_chat)
     sub.add_parser("models").set_defaults(func=_models)
