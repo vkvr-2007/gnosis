@@ -54,10 +54,10 @@ test('a short task answer is untouched', () => {
 })
 
 test('isQuestion: questions and requests to explain; everything else is a task', () => {
-  for (const q of ['What is the gold price?', 'Hey AYRA, why is the sky blue', 'how does researcher mode work', 'explain the bubble', 'Tell me about Node 24', 'can you open notepad?', 'is it raining']) {
+  for (const q of ['What is the gold price?', 'Hey Gnosis, why is the sky blue', 'how does researcher mode work', 'explain the bubble', 'Tell me about Node 24', 'can you open notepad?', 'is it raining']) {
     assert.equal(isQuestion(q), true, q)
   }
-  for (const t of ['open spotify', 'Hey AYRA, clean up my downloads folder', 'send the report to my drive', 'play some music', 'research the best laptops']) {
+  for (const t of ['open spotify', 'Hey Gnosis, clean up my downloads folder', 'send the report to my drive', 'play some music', 'research the best laptops']) {
     assert.equal(isQuestion(t), false, t)
   }
 })

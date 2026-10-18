@@ -157,7 +157,7 @@ test('strangers are ignored and logged, never asked', async () => {
 test('the text persona is for chat, not the HUD', () => {
   assert.ok(TEXT_PROMPT.includes('Telegram'))
   assert.ok(!/\bblade\b/.test(TEXT_PROMPT))
-  assert.ok(TEXT_PROMPT.includes('ROASTING AND FLIRTING'))
+  assert.ok(TEXT_PROMPT.includes('ROASTING AND BANTER'))
   assert.ok(TEXT_PROMPT.includes('Always kind and PG'))
   // No cards on a phone, so no show_data either.
   assert.ok(!TEXT_PROMPT.includes('show_data'))

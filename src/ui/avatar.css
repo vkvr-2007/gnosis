@@ -54,13 +54,20 @@ html[data-cards='1'] .avatar-stage { transform: translate(-21vw, -11vh) scale(0.
 .avatar .av-skin, .avatar .av-face, .avatar .av-skin-plain { fill: #fde5d4 }
 .avatar .av-skin, .avatar .av-face { stroke: #c98a72; stroke-width: 1.5 }
 .avatar .av-line { fill: none; stroke: #d29a83; stroke-width: 1.3; stroke-linecap: round }
-.avatar .av-sleeve, .avatar .av-blazer { fill: #ecdcd5; stroke: #c4a69c; stroke-width: 1.5 }
-.avatar .av-cuff { fill: #fff; stroke: #d9cfcb; stroke-width: 1 }
-.avatar .av-seam { fill: none; stroke: #c4a69c; stroke-width: 1.5 }
-.avatar .av-blush { fill: #ff8f8f; opacity: 0.32; transition: opacity 0.4s }
-.avatar .av-lash { fill: #3b1c12 }
-.avatar .av-lower { fill: none; stroke: #8a4a35; stroke-width: 1.6; stroke-linecap: round }
-.avatar .av-stroke-eye path { fill: none; stroke: #3b1c12; stroke-width: 4; stroke-linecap: round }
+/* Gnosis: a navy hoodie (the blazer and sleeves of AYRA's drawing), black hair, blue eyes. */
+.avatar .av-sleeve, .avatar .av-blazer { fill: url(#av-hoodie); stroke: #121a30; stroke-width: 1.5 }
+.avatar .av-hood { fill: #222d4a; stroke: #121a30; stroke-width: 1.5 }
+.avatar .av-cuff { fill: #1b2440; stroke: #121a30; stroke-width: 1 }
+.avatar .av-seam { fill: none; stroke: #3d4d78; stroke-width: 1.5 }
+.avatar .av-string { fill: none; stroke: #dfe6f2; stroke-width: 2.4; stroke-linecap: round }
+.avatar .av-aglet { fill: #b9c4d6; stroke: #7f8aa0; stroke-width: 1 }
+.avatar .av-hp-band { fill: none; stroke: #0f1218; stroke-width: 9; stroke-linecap: round }
+.avatar .av-hp-cup { fill: #171b24; stroke: #050608; stroke-width: 1.5 }
+.avatar .av-hp-light { fill: color-mix(in srgb, var(--av-accent) 80%, white); opacity: 0.85 }
+.avatar .av-blush { fill: #ff8f8f; opacity: 0.12; transition: opacity 0.4s }
+.avatar .av-lash { fill: #14161c }
+.avatar .av-lower { fill: none; stroke: #9a6a58; stroke-width: 1.4; stroke-linecap: round }
+.avatar .av-stroke-eye path { fill: none; stroke: #14161c; stroke-width: 4; stroke-linecap: round }
 .avatar .av-nose { fill: none; stroke: #d39a84; stroke-width: 1.6; stroke-linecap: round }
 .avatar .av-m-smile, .avatar .av-m-nom, .avatar .av-m-worried, .avatar .av-m-sleep {
   fill: none;
@@ -68,10 +75,10 @@ html[data-cards='1'] .avatar-stage { transform: translate(-21vw, -11vh) scale(0.
   stroke-width: 3;
   stroke-linecap: round;
 }
-.avatar .av-brow { fill: none; stroke: #a8471f; stroke-width: 3; stroke-linecap: round }
-.avatar .av-shine-hair { fill: none; stroke: #ffc995; stroke-width: 7; stroke-linecap: round; opacity: 0.5 }
+.avatar .av-brow { fill: none; stroke: #15171d; stroke-width: 4.5; stroke-linecap: round }
+.avatar .av-shine-hair { fill: none; stroke: #7d8bab; stroke-width: 7; stroke-linecap: round; opacity: 0.5 }
 .avatar .av-shine-hair.thin { stroke-width: 3; opacity: 0.35 }
-.avatar .av-petal { fill: #79d0f3; stroke: #2a8cc4; stroke-width: 1.2 }
+/* (AYRA's hairpin petals are gone; the headphone lights take their place.) */
 .avatar .av-pin-glow { opacity: 0; transition: opacity 0.4s }
 .avatar .av-sparkle { fill: #fff6c9 }
 .avatar .av-fx-sweat { fill: #9adcff; stroke: #4aa9e0; stroke-width: 1.2 }
@@ -137,7 +144,7 @@ html[data-cards='1'] .avatar-stage { transform: translate(-21vw, -11vh) scale(0.
 .avatar[data-pose="idle"] .av-iris { animation: avGlance 9s ease-in-out infinite }
 .avatar[data-pose="wave"] .av-shine, .avatar[data-pose="listen"] .av-shine { transform: scale(1.3) }
 .avatar[data-pose="wave"] .av-blush, .avatar[data-pose="snack"] .av-blush,
-.avatar[data-pose="talk"] .av-blush { opacity: 0.55 }
+.avatar[data-pose="talk"] .av-blush { opacity: 0.25 }
 
 /* Gestures. */
 .avatar .av-arm-wave.on .av-hand { animation: avWave 0.9s ease-in-out infinite }

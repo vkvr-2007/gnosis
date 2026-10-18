@@ -88,23 +88,26 @@ function Arm({ name, active, base, wrist, angle, hand, children }: {
   )
 }
 
-/** One open eye. `side` is -1 for the eye on the viewer's left, 1 for the right. */
+/**
+ * One open eye. `side` is -1 for the eye on the viewer's left, 1 for the right.
+ * His are a little narrower and sharper than AYRA's: a strong upper lid instead of lashes.
+ */
 function Eye({ cx, cy, side }: { cx: number; cy: number; side: 1 | -1 }) {
   const o = side // the outer corner is on this side
   return (
     <g className="av-eye" style={{ transformOrigin: `${cx}px ${cy + 4}px` }}>
-      <ellipse cx={cx} cy={cy + 3} rx={18.5} ry={21} fill="#fff" />
+      <path fill="#fff" d={`M${cx - 18 * o},${cy + 2} Q${cx - 2 * o},${cy - 16} ${cx + 19 * o},${cy - 3} Q${cx + 16 * o},${cy + 20} ${cx},${cy + 21} Q${cx - 15 * o},${cy + 19} ${cx - 18 * o},${cy + 2} Z`} />
       <g className="av-iris">
-        <ellipse cx={cx} cy={cy + 5} rx={14.5} ry={18.5} fill="url(#av-iris)" />
-        <ellipse cx={cx} cy={cy + 7} rx={6.8} ry={9.5} fill="#2a120a" />
-        <circle className="av-shine" cx={cx - 5 * o} cy={cy - 3} r={5.6} fill="#fff" />
-        <circle cx={cx + 5 * o} cy={cy + 13} r={2.4} fill="#fff" opacity={0.9} />
+        <ellipse cx={cx + 1 * o} cy={cy + 5} rx={11.5} ry={14} fill="url(#av-iris)" />
+        <ellipse cx={cx + 1 * o} cy={cy + 6} rx={5.4} ry={7.6} fill="#0b1420" />
+        <circle className="av-shine" cx={cx - 4 * o} cy={cy - 1} r={4.2} fill="#fff" />
+        <circle cx={cx + 5 * o} cy={cy + 11} r={1.8} fill="#fff" opacity={0.85} />
       </g>
       <path
         className="av-lash"
-        d={`M${cx - 20 * o},${cy - 3} Q${cx - 4 * o},${cy - 27} ${cx + 21 * o},${cy - 8} L${cx + 26 * o},${cy - 14} Q${cx + 23 * o},${cy - 3} ${cx + 19 * o},${cy} Q${cx - 2 * o},${cy - 21} ${cx - 18 * o},${cy + 1} Z`}
+        d={`M${cx - 21 * o},${cy + 1} Q${cx - 4 * o},${cy - 20} ${cx + 22 * o},${cy - 5} L${cx + 23 * o},${cy - 1} Q${cx - 3 * o},${cy - 14} ${cx - 19 * o},${cy + 4} Z`}
       />
-      <path className="av-lower" d={`M${cx - 11 * o},${cy + 24.5} Q${cx},${cy + 27} ${cx + 12 * o},${cy + 23}`} />
+      <path className="av-lower" d={`M${cx - 9 * o},${cy + 21} Q${cx + 2 * o},${cy + 23} ${cx + 12 * o},${cy + 18}`} />
     </g>
   )
 }
@@ -118,21 +121,22 @@ const Sparkle = ({ x, y, s = 1, d = 0 }: { x: number; y: number; s?: number; d?:
   />
 )
 
-/** Her flower hairpin: six blue petals. */
-function Hairpin({ x, y }: { x: number; y: number }) {
+/**
+ * One ear cup of the headphones he wears round his neck. They do what AYRA's
+ * hairpins did: glow while a tool runs (the "magic" pose).
+ */
+function EarCup({ x, y, side }: { x: number; y: number; side: 1 | -1 }) {
   return (
     <g className="av-pin" style={{ transformOrigin: `${x}px ${y}px` }}>
-      <circle className="av-pin-glow" cx={x} cy={y} r={24} fill="url(#av-glow)" />
-      {[0, 60, 120, 180, 240, 300].map((a) => (
-        <ellipse key={a} cx={x} cy={y - 7.5} rx={4.6} ry={7.2} transform={`rotate(${a} ${x} ${y})`} className="av-petal" />
-      ))}
-      <circle cx={x} cy={y} r={3.6} fill="#eafaff" />
+      <circle className="av-pin-glow" cx={x} cy={y} r={30} fill="url(#av-glow)" />
+      <rect className="av-hp-cup" x={x - 15} y={y - 21} width={30} height={42} rx={13} transform={`rotate(${-18 * side} ${x} ${y})`} />
+      <rect className="av-hp-light" x={x - 4} y={y - 12} width={8} height={24} rx={4} transform={`rotate(${-18 * side} ${x} ${y})`} />
     </g>
   )
 }
 
-const LEFT_EYE = { cx: 163, cy: 190 }
-const RIGHT_EYE = { cx: 237, cy: 190 }
+const LEFT_EYE = { cx: 164, cy: 192 }
+const RIGHT_EYE = { cx: 236, cy: 192 }
 
 export function Avatar() {
   const phase = useStore((s) => s.phase)
@@ -217,17 +221,21 @@ export function Avatar() {
           <svg className="avatar-svg" viewBox="0 0 400 440">
             <defs>
               <linearGradient id="av-hair" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0" stopColor="#f2833c" />
-                <stop offset="1" stopColor="#d9561f" />
+                <stop offset="0" stopColor="#2c3140" />
+                <stop offset="1" stopColor="#12141b" />
               </linearGradient>
               <linearGradient id="av-hair-back" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0" stopColor="#d65a22" />
-                <stop offset="1" stopColor="#a8401a" />
+                <stop offset="0" stopColor="#1d2029" />
+                <stop offset="1" stopColor="#0d0f14" />
               </linearGradient>
               <linearGradient id="av-iris" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0" stopColor="#4a1f10" />
-                <stop offset="0.55" stopColor="#8a4424" />
-                <stop offset="1" stopColor="#d48a4c" />
+                <stop offset="0" stopColor="#0f2a3d" />
+                <stop offset="0.55" stopColor="#1f5f86" />
+                <stop offset="1" stopColor="#5fb6d9" />
+              </linearGradient>
+              <linearGradient id="av-hoodie" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stopColor="#2d3b5e" />
+                <stop offset="1" stopColor="#1a2440" />
               </linearGradient>
               <radialGradient id="av-glow">
                 <stop offset="0" stopColor="#bfeeff" stopOpacity="0.95" />
@@ -240,38 +248,40 @@ export function Avatar() {
               </radialGradient>
             </defs>
 
-            {/* Behind everything: the long back hair, tilting with the head. */}
+            {/* Behind everything: the back of his short hair, tilting with the head. */}
             <g className="av-tilt">
-              <path
-                fill="url(#av-hair-back)"
-                d="M86,176 C70,250 64,340 58,440 L342,440 C336,340 330,250 314,176 C304,108 262,60 200,60 C138,60 96,108 86,176 Z"
-              />
+              <path fill="url(#av-hair-back)" d="M112,168 C106,104 148,62 200,62 C252,62 294,104 288,168 C286,190 280,206 272,214 L128,214 C120,206 114,190 112,168 Z" />
             </g>
 
-            {/* Neck, blazer, shirt and bow. */}
-            <path className="av-skin-plain" d="M185,252 L185,312 Q200,322 215,312 L215,252 Z" />
-            <path fill="#f0c3ac" d="M185,262 Q200,282 215,262 L215,276 Q200,292 185,276 Z" />
+            {/* Neck, the hood behind it, and the hoodie. */}
+            <path className="av-hood" d="M128,318 C120,284 150,262 200,262 C250,262 280,284 272,318 C252,302 228,296 200,296 C172,296 148,302 128,318 Z" />
+            <path className="av-skin-plain" d="M184,250 L184,312 Q200,320 216,312 L216,250 Z" />
+            <path fill="#f0c3ac" d="M184,262 Q200,280 216,262 L216,276 Q200,290 184,276 Z" />
             <path
               className="av-blazer"
-              d="M48,440 C56,372 104,336 158,322 L200,340 L242,322 C296,336 344,372 352,440 Z"
+              d="M46,440 C52,370 100,330 156,316 C170,312 186,312 200,330 C214,312 230,312 244,316 C300,330 348,370 354,440 Z"
             />
-            <path fill="#ffffff" d="M168,312 L200,352 L232,312 L224,306 L200,338 L176,306 Z" />
-            <path className="av-seam" d="M158,322 L184,362 L176,440 M242,322 L216,362 L224,440" />
-            <g>
-              <path fill="#d22b3e" stroke="#9c1427" strokeWidth="1.4" d="M200,333 L178,322 L180,346 Z" />
-              <path fill="#d22b3e" stroke="#9c1427" strokeWidth="1.4" d="M200,333 L222,322 L220,346 Z" />
-              <path fill="#d22b3e" stroke="#9c1427" strokeWidth="1.2" d="M197,336 L190,360 L198,354 Z M203,336 L210,360 L202,354 Z" />
-              <circle cx="200" cy="333.5" r="5.5" fill="#e23b4f" stroke="#9c1427" strokeWidth="1.2" />
-            </g>
+            <path className="av-seam" d="M156,316 C172,326 186,330 200,330 C214,330 228,326 244,316 M120,360 L132,440 M280,360 L268,440" />
+            {/* Drawstrings, with their metal tips. */}
+            <path className="av-string" d="M188,330 C186,350 184,368 182,384 M212,330 C214,350 216,368 218,384" />
+            <rect className="av-aglet" x="179" y="383" width="6" height="12" rx="2.5" />
+            <rect className="av-aglet" x="215" y="383" width="6" height="12" rx="2.5" />
+
+            {/* Headphones round his neck: the band behind, a cup on each side. */}
+            <path className="av-hp-band" d="M152,302 C150,282 170,270 200,270 C230,270 250,282 248,302" />
+            <EarCup x={152} y={306} side={-1} />
+            <EarCup x={248} y={306} side={1} />
 
             {/* The head, tilting as one piece. */}
             <g className="av-tilt av-head">
+              <ellipse className="av-face" cx="119" cy="194" rx="10" ry="17" />
+              <ellipse className="av-face" cx="281" cy="194" rx="10" ry="17" />
               <path
                 className="av-face"
-                d="M118,150 C118,100 155,78 200,78 C245,78 282,100 282,150 C282,204 268,234 240,255 C226,265 213,271 200,271 C187,271 174,265 160,255 C132,234 118,204 118,150 Z"
+                d="M120,150 C120,100 156,80 200,80 C244,80 280,100 280,150 C280,198 272,224 252,246 C236,262 216,272 200,272 C184,272 164,262 148,246 C128,224 120,198 120,150 Z"
               />
-              <ellipse className="av-blush" cx="150" cy="231" rx="17" ry="8" />
-              <ellipse className="av-blush" cx="250" cy="231" rx="17" ry="8" />
+              <ellipse className="av-blush" cx="152" cy="232" rx="15" ry="6" />
+              <ellipse className="av-blush" cx="248" cy="232" rx="15" ry="6" />
 
               <g className={`av-e-open${on(look.eyes === 'open')}`}>
                 <Eye {...LEFT_EYE} side={-1} />
@@ -302,27 +312,18 @@ export function Avatar() {
               <path className={mouth('worried')} d="M189,250 Q200,242 211,250" />
               <path className={mouth('sleep')} d="M195,248 Q200,252 205,248" />
 
-              {/* Hair over the face: bangs, the two long locks that frame it, a shine. */}
+              {/* Short, tousled hair: a messy fringe swept to one side and short sideburns. */}
               <path
                 fill="url(#av-hair)"
-                d="M104,180 C96,112 140,54 200,54 C262,54 306,110 296,180 C292,160 286,146 278,136 C282,154 280,166 274,177 C270,150 260,132 246,120 C252,142 248,158 240,169 C236,144 224,124 210,112 C212,132 206,148 196,159 C194,136 186,120 174,110 C168,130 160,144 146,155 C150,139 150,129 146,121 C134,135 124,152 116,172 Z"
+                d="M110,170 C100,100 146,52 202,52 C258,52 304,98 292,170 C288,150 282,138 274,130 C276,146 272,158 266,166 C262,142 252,126 238,116 C240,134 234,146 224,154 C222,132 212,118 198,110 C196,128 186,140 172,146 C176,128 172,118 164,112 C154,128 146,138 134,144 C138,130 136,122 130,118 C122,132 116,148 114,166 Z"
               />
-              <path
-                fill="url(#av-hair)"
-                d="M114,124 C98,170 90,240 94,300 C96,332 102,352 112,366 C116,334 117,300 121,262 C125,222 130,184 136,150 Z"
-              />
-              <path
-                fill="url(#av-hair)"
-                d="M286,124 C302,170 310,240 306,300 C304,332 298,352 288,366 C284,334 283,300 279,262 C275,222 270,184 264,150 Z"
-              />
-              <path className="av-shine-hair" d="M140,96 Q200,72 260,96" />
-              <path className="av-shine-hair thin" d="M112,200 Q106,250 110,300 M290,200 Q296,250 291,300" />
+              <path fill="url(#av-hair)" d="M114,150 C110,170 110,192 116,208 C120,196 122,182 126,168 Z" />
+              <path fill="url(#av-hair)" d="M286,150 C290,170 290,192 284,208 C280,196 278,182 274,168 Z" />
+              <path className="av-shine-hair" d="M150,88 Q196,66 244,82" />
+              <path className="av-shine-hair thin" d="M166,104 Q186,92 206,96" />
 
-              <path className="av-brow av-brow-l" d="M146,156 Q162,149 178,155" />
-              <path className="av-brow av-brow-r" d="M222,155 Q238,149 254,156" />
-
-              <Hairpin x={134} y={134} />
-              <Hairpin x={266} y={134} />
+              <path className="av-brow av-brow-l" d="M144,160 Q162,153 182,157" />
+              <path className="av-brow av-brow-r" d="M218,157 Q238,153 256,160" />
 
               {/* Little extras that come and go with the pose. */}
               <path className={fx('sweat')} d="M281,146 C275,158 275,166 281,168 C287,166 287,158 281,146 Z" />

@@ -35,7 +35,7 @@ if (process.platform !== 'win32') {
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const HOME = join(ROOT, 'desktop', 'bin')
-const EXE = join(HOME, 'AYRA.exe')
+const EXE = join(HOME, 'Gnosis.exe')
 const identity = JSON.parse(readFileSync(join(ROOT, 'config', 'identity.json'), 'utf8'))
 
 const windir = process.env.WINDIR ?? 'C:\\Windows'
@@ -49,12 +49,12 @@ if (!csc) {
 
 /** True while AYRA.exe is running (it locks its own file). */
 const trayRunning = () =>
-  /AYRA\.exe/i.test(spawnSync('tasklist', ['/FI', 'IMAGENAME eq AYRA.exe', '/NH'], { encoding: 'utf8' }).stdout ?? '')
+  /Gnosis\.exe/i.test(spawnSync('tasklist', ['/FI', 'IMAGENAME eq Gnosis.exe', '/NH'], { encoding: 'utf8' }).stdout ?? '')
 
 // Built beside the old exe first: if the build fails, the AYRA that is running
 // is left exactly as it was.
 mkdirSync(HOME, { recursive: true })
-const NEXT = join(HOME, 'AYRA.next.exe')
+const NEXT = join(HOME, 'Gnosis.next.exe')
 const build = spawnSync(
   csc,
   [
@@ -66,7 +66,7 @@ const build = spawnSync(
   { encoding: 'utf8' },
 )
 if (build.status !== 0) {
-  console.error(`AYRA.exe did not build, so nothing was changed:\n${build.stdout}${build.stderr}`)
+  console.error(`Gnosis.exe did not build, so nothing was changed:\n${build.stdout}${build.stderr}`)
   process.exit(1)
 }
 
@@ -77,7 +77,7 @@ if (wasRunning) {
   spawnSync(NEXT, ['--quit'])
   for (let i = 0; i < 60 && trayRunning(); i++) await new Promise((r) => setTimeout(r, 250))
   if (trayRunning()) {
-    console.error('AYRA.exe is still running — choose Quit AYRA in its tray menu, then run this again.')
+    console.error('Gnosis.exe is still running — choose Quit Gnosis in its tray menu, then run this again.')
     process.exit(1)
   }
 }
@@ -100,7 +100,7 @@ const ini = [
   `talk=${env('TALK_HOTKEY', 'alt+space')}`,
   `bubble=${env('BUBBLE', 'on')}`,
 ]
-writeFileSync(join(HOME, 'ayra.ini'), `${ini.join('\r\n')}\r\n`)
+writeFileSync(join(HOME, 'gnosis.ini'), `${ini.join('\r\n')}\r\n`)
 
 const startup = !process.argv.includes('--no-startup')
 const install = spawnSync(EXE, ['--install', ...(startup ? [] : ['--no-startup'])], { encoding: 'utf8' })
@@ -111,10 +111,10 @@ if (install.status !== 0) console.error(`The shortcuts were not made (exit ${ins
 // shortcut — so the tray and every bridge it runs get the owner's own clean
 // environment, not this shell's (which holds .env.local, loaded above, and
 // whatever the terminal set). Without the Startup shortcut it opens her window.
-const loginLink = join(process.env.APPDATA ?? join(homedir(), 'AppData', 'Roaming'), 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Startup', 'AYRA.lnk')
+const loginLink = join(process.env.APPDATA ?? join(homedir(), 'AppData', 'Roaming'), 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Startup', 'Gnosis.lnk')
 spawn('explorer.exe', [startup && existsSync(loginLink) ? loginLink : EXE], { detached: true, stdio: 'ignore' }).unref()
 console.log(
-  `\nAYRA is in the tray, by the clock: click her icon to open her window, or press ${env('HOTKEY', 'ctrl+alt+a')} to talk.` +
-    '\nTo pin her: right-click "AYRA" on the Desktop → Show more options → Pin to taskbar.',
+  `\nGnosis is in the tray, by the clock: click her icon to open her window, or press ${env('HOTKEY', 'ctrl+alt+a')} to talk.` +
+    '\nTo pin her: right-click "Gnosis" on the Desktop → Show more options → Pin to taskbar.',
 )
 if (install.status !== 0) process.exit(1)

@@ -24,7 +24,7 @@ const SCRIPT = join(dirname(fileURLToPath(import.meta.url)), 'media.ps1')
  * paused when she began listening (log, 2026-10-13: "paused for listening:
  * AYRA.Desk"), which can cut her own greeting or reply short.
  */
-export const OWN_SESSIONS = ['AYRA.Desk']
+export const OWN_SESSIONS = ['Gnosis.Desk']
 
 /** Runs media.ps1 and returns the ids it acted on. */
 function runScript(action, ids = []) {

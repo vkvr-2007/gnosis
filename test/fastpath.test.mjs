@@ -3,15 +3,15 @@ import assert from 'node:assert/strict'
 import { bare, noteFor, parseFast, runFast } from '../bridge/fastpath.mjs'
 
 test('bare strips her name, politeness and the full stop', () => {
-  assert.equal(bare('Hey AYRA, open Spotify.'), 'open Spotify')
-  assert.equal(bare('Aira can you please open youtube for me'), 'open youtube')
-  assert.equal(bare('hey ira, pause the music'), 'pause the music')
+  assert.equal(bare('Hey Gnosis, open Spotify.'), 'open Spotify')
+  assert.equal(bare('Nosis can you please open youtube for me'), 'open youtube')
+  assert.equal(bare('hey genesis, pause the music'), 'pause the music')
   assert.equal(bare('Open Notepad please'), 'Open Notepad')
 })
 
 test('sites, domains and folders', () => {
   assert.deepEqual(parseFast('open YouTube'), { kind: 'site', name: 'YouTube', url: 'https://www.youtube.com/' })
-  assert.deepEqual(parseFast('Hey AYRA, go to github.com'), { kind: 'site', name: 'github.com', url: 'https://github.com/' })
+  assert.deepEqual(parseFast('Hey Gnosis, go to github.com'), { kind: 'site', name: 'github.com', url: 'https://github.com/' })
   assert.equal(parseFast('open my downloads').kind, 'folder')
   assert.equal(parseFast('open the Documents folder').folder, 'Documents')
   assert.equal(parseFast('take me to gmail').url, 'https://mail.google.com/')
@@ -51,7 +51,7 @@ test('what the review caught: conversation words, files and folders that are not
 
 test('music commands', () => {
   assert.equal(parseFast('pause the music').action, 'pause')
-  assert.equal(parseFast('Hey AYRA, play music').action, 'play')
+  assert.equal(parseFast('Hey Gnosis, play music').action, 'play')
   assert.equal(parseFast('next song').action, 'next')
   assert.equal(parseFast('skip this song').action, 'next')
   assert.equal(parseFast('previous track').action, 'prev')

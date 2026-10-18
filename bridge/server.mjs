@@ -49,6 +49,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { openRemote, proxyError, vetTarget, PROXY_UA } from './net.mjs'
 import { renderPage } from './page.mjs'
+import { modelFor } from './models.mjs'
 
 const PORT = Number(env('BRIDGE_PORT', 8787))
 
@@ -701,10 +702,10 @@ console.log(`[ayra] ${IDENTITY.name} bridge listening on ws://localhost:${PORT}`
 console.log(
   `[ayra] speech ${elevenKey() ? `via ElevenLabs, voice ${VOICE_ID}` : 'using browser fallback voice'}`,
 )
-console.log(`[ayra] model ${MODEL} · effort ${EFFORT} · research workers ${RESEARCH_MODEL}`)
+console.log(`[ayra] thinking with ${modelFor(MODEL).model} (${modelFor(MODEL).provider}) · research workers ${modelFor(RESEARCH_MODEL).model}`)
 console.log(
   ALLOW_WRITES
-    ? '[ayra] tools: web, the HUD display, the laptop (PowerShell, files, her Chrome, Windows apps) · asks first: money, sending as you, deleting for good, passwords/security'
+    ? '[ayra] tools: web, the HUD display, the laptop (PowerShell, files, its own Chrome, Windows apps) · asks first: money, sending as you, deleting for good, passwords/security'
     : '[ayra] tools: web, the HUD display, reading the laptop\'s files · writes off (AYRA_ALLOW_WRITES=0)',
 )
 console.log(

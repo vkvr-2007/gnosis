@@ -1,18 +1,19 @@
 {
-  "_about": "Who AYRA is. Read by the bridge (bridge/identity.mjs) and the face (src/identity.ts). Change identity here and nowhere else.",
-  "name": "AYRA",
-  "wordmark": "A.Y.R.A.",
+  "_about": "Who Gnosis is. Read by the bridge (bridge/identity.mjs) and the face (src/identity.ts). Change identity here and nowhere else.",
+  "name": "Gnosis",
+  "wordmark": "G.N.O.S.I.S.",
   "tagline": "Personal Intelligence System",
   "honorific": "boss",
   "language": "en-IN",
   "timezone": "Asia/Kolkata",
   "voice": {
-    "gender": "female",
+    "gender": "male",
     "prefer": [],
-    "elevenLabsId": "pFZP5JQG7iQjIQuC4Bku"
+    "elevenLabsId": "JBFqnCBsd6RMkjVDRZzb",
+    "_elevenLabsId": "George, a built-in ElevenLabs voice. The owner's chosen voice oaGwHLz3csUaSnc2NBD4 is a library voice, which ElevenLabs only allows on a paid plan (402 paid_plan_required, 2026-10-18); put it here once the account allows it."
   },
   "wake": {
-    "names": ["ayra", "ayrah", "aira", "airah", "eyra", "eira", "aiyra", "ayira", "ayera", "heyra", "haira", "hera"],
-    "prefixedOnly": ["ira", "irah", "era", "aria", "arya", "hira", "heera", "air", "ayr"]
+    "names": ["gnosis", "nosis", "noses", "nossis", "nosys", "nosus", "noesis", "gnoses", "gnossis", "nauses", "nausis"],
+    "prefixedOnly": ["genesis", "gnostic", "neurosis", "mosis", "nose"]
   }
 }

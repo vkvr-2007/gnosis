@@ -184,7 +184,7 @@ test('the worker answers by id, and a stuck request restarts it', async () => {
 })
 
 test("her own window can't be read, typed in, pressed in or closed", async () => {
-  const own = { id: 7, title: 'A.Y.R.A.', app: 'chrome' }
+  const own = { id: 7, title: 'G.N.O.S.I.S.', app: 'chrome' }
   const apps = fakeApps({
     read: { window: own, items: [{ ref: 1, type: 'button', name: 'Yes' }] },
     focused: { name: '', type: 'document', window: own },

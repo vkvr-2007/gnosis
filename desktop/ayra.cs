@@ -29,15 +29,15 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Windows.Forms;
 
-namespace Ayra
+namespace Gnosis
 {
   static class Program
   {
     // Shared by the exe, its shortcuts and her window, so Windows shows them
     // as one app on the taskbar.
-    public const string AppId = "AYRA.Desk";
-    public const string QuitEvent = "Local\\AYRA.Desk.Quit";
-    public const string OpenEvent = "Local\\AYRA.Desk.Open";
+    public const string AppId = "Gnosis.Desk";
+    public const string QuitEvent = "Local\\Gnosis.Desk.Quit";
+    public const string OpenEvent = "Local\\Gnosis.Desk.Open";
 
     [STAThread]
     static int Main(string[] args)
@@ -50,14 +50,14 @@ namespace Ayra
 
       Config config;
       try { config = Config.Load(); }
-      catch (Exception e) { MessageBox.Show(e.Message, "AYRA"); return 1; }
+      catch (Exception e) { MessageBox.Show(e.Message, "Gnosis"); return 1; }
 
       Native.SetCurrentProcessExplicitAppUserModelID(AppId);
 
       if (Has(args, "--install")) return Shortcuts.Install(config, !Has(args, "--no-startup"));
 
       bool first;
-      using (var mutex = new Mutex(true, "Local\\AYRA.Desk", out first))
+      using (var mutex = new Mutex(true, "Local\\Gnosis.Desk", out first))
       {
         if (!first)
         {
@@ -96,8 +96,8 @@ namespace Ayra
     {
       var exe = Application.ExecutablePath;
       var dir = Path.GetDirectoryName(exe);
-      var path = Path.Combine(dir, "ayra.ini");
-      if (!File.Exists(path)) throw new Exception("ayra.ini is missing beside AYRA.exe. Run `npm run shortcuts` in the AYRA folder.");
+      var path = Path.Combine(dir, "gnosis.ini");
+      if (!File.Exists(path)) throw new Exception("gnosis.ini is missing beside Gnosis.exe. Run `npm run shortcuts` in the Gnosis folder.");
       var c = new Config();
       c.Exe = exe;
       c.Icon = Path.Combine(dir, "ayra.ico");
@@ -127,7 +127,7 @@ namespace Ayra
         }
       }
       if (c.Root == null || c.Node == null || c.FaceUrl == null || c.HealthUrl == null || c.Title == null)
-        throw new Exception("ayra.ini is incomplete. Run `npm run shortcuts` in the AYRA folder again.");
+        throw new Exception("gnosis.ini is incomplete. Run `npm run shortcuts` in the Gnosis folder again.");
       // Push-to-talk or hands-free (bridge/server.mjs /hearing), beside /health.
       c.HearingUrl = c.HealthUrl.Substring(0, c.HealthUrl.LastIndexOf('/')) + "/hearing";
       c.TalkUrl = c.HealthUrl.Substring(0, c.HealthUrl.LastIndexOf('/')) + "/talk";
@@ -168,10 +168,10 @@ namespace Ayra
       ui = SynchronizationContext.Current ?? new WindowsFormsSynchronizationContext();
       bridge = new Bridge(config, Notify);
 
-      menu.Items.Add("Open AYRA", null, delegate { Open(false); });
-      menu.Items.Add("Talk to AYRA   " + Pretty(config.Hotkey), null, delegate { Open(true); });
+      menu.Items.Add("Open Gnosis", null, delegate { Open(false); });
+      menu.Items.Add("Talk to Gnosis   " + Pretty(config.Hotkey), null, delegate { Open(true); });
       menu.Items.Add("Talk from any app   " + Pretty(config.TalkHotkey), null, delegate { Talk(); });
-      handsFreeItem = new ToolStripMenuItem("Hands-free: say AYRA   " + Pretty(config.HandsFreeHotkey), null, delegate { SwitchHearing(); });
+      handsFreeItem = new ToolStripMenuItem("Hands-free: say Gnosis   " + Pretty(config.HandsFreeHotkey), null, delegate { SwitchHearing(); });
       menu.Items.Add(handsFreeItem);
       if (config.Bubble)
       {
@@ -180,25 +180,25 @@ namespace Ayra
         bubbleItem.Checked = bubble.Wanted;
         menu.Items.Add(bubbleItem);
       }
-      if (config.Chrome != null) menu.Items.Add("Open Chrome (AYRA)", null, delegate { window.OpenChrome(); });
+      if (config.Chrome != null) menu.Items.Add("Open Chrome (Gnosis)", null, delegate { window.OpenChrome(); });
       menu.Items.Add(new ToolStripSeparator());
-      menu.Items.Add("Restart AYRA", null, delegate { ThreadPool.QueueUserWorkItem(delegate { bridge.Restart(); }); });
+      menu.Items.Add("Restart Gnosis", null, delegate { ThreadPool.QueueUserWorkItem(delegate { bridge.Restart(); }); });
       menu.Items.Add("Show log", null, delegate { bridge.ShowLog(); });
       menu.Items.Add(new ToolStripSeparator());
-      menu.Items.Add("Quit AYRA", null, delegate { Quit(); });
+      menu.Items.Add("Quit Gnosis", null, delegate { Quit(); });
 
       icon = new NotifyIcon();
       icon.Icon = LoadIcon(config.Icon);
-      icon.Text = "AYRA - starting";
+      icon.Text = "Gnosis - starting";
       icon.ContextMenuStrip = menu;
       icon.MouseClick += delegate(object s, MouseEventArgs e) { if (e.Button == MouseButtons.Left) Open(false); };
       icon.Visible = true;
 
       hotkey = new HotkeyWindow(config.Hotkey, delegate { Open(true); });
       if (!hotkey.Valid)
-        Notify("AYRA_HOTKEY \"" + config.Hotkey + "\" isn't a key combination AYRA knows (try ctrl+alt+a), so the hotkey is off.");
+        Notify("AYRA_HOTKEY \"" + config.Hotkey + "\" isn't a key combination Gnosis knows (try ctrl+alt+a), so the hotkey is off.");
       else if (!hotkey.Registered)
-        Notify(Pretty(config.Hotkey) + " is already used by another app, so AYRA's hotkey is off. Set AYRA_HOTKEY and run npm run shortcuts again.");
+        Notify(Pretty(config.Hotkey) + " is already used by another app, so Gnosis's hotkey is off. Set AYRA_HOTKEY and run npm run shortcuts again.");
       handsFreeKey = new HotkeyWindow(config.HandsFreeHotkey, delegate { SwitchHearing(); });
       talkKey = new HotkeyWindow(config.TalkHotkey, delegate { Talk(); });
       if (talkKey.Valid && !talkKey.Registered)
@@ -257,12 +257,12 @@ namespace Ayra
         try
         {
           int faces;
-          if (Hearing.Get(config, out faces) == null) { Notify("AYRA isn't running yet."); return; }
+          if (Hearing.Get(config, out faces) == null) { Notify("Gnosis isn't running yet."); return; }
           if (faces == 0)
           {
             Open(false);
             for (int i = 0; i < 40 && faces == 0; i++) { Thread.Sleep(500); Hearing.Get(config, out faces); }
-            if (faces == 0) { Notify("Hands-free needs her window open. Open AYRA and try again."); return; }
+            if (faces == 0) { Notify("Hands-free needs her window open. Open Gnosis and try again."); return; }
           }
           var mode = Hearing.Post(config, "toggle");
           if (mode != null) ui.Post(delegate { handsFreeItem.Checked = mode == "hands-free"; }, null);
@@ -279,14 +279,14 @@ namespace Ayra
       {
         var healthy = Bridge.Healthy(config, 2000);
         if (!healthy && !bridge.Running && !bridge.Waiting && !bridge.Stopping && !bridge.GaveUp) bridge.Start();
-        var text = healthy ? "AYRA - ready"
-          : bridge.GaveUp ? "AYRA - stopped, see the log"
-          : bridge.Running ? "AYRA - starting" : "AYRA - not running";
+        var text = healthy ? "Gnosis - ready"
+          : bridge.GaveUp ? "Gnosis - stopped, see the log"
+          : bridge.Running ? "Gnosis - starting" : "Gnosis - not running";
         int faces;
         var hearing = healthy ? Hearing.Get(config, out faces) : null;
         ui.Post(delegate
         {
-          if (icon.Visible) icon.Text = hearing == "hands-free" ? "AYRA - hands-free, say AYRA" : text;
+          if (icon.Visible) icon.Text = hearing == "hands-free" ? "Gnosis - hands-free, say Gnosis" : text;
           handsFreeItem.Checked = hearing == "hands-free";
         }, null);
       }
@@ -303,7 +303,7 @@ namespace Ayra
 
     void Notify(string message)
     {
-      ui.Post(delegate { if (icon.Visible) icon.ShowBalloonTip(6000, "AYRA", message, ToolTipIcon.Info); }, null);
+      ui.Post(delegate { if (icon.Visible) icon.ShowBalloonTip(6000, "Gnosis", message, ToolTipIcon.Info); }, null);
     }
 
     void Quit()
@@ -411,14 +411,14 @@ namespace Ayra
         {
           Write("--- could not start node (" + config.Node + "): " + e.Message);
           GaveUp = true;
-          notify("AYRA could not start (" + e.Message + "). Run npm run shortcuts in the AYRA folder, then choose Restart AYRA.");
+          notify("Gnosis could not start (" + e.Message + "). Run npm run shortcuts in the Gnosis folder, then choose Restart Gnosis.");
           return;
         }
         p.BeginOutputReadLine();
         p.BeginErrorReadLine();
         proc = p;
         started = DateTime.Now;
-        Write("--- AYRA started by AYRA.exe at " + started.ToString("yyyy-MM-dd HH:mm:ss"));
+        Write("--- Gnosis started by Gnosis.exe at " + started.ToString("yyyy-MM-dd HH:mm:ss"));
       }
     }
 
@@ -429,14 +429,14 @@ namespace Ayra
       {
         if (p != proc) return;
         proc = null;
-        Write("--- AYRA stopped (exit " + ExitCode(p) + ") at " + DateTime.Now.ToString("HH:mm:ss"));
+        Write("--- Gnosis stopped (exit " + ExitCode(p) + ") at " + DateTime.Now.ToString("HH:mm:ss"));
         if (Stopping) return;
         // Quick repeated crashes back off and then stop, rather than spin.
         failures = (DateTime.Now - started).TotalSeconds < 60 ? failures + 1 : 1;
         if (failures >= 5)
         {
           GaveUp = true;
-          notify("AYRA keeps stopping, so she has been left off. Open the log from the tray menu, then choose Restart AYRA.");
+          notify("Gnosis keeps stopping, so she has been left off. Open the log from the tray menu, then choose Restart Gnosis.");
           return;
         }
         wait = Math.Min(60, 1 << failures);
@@ -457,7 +457,7 @@ namespace Ayra
       lock (gate) external = proc == null && Healthy(config, 1500);
       if (external)
       {
-        notify("AYRA was started from a console window. Close that window, and she will start here by herself.");
+        notify("Gnosis was started from a console window. Close that window, and she will start here by herself.");
         return;
       }
       Stopping = true;
@@ -492,7 +492,7 @@ namespace Ayra
         WaitExit(p, 3000);
       }
       lock (gate) if (proc == p) proc = null;
-      Write("--- AYRA stopped by AYRA.exe at " + DateTime.Now.ToString("HH:mm:ss"));
+      Write("--- Gnosis stopped by Gnosis.exe at " + DateTime.Now.ToString("HH:mm:ss"));
     }
 
     static bool WaitExit(Process p, int ms)
@@ -608,11 +608,11 @@ namespace Ayra
         }
         return;
       }
-      if (config.Chrome == null) throw new Exception("Chrome was not found when AYRA was set up. Install it, then run npm run shortcuts again.");
+      if (config.Chrome == null) throw new Exception("Chrome was not found when Gnosis was set up. Install it, then run npm run shortcuts again.");
       // The bridge serves her face; when she is still starting, wait for it.
       var ready = false;
       for (int i = 0; i < 120 && !(ready = Bridge.Healthy(config, 1000)); i++) Thread.Sleep(500);
-      if (!ready) throw new Exception("AYRA isn't answering yet, so her window wasn't opened. Try again in a minute, or open the log from the tray menu.");
+      if (!ready) throw new Exception("Gnosis isn't answering yet, so her window wasn't opened. Try again in a minute, or open the log from the tray menu.");
       h = Find();
       if (h != IntPtr.Zero) { Group(h); Focus(h); return; }
       var args = new List<string>(config.ChromeArgs);
@@ -671,7 +671,7 @@ namespace Ayra
         if (Native.SHGetPropertyStoreForWindow(h, ref iid, out store) != 0 || store == null) return;
         // The relaunch properties must be set before the id.
         Props.Set(store, Props.RelaunchCommand, "\"" + config.Exe + "\"");
-        Props.Set(store, Props.RelaunchDisplayName, "AYRA");
+        Props.Set(store, Props.RelaunchDisplayName, "Gnosis");
         Props.Set(store, Props.RelaunchIcon, config.Icon);
         Props.Set(store, Props.AppId, Program.AppId);
       }
@@ -906,14 +906,14 @@ namespace Ayra
       pad = (int)(12 * scale);
       Size = new Size(body + 2 * pad, body + 2 * pad);
       face = LoadFace(config.Icon);
-      place = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AYRA", "bubble.txt");
+      place = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Gnosis", "bubble.txt");
       Location = Restore();
       caption = new Caption(scale);
 
       menu = new ContextMenuStrip();
-      handsFreeItem = new ToolStripMenuItem("Hands-free: say AYRA", null, delegate { switchHearing(); });
+      handsFreeItem = new ToolStripMenuItem("Hands-free: say Gnosis", null, delegate { switchHearing(); });
       menu.Items.Add(handsFreeItem);
-      menu.Items.Add("Open AYRA's window", null, delegate { openWindow(); });
+      menu.Items.Add("Open Gnosis's window", null, delegate { openWindow(); });
       menu.Items.Add(new ToolStripSeparator());
       menu.Items.Add("Hide the bubble", null, delegate { hideMe(); });
 
@@ -1312,14 +1312,14 @@ namespace Ayra
       var desktop = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
       var programs = Environment.GetFolderPath(Environment.SpecialFolder.Programs);
       var startupDir = Environment.GetFolderPath(Environment.SpecialFolder.Startup);
-      var about = "AYRA - your assistant";
+      var about = "Gnosis - your assistant";
       foreach (var dir in new[] { desktop, programs })
       {
-        Make(Path.Combine(dir, "AYRA.lnk"), config.Exe, "", config.Root, config.Icon, Program.AppId, about);
+        Make(Path.Combine(dir, "Gnosis.lnk"), config.Exe, "", config.Root, config.Icon, Program.AppId, about);
         if (config.Chrome != null)
-          Make(Path.Combine(dir, "Chrome (AYRA).lnk"), config.Chrome, JoinArgs(config.ChromeArgs), config.Root, config.Chrome, null, "Chrome, signed in as you, that AYRA can drive");
+          Make(Path.Combine(dir, "Chrome (Gnosis).lnk"), config.Chrome, JoinArgs(config.ChromeArgs), config.Root, config.Chrome, null, "Chrome, signed in as you, that Gnosis can drive");
       }
-      var login = Path.Combine(startupDir, "AYRA.lnk");
+      var login = Path.Combine(startupDir, "Gnosis.lnk");
       if (startup) Make(login, config.Exe, "--background", config.Root, config.Icon, Program.AppId, about);
       else if (File.Exists(login)) { File.Delete(login); Console.WriteLine("removed " + login); }
       return 0;

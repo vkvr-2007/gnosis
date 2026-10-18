@@ -30,7 +30,7 @@ const TURN_TIMEOUT_MS = 180_000
 
 /** Everyday questions, cheapest first: plain chat, the clock, then the web. */
 const QUESTIONS = [
-  ['chat', "Hi AYRA, how's your day going?"],
+  ['chat', "Hi Gnosis, how's your day going?"],
   ['time', 'What day of the week is it tomorrow?'],
   ['quick search', "What's the weather in Hyderabad right now?"],
   ['search + cards', 'Find the three biggest AI news stories this week and put them on screen.'],

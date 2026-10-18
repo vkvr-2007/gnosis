@@ -79,7 +79,7 @@ export function riskOfCommand(command) {
  */
 export const OWN_DIRS = [
   join(dirname(fileURLToPath(import.meta.url)), '..'),
-  join(process.env.LOCALAPPDATA ?? join(homedir(), 'AppData', 'Local'), 'AYRA'),
+  join(process.env.LOCALAPPDATA ?? join(homedir(), 'AppData', 'Local'), 'Gnosis'),
 ]
 const norm = (p) => String(p ?? '').replace(/\//g, '\\').replace(/\\+$/, '').toLowerCase()
 const OWN = OWN_DIRS.map(norm)

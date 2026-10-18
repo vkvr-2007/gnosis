@@ -38,7 +38,7 @@ const photoNote = (asked, sent) =>
       : asked ? 'Shown on the HUD only; this conversation cannot send pictures to the phone.' : ''
 
 /** Where "Chrome (AYRA)" keeps its profile — the owner's logins live here. */
-export const PROFILE_DIR = join(process.env.LOCALAPPDATA ?? join(homedir(), 'AppData', 'Local'), 'AYRA', 'Chrome')
+export const PROFILE_DIR = join(process.env.LOCALAPPDATA ?? join(homedir(), 'AppData', 'Local'), 'Gnosis', 'Chrome')
 /** Chrome's remote-control port. Chrome binds it to 127.0.0.1 only. */
 export const DEBUG_PORT = Number(env('CHROME_PORT', 9222))
 /** The longest a page load is waited for before reading what arrived. */
@@ -484,7 +484,7 @@ export function browserServer({ allowWrites, channel, approve, emitBlade, sendPh
       guard(async ({ url, newTab = true }) => {
         const target = safeUrl(url)
         if (!target) return fail('Only web addresses (http or https) can be opened.')
-        if (isOwnPage(target)) return fail("That is AYRA's own window; her tools leave it alone.")
+        if (isOwnPage(target)) return fail("That is Gnosis's own window; her tools leave it alone.")
         const b = await connect()
         const page = newTab ? await b.newPage() : await pick(me)
         await page.goto(target, { waitUntil: 'domcontentloaded', timeout: LOAD_TIMEOUT_MS }).catch(() => {})

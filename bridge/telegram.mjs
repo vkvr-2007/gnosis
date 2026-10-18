@@ -52,7 +52,7 @@ export function chunk(text, size = MAX_MESSAGE) {
 
 /** The text of an Approve request, as the owner reads it on the phone. */
 export const approveText = ({ reason, detail }) =>
-  `🔐 AYRA wants to do something that ${reason}:\n\n${String(detail ?? '').slice(0, 300) || '(no details)'}\n\nAllow it?`
+  `🔐 Gnosis wants to do something that ${reason}:\n\n${String(detail ?? '').slice(0, 300) || '(no details)'}\n\nAllow it?`
 
 /** `ap:<id>:y` / `ap:<id>:n` / `ap:<id>:a` (yes, and always here) — what the buttons send back. */
 export function parseApproval(data) {
@@ -346,7 +346,7 @@ export function startTelegram({ token, ownerId, brain, systemPrompt, servers = {
         }
         console.warn(
           err.code === 409
-            ? '[ayra] telegram: another copy of AYRA is reading this bot — is a second bridge running?'
+            ? '[ayra] telegram: another copy of Gnosis is reading this bot — is a second bridge running?'
             : `[ayra] telegram: connection problem (${err.message}); retrying in ${backoff / 1000}s`,
         )
         await new Promise((resolve) => setTimeout(resolve, backoff))

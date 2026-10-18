@@ -49,8 +49,10 @@ test('the persona is built from identity', () => {
   if (!raw.honorific) assert.ok(!/\bsir\b/i.test(SYSTEM_PROMPT))
 })
 
-test("the persona's roasting and flirting keep their guardrails", () => {
-  assert.ok(SYSTEM_PROMPT.includes('ROASTING AND FLIRTING'))
+test("the persona's roasting and banter keep their guardrails, and Gnosis never flirts", () => {
+  assert.ok(SYSTEM_PROMPT.includes('ROASTING AND BANTER'))
+  assert.ok(SYSTEM_PROMPT.includes('Never flirting'))
+  assert.ok(!/Flirt a little/.test(SYSTEM_PROMPT))
   assert.ok(SYSTEM_PROMPT.includes('Always kind and PG'))
   assert.ok(SYSTEM_PROMPT.includes('Never when the moment is serious'))
   assert.ok(SYSTEM_PROMPT.includes('be serious'))
@@ -85,5 +87,5 @@ test('the voice persona: a task in a line, a question answered, details in <more
 })
 
 test('the premium voice is the one the owner chose', () => {
-  assert.equal(raw.voice.elevenLabsId, 'pFZP5JQG7iQjIQuC4Bku') // Lily — the owner's pick
+  assert.equal(raw.voice.elevenLabsId, 'JBFqnCBsd6RMkjVDRZzb') // George, until the owner's pick is allowed on their plan
 })

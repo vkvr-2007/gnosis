@@ -43,7 +43,7 @@ export const rulesServer = (options) =>
   createSdkMcpServer({
     name: 'ayra_rules',
     version: '1.0.0',
-    instructions: 'What AYRA may do without asking. List and take back only; adding is the owner’s button.',
+    instructions: 'What Gnosis may do without asking. List and take back only; adding is the owner’s button.',
     alwaysLoad: true,
     tools: rulesTools(options),
   })
