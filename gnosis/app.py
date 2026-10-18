@@ -55,6 +55,7 @@ class Gnosis:
     push: Any = None
     phone: Any = None
     inbox: Any = None
+    voice: Any = None  # The voice loop, while `--voice` is on
     _stt: Any = None
     _jobs: set = field(default_factory=set)  # Routines running in the background
 

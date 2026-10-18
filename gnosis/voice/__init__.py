@@ -27,7 +27,7 @@ def _expand(p: str | None) -> Path | None:
 async def run_voice(g: "Gnosis") -> None:
     """Runs the voice loop until cancelled. Heavy models load in a thread so the server stays responsive."""
     from gnosis.voice.audio import Microphone, Speaker
-    from gnosis.voice.elevenlabs import api_key, key_problem, load_stt, wrap_tts
+    from gnosis.voice.elevenlabs import api_key, key_problem, load_stt, warm, wrap_tts
     from gnosis.voice.loop import VoiceConfig, VoiceLoop
     from gnosis.voice.stt import SpeechToText
     from gnosis.voice.tts import load_tts
@@ -46,6 +46,7 @@ async def run_voice(g: "Gnosis") -> None:
     wake = await asyncio.to_thread(load_wake, cfg)
     stt = await asyncio.to_thread(load_stt, cfg, lambda: SpeechToText(cfg.get("stt_model", "small.en")))
     tts = wrap_tts(cfg, await asyncio.to_thread(load_tts, _expand(cfg.get("piper_voice"))))
+    await asyncio.to_thread(warm, stt, tts)
     voice_id = None
     if cfg.get("voice_id", True):
         voice_id = await asyncio.to_thread(load_voice_id, g.settings.data_dir,
@@ -63,12 +64,21 @@ async def run_voice(g: "Gnosis") -> None:
                      config=VoiceConfig(follow_up_s=float(cfg.get("follow_up_s", 4))),
                      on_audio_drain=mic.drain, on_stop_command=g.stop_all,
                      on_error=lambda e: g.audit.write("voice_error", error=e))
+    if hasattr(wake, "barge_in"):
+        wake.barge_in = bool(cfg.get("barge_in", True))
     g.notifier.speakers.append(loop.say)  # Reminders and other notices are spoken too
+    g.voice = loop
+    talk_key = cfg.get("talk_key", "ctrl+space")
+    if talk_key:
+        from gnosis import killswitch
+
+        killswitch.start(loop.push_to_talk, talk_key, name="Talk key")
     mic.start()
-    await g.events.publish("voice_state", state="idle", wake_word=wake.label)
+    await g.events.publish("voice_state", state="idle", wake_word=wake.label, talk_key=talk_key)
     try:
         await loop.run(mic.blocks())
     finally:
+        g.voice = None
         g.notifier.speakers.remove(loop.say)
         mic.stop()
 

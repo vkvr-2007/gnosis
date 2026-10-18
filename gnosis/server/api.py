@@ -52,7 +52,8 @@ def create_app(g: Gnosis) -> FastAPI:
 
     @app.get("/api/health")
     async def health() -> dict:
-        return {"ok": True, "online": g.llm.online, "tools": g.tools.names()}
+        return {"ok": True, "online": g.llm.online, "tools": g.tools.names(),
+                "voice": g.events.last.get("voice_state")}
 
     def request_text(req: ChatRequest) -> str:
         if not req.files:
@@ -200,6 +201,14 @@ def create_app(g: Gnosis) -> FastAPI:
         if not g.memory.store.delete_episode(episode_id):
             raise HTTPException(404, "No episode with that id")
         g.audit.write("memory_edit", action="forget_episode", episode_id=episode_id)
+        return {"ok": True}
+
+    @app.post("/api/voice/talk")
+    async def talk() -> dict:
+        """Same as the talk key: listen now (and stop talking if Gnosis is)."""
+        if g.voice is None:
+            raise HTTPException(409, "Voice is off. Start Gnosis with --voice.")
+        await g.voice.push_to_talk()
         return {"ok": True}
 
     @app.get("/api/diagnostics")

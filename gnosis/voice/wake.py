@@ -29,6 +29,41 @@ _NAME = (r"(?:g?nosis|g?noses|g?nossis|g?nosys|g?nosus|noesis|knows\s?is|no\s?si
 _WAKE = re.compile(rf"^\W*{_GREETING}\W+{_NAME}\b\W*(.*)$", re.I | re.S)
 
 
+# Said while Gnosis is talking: "stop" ends the reply, "wait" ends it and listens. Always obeyed, even if
+# Gnosis happens to be saying the same word.
+_INTERRUPT = re.compile(r"^\W*(?:(stop|enough|be quiet|shut up|cancel|quiet)|(wait|hold on|hang on|pause|"
+                        r"one (?:sec|second|moment)))(?:\W+(?:it|that|please|now|gnosis))*\W*$", re.I)
+
+
+def match_interrupt(text: str) -> str | None:
+    """"stop" or "wait" if `text` is only an interruption, else None."""
+    m = _INTERRUPT.match(text or "")
+    if not m:
+        return None
+    return "stop" if m.group(1) else "wait"
+
+
+def _words(text: str) -> str:
+    return " ".join(re.findall(r"[a-z0-9']+", text.lower()))
+
+
+def is_echo(heard: str, spoken: str, threshold: float = 70.0) -> bool:
+    """Whether the mic most likely picked up Gnosis's own voice: what it heard is (roughly) part of what
+    Gnosis has been saying."""
+    heard, spoken = _words(heard), _words(spoken)
+    if not heard or not spoken:
+        return False
+    try:
+        from rapidfuzz import fuzz
+
+        return fuzz.partial_ratio(heard, spoken) >= threshold
+    except ImportError:
+        from difflib import SequenceMatcher
+
+        match = SequenceMatcher(None, heard, spoken).find_longest_match(0, len(heard), 0, len(spoken))
+        return match.size * 100 >= threshold * len(heard)
+
+
 def match_wake_phrase(text: str) -> str | None:
     """None if `text` doesn't start with the wake phrase; otherwise what was said after it ("" if nothing)."""
     m = _WAKE.match(text or "")
@@ -62,6 +97,37 @@ class PhraseWake:
         self.label = WAKE_PHRASE
         self.command = ""  # What followed the wake phrase in the same utterance
         self.last_heard = ""  # The last utterance transcribed while waiting (for the dashboard)
+        # What `heard()` caught: "wake", or while Gnosis talks, "stop", "wait" or "barge" (a new request).
+        self.kind = "wake"
+        # Set by the voice loop, for telling the owner's voice from Gnosis's own coming back through the mic
+        self.speaking: Callable[[], bool] = lambda: False
+        self.spoken_text: Callable[[], str] = lambda: ""
+        self.barge_in = True  # Any new request (3+ words, not an echo) interrupts too, not only "stop"
+
+    def _caught(self, text: str) -> bool:
+        speaking = self.speaking()
+        echo = speaking and is_echo(text, self.spoken_text())
+        rest = match_wake_phrase(text)
+        if rest is not None and not echo:
+            self.kind, self.command = "wake", rest
+            return True
+        if not speaking:
+            return False
+        interrupt = match_interrupt(text)
+        if interrupt:
+            self.kind, self.command = interrupt, ""
+            return True
+        if self.barge_in and not echo and len(_words(text).split()) >= 3:
+            self.kind, self.command = "barge", text.strip()
+            return True
+        return False
+
+    def check_finished(self, audio: np.ndarray) -> Future:
+        """Future[bool]: does what's been said so far sound like a whole request? (For ending a listen
+        sooner.) Uses the same tiny model, which is idle while Gnosis listens for a request."""
+        from gnosis.voice.vad import sounds_finished
+
+        return self._pool.submit(lambda: sounds_finished(self._safe_transcribe(audio)))
 
     def _new_endpointer(self) -> Endpointer:
         # A shorter pause than for a request: "Hey Gnosis" is usually followed by a breath.
@@ -72,9 +138,7 @@ class PhraseWake:
         if self._pending is not None and self._pending.done():
             text, self._pending = self._pending.result(), None
             self.last_heard = text
-            rest = match_wake_phrase(text)
-            if rest is not None:
-                self.command = rest
+            if self._caught(text):
                 self.last_audio = self._pending_audio  # Voice ID checks a same-breath command too
                 return True
         if self._endpointer.feed(block) == "done":

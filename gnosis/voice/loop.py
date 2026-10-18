@@ -7,8 +7,10 @@ listening briefly for a follow-up, so you don't have to say the wake word again.
 from __future__ import annotations
 
 import asyncio
+import itertools
 import queue
 import re
+import threading
 from dataclasses import dataclass
 from typing import Any, AsyncIterator, Callable, Iterator
 
@@ -18,6 +20,11 @@ from gnosis.voice.audio import chime
 from gnosis.voice.vad import Endpointer
 
 _STOP_WORDS = re.compile(r"^\W*(stop|cancel|never ?mind|be quiet|shut up|nothing)\W*$", re.I)
+# Said when a tool starts and nothing has been said yet, so the owner knows they were heard.
+_ON_IT = ("On it.", "One moment.", "Sure, on it.", "Give me a second.")
+# Tools fast enough that the answer itself comes before an "On it" would be useful.
+_QUICK_TOOLS = {"get_time", "system_info", "search_memory", "remember", "forget", "list_reminders",
+                "list_windows", "load_skill"}
 
 
 class _Sentences:
@@ -33,6 +40,7 @@ class _Sentences:
         self.buffer = ""
         self.queue: queue.Queue[str | None] = queue.Queue()
         self.spoken: list[str] = []
+        self.cancelled = False
 
     def feed(self, delta: str | None) -> bool:
         """Adds streamed text (None drops the unfinished sentence). True once a sentence is ready."""
@@ -54,9 +62,35 @@ class _Sentences:
         self.buffer = ""
         self.queue.put(None)
 
+    def cancel(self) -> None:
+        """Stops preparing speech (the owner interrupted)."""
+        self.cancelled = True
+        self.queue.put(None)
+
     def chunks(self, tts: Any) -> Iterator[Any]:
-        while (sentence := self.queue.get()) is not None:
-            yield from tts.synthesize(sentence)
+        """The audio, sentence by sentence. A helper thread prepares the next sentence while this one
+        plays, so there's no gap while ElevenLabs works on it."""
+        ready: queue.Queue[Any] = queue.Queue()
+        done = object()
+
+        def prepare() -> None:
+            try:
+                while not self.cancelled and (sentence := self.queue.get()) is not None:
+                    for chunk in tts.synthesize(sentence):
+                        if self.cancelled:
+                            break
+                        ready.put(chunk)
+            except Exception as e:
+                ready.put(e)
+            ready.put(done)
+
+        threading.Thread(target=prepare, name="gnosis-speech", daemon=True).start()
+        while (chunk := ready.get()) is not done:
+            if isinstance(chunk, Exception):
+                raise chunk
+            if self.cancelled:
+                return
+            yield chunk
 
     def spoken_any_of(self, answer: str) -> bool:
         return any(s in answer for s in self.spoken)
@@ -91,7 +125,14 @@ class VoiceLoop:
         self._endpointer: Endpointer | None = None
         self._woken = False  # This listen started with the wake word (not a follow-up)
         self._busy = asyncio.Lock()
+        self._play_lock = asyncio.Lock()  # "On it" and the answer take turns at the speaker
         self._tasks: set[asyncio.Task] = set()
+        self._sentences: _Sentences | None = None  # The answer being spoken now
+        self._recently_said = ""  # For telling Gnosis's own voice (echo) from the owner's
+        self._on_it = itertools.cycle(_ON_IT)
+        if hasattr(wake, "speaking"):
+            wake.speaking = lambda: self.speaker.speaking
+            wake.spoken_text = lambda: self._recently_said
 
     async def _set_state(self, state: str) -> None:
         if state != self.state:
@@ -109,7 +150,36 @@ class VoiceLoop:
         task.add_done_callback(self._tasks.discard)
 
     def _listen(self, start_timeout_s: float = 5.0) -> None:
-        self._endpointer = Endpointer(self.detector, start_timeout_s=start_timeout_s)
+        # Silence plus words: a short pause ends a sentence that sounds finished, a trailing "and..." waits.
+        self._endpointer = Endpointer(self.detector, start_timeout_s=start_timeout_s,
+                                      check=getattr(self.wake, "check_finished", None))
+
+    def _hush(self) -> None:
+        """Stops talking now: the current sentence and the ones being prepared."""
+        self.speaker.stop()
+        if self._sentences is not None:
+            self._sentences.cancel()
+
+    async def _start_listening(self) -> None:
+        self._listen()
+        self._woken = True
+        await self._set_state("listening")
+        if self.config.chime:
+            self._spawn(self._play([chime()]))
+
+    async def push_to_talk(self) -> None:
+        """Ctrl+Space (or the face in the window): listen now, interrupting Gnosis if it's talking."""
+        if self.speaker.speaking:
+            self._hush()
+        if self._endpointer is None:
+            await self._start_listening()
+
+    async def _play(self, chunks) -> bool:
+        async with self._play_lock:
+            return await self.speaker.play(chunks)
+
+    def _said(self, text: str) -> None:
+        self._recently_said = (self._recently_said + " " + text)[-600:]
 
     async def run(self, blocks: AsyncIterator[np.ndarray]) -> None:
         async for block in blocks:
@@ -119,21 +189,28 @@ class VoiceLoop:
         # A transcribing wake detector would hear the request itself as well, so it rests meanwhile.
         wake_listening = self._endpointer is None or not getattr(self.wake, "needs_quiet", False)
         if wake_listening and self.wake.heard(block):
+            kind = getattr(self.wake, "kind", "wake")
             if self.speaker.speaking:
-                self.speaker.stop()  # Barge-in
+                self._hush()  # Barge-in
             take = getattr(self.wake, "take_command", None)
             command = take() if take else ""
+            if kind == "stop":
+                await self.events.publish("voice_heard", text="stop", owner=True, score=None)
+                if not self._busy.locked() and self._endpointer is None:
+                    await self._set_state("idle")  # Otherwise the reply that was cut off sets it
+                return
+            if kind == "wait":
+                await self.events.publish("voice_heard", text="wait", owner=True, score=None)
+                await self._start_listening()
+                return
             if command:
-                # "Hey Gnosis, what time is it?" in one breath: answer it, no second listen.
+                # "Hey Gnosis, what time is it?" in one breath, or a new request said over Gnosis:
+                # answer it, no second listen.
                 self._woken = False
                 await self._set_state("thinking")
                 self._spawn(self._respond(getattr(self.wake, "last_audio", None), text=command))
                 return
-            self._listen()
-            self._woken = True
-            await self._set_state("listening")
-            if self.config.chime:
-                self._spawn(self.speaker.play([chime()]))
+            await self._start_listening()
             return
         if self._endpointer is None:
             return
@@ -162,7 +239,8 @@ class VoiceLoop:
         """Speaks without the follow-up window; used for problems, so a failure here is only reported."""
         try:
             await self._set_state("speaking")
-            await self.speaker.play(self.tts.synthesize(text))
+            self._said(text)
+            await self._play(self.tts.synthesize(text))
             if self.on_audio_drain:
                 self.on_audio_drain()
         except Exception as e:
@@ -203,14 +281,26 @@ class VoiceLoop:
                 owner, score = verdict.is_owner, round(verdict.score, 3)
             await self.events.publish("voice_heard", text=text, owner=owner, score=score)
 
-            sentences = _Sentences()
+            sentences = self._sentences = _Sentences()
             first_sentence = asyncio.Event()
+            said_on_it = False
 
             async def on_text(delta: str | None) -> None:
                 if sentences.feed(delta):
                     first_sentence.set()
 
-            work = asyncio.create_task(self.orchestrator.handle(text, "voice", owner=owner, on_text=on_text))
+            async def on_tool(name: str) -> None:
+                nonlocal said_on_it
+                if not first_sentence.is_set():
+                    await self._set_state("working")
+                if not said_on_it and not first_sentence.is_set() and name not in _QUICK_TOOLS:
+                    said_on_it = True
+                    line = next(self._on_it)
+                    self._said(line)
+                    self._spawn(self._play(self.tts.synthesize(line)))
+
+            work = asyncio.create_task(self.orchestrator.handle(text, "voice", owner=owner, on_text=on_text,
+                                                                on_tool=on_tool))
             waiter = asyncio.create_task(first_sentence.wait())
             await asyncio.wait({work, waiter}, timeout=self.config.background_after_s,
                                return_when=asyncio.FIRST_COMPLETED)
@@ -218,21 +308,29 @@ class VoiceLoop:
             if first_sentence.is_set():
                 # Speak each sentence as it's written instead of waiting for the whole answer.
                 await self._set_state("speaking")
-                playing = asyncio.create_task(self.speaker.play(sentences.chunks(self.tts)))
+
+                def spoken_chunks():
+                    for chunk in sentences.chunks(self.tts):
+                        self._recently_said = (" ".join(sentences.spoken))[-600:]
+                        yield chunk
+
+                playing = asyncio.create_task(self._play(spoken_chunks()))
                 try:
                     answer = await self._answer_of(work)
                 finally:
                     sentences.finish()
-                finished = await playing
+                finished = await playing and not sentences.cancelled
                 if not sentences.spoken_any_of(answer) and finished:
-                    finished = await self.speaker.play(self.tts.synthesize(answer))  # e.g. an error message
+                    self._said(answer)
+                    finished = await self._play(self.tts.synthesize(answer))  # e.g. an error message
                 await self._after_speaking(finished)
                 return
             if work.done():
                 answer = await self._answer_of(work)
             else:
                 # Keep the voice free while a long task runs; it speaks up when the task finishes.
-                answer = "I'm on it. I'll tell you when it's done."
+                answer = ("I'll tell you when it's done." if said_on_it
+                          else "I'm on it. I'll tell you when it's done.")
                 self._tasks.add(work)
                 work.add_done_callback(self._tasks.discard)
                 work.add_done_callback(lambda t: self._spawn(self._announce(t)))
@@ -260,7 +358,8 @@ class VoiceLoop:
 
     async def _speak_and_follow_up(self, answer: str) -> None:
         await self._set_state("speaking")
-        await self._after_speaking(await self.speaker.play(self.tts.synthesize(answer)))
+        self._said(answer)
+        await self._after_speaking(await self._play(self.tts.synthesize(answer)))
 
     async def _after_speaking(self, finished: bool) -> None:
         if self.on_audio_drain:

@@ -97,6 +97,30 @@
   #pair-dialog .warn { color: var(--warn); }
   .device { display: flex; gap: 8px; align-items: center; font-size: 13px; padding: 3px 0; }
   .device span { flex: 1; }
+  .face { background: none; border: 0; padding: 0; width: 46px; height: 46px; cursor: pointer; }
+  .face svg { width: 100%; height: 100%; overflow: visible; }
+  .face .ring { fill: none; stroke: var(--line); stroke-width: 2; transform-origin: 24px 24px; }
+  .face .head { fill: #12384a; stroke: var(--accent); stroke-width: 1.5; transition: fill .3s; }
+  .face .eyes ellipse { fill: var(--text); transform-box: fill-box; transform-origin: center; transition: transform .25s; }
+  .face .mouth { fill: var(--text); transform-box: fill-box; transform-origin: center; }
+  .face.sleeping .head { fill: #0f1a24; stroke: var(--muted); }
+  .face.sleeping .eyes ellipse { transform: scaleY(.15); }
+  .face.sleeping .mouth { transform: scaleX(.5); opacity: .6; }
+  .face.sleeping svg { animation: breathe 4s ease-in-out infinite; }
+  .face.listening .ring { stroke: var(--ok); animation: pulse 1.2s ease-out infinite; }
+  .face.listening .eyes ellipse { transform: scale(1.15); }
+  .face.thinking .ring { stroke: var(--accent); stroke-dasharray: 10 8; animation: spin 2.4s linear infinite; }
+  .face.thinking .eyes ellipse { transform: translate(1.5px, -2px) scaleY(.85); }
+  .face.thinking .mouth { transform: scaleX(.4) translateX(8px); }
+  .face.working .ring { stroke: var(--warn); stroke-dasharray: 4 5; stroke-width: 3; animation: spin 1s linear infinite; }
+  .face.working .eyes ellipse { transform: scaleY(.55); }
+  .face.speaking .ring { stroke: var(--accent); }
+  .face.speaking .mouth { animation: talk .28s ease-in-out infinite alternate; }
+  @keyframes breathe { 50% { transform: scale(.94); } }
+  @keyframes pulse { from { transform: scale(1); opacity: 1; } to { transform: scale(1.18); opacity: 0; } }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes talk { from { transform: scaleY(1); } to { transform: scaleY(3.2); } }
+  @media (prefers-reduced-motion: reduce) { .face * , .face svg { animation: none !important; } }
   #diag { flex: 1; overflow-y: auto; padding: 10px 14px; font-size: 13px; }
   #diag h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); margin: 14px 0 6px; }
   #diag table { width: 100%; border-collapse: collapse; }
@@ -110,6 +134,14 @@
 </head>
 <body>
 <header>
+  <button id="face" class="face sleeping" title="Talk to Gnosis (Ctrl+Space)" aria-label="Talk to Gnosis">
+    <svg viewBox="0 0 48 48" aria-hidden="true">
+      <circle class="ring" cx="24" cy="24" r="22"/>
+      <circle class="head" cx="24" cy="24" r="18"/>
+      <g class="eyes"><ellipse cx="17.5" cy="21" rx="2.6" ry="3.4"/><ellipse cx="30.5" cy="21" rx="2.6" ry="3.4"/></g>
+      <rect class="mouth" x="18" y="30" width="12" height="2.4" rx="1.2"/>
+    </svg>
+  </button>
   <div class="dot" id="dot"></div>
   <h1>GNOSIS</h1>
   <span id="status">connecting…</span>
@@ -172,6 +204,7 @@
 <script>
 const $ = (id) => document.getElementById(id);
 let wakeWord = "hey gnosis";
+let talkKey = "";
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 
 function say(cls, text) {
@@ -308,9 +341,14 @@ function onEvent(ev) {
       break;
     case "voice_state": {
       if (ev.wake_word) wakeWord = ev.wake_word.replaceAll("_", " ");
-      const labels = {loading: "loading voice…", idle: `say "${wakeWord}"`, listening: "listening…",
-                      thinking: "thinking…", speaking: "speaking…"};
+      if (ev.talk_key !== undefined) talkKey = ev.talk_key;
+      const hint = talkKey ? `say "${wakeWord}" or press ${talkKey.replace(/\b\w/g, (c) => c.toUpperCase())}` : `say "${wakeWord}"`;
+      const labels = {loading: "loading voice…", idle: hint, listening: "listening…",
+                      thinking: "thinking…", working: "working…", speaking: "speaking…"};
       $("status").textContent = "online · " + (labels[ev.state] || ev.state);
+      const face = {idle: "sleeping", loading: "sleeping"}[ev.state] || ev.state;
+      $("face").className = "face " + face;
+      $("face").dataset.state = face;
       break;
     }
     case "stopped":
@@ -339,12 +377,21 @@ function onEvent(ev) {
 
 function connect() {
   const ws = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws`);
-  ws.onopen = () => { $("dot").classList.add("on"); $("status").textContent = "online"; };
+  ws.onopen = async () => {
+    $("dot").classList.add("on"); $("status").textContent = "online";
+    // The voice may have started before this page opened: show its current state on the face
+    const h = await fetch("/api/health").then((r) => r.json()).catch(() => ({}));
+    if (h.voice) onEvent(h.voice);
+  };
   ws.onclose = () => { $("dot").classList.remove("on"); $("status").textContent = "reconnecting…"; setTimeout(connect, 2000); };
   ws.onmessage = (m) => onEvent(JSON.parse(m.data));
 }
 
 $("stop").onclick = () => fetch("/api/stop", {method: "POST"});
+$("face").onclick = async () => {
+  const r = await fetch("/api/voice/talk", {method: "POST"});
+  if (!r.ok) say("err", (await r.json()).detail || "Voice isn't available.");
+};
 
 // ---- Attachments: files and camera photos ---------------------------------
 let attached = [];  // {id, name, kind}

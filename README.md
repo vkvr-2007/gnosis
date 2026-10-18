@@ -149,6 +149,8 @@ Everything voice-related runs on your laptop: your audio never leaves it.
 .\.venv\Scripts\python -m gnosis serve --voice
 ```
 
+Or press **Ctrl+Space** (or click the face in the window) and speak: no wake word needed. While Gnosis is talking, say **"stop"** to end the reply, **"wait"** to stop it and say something else, or just say your next request over it. Gnosis filters out its own voice coming back through the mic, so it doesn't interrupt itself. It ends your turn quickly once a sentence sounds finished, and waits a little longer after "and…" or "um". When a request needs a slow tool it says "On it" first. The face in the window shows what it's doing: sleeping, listening, thinking, working or speaking. With `stt: elevenlabs` and `tts: elevenlabs`, ElevenLabs Scribe hears you and Flash speaks, preparing the next sentence while the current one plays. Without the key Gnosis falls back to the on-device voices.
+
 Say **"Hey Gnosis"**, wait for the chime, and speak. Or say it in one breath: "Hey Gnosis, what time is it?" A tiny Whisper model on your laptop listens for the phrase ([details](docs/wake-word.md)). After Gnosis answers it keeps listening for a few seconds, so you can follow up without the wake word. Say the wake word while it's talking to interrupt it, or say "stop".
 
 **ElevenLabs voices (optional).** For a more natural voice, or ElevenLabs' speech recognition, set `ELEVENLABS_API_KEY` as a user environment variable and set `voice.tts` and/or `voice.stt` to `elevenlabs` in `config/gnosis.yaml`. What you say after the wake word, and Gnosis's spoken replies, then go to ElevenLabs. The wake word always stays on the laptop, and if ElevenLabs can't be reached Gnosis falls back to the on-device voice.

@@ -109,7 +109,7 @@ class FakeOrchestrator:
     def __init__(self):
         self.calls = []
 
-    async def handle(self, text, session_id="default", tags=None, owner=True, on_text=None):
+    async def handle(self, text, session_id="default", tags=None, owner=True, on_text=None, on_tool=None):
         self.calls.append((text, owner))
         answer = f"You said {text}"
         if on_text:
@@ -195,7 +195,7 @@ def test_long_task_continues_in_background_and_announces_when_done():
     said, release = [], asyncio.Event()
     loop.tts = type("T", (), {"synthesize": lambda self, text: said.append(text) or iter([])})()
 
-    async def slow(text, session_id="default", tags=None, owner=True, on_text=None):
+    async def slow(text, session_id="default", tags=None, owner=True, on_text=None, on_tool=None):
         await release.wait()
         return "The website is live."
 
@@ -367,7 +367,7 @@ def test_the_voice_starts_on_the_first_sentence_and_says_the_whole_answer():
     said = []
     loop.tts = type("T", (), {"synthesize": lambda self, text: said.append(text) or iter([])})()
 
-    async def streaming(text, session_id="default", tags=None, owner=True, on_text=None):
+    async def streaming(text, session_id="default", tags=None, owner=True, on_text=None, on_tool=None):
         for part in ["It's 9 PM. ", "Sleep ", "well."]:
             await on_text(part)
         return "It's 9 PM. Sleep well."

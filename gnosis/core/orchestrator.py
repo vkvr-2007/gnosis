@@ -40,9 +40,16 @@ _DONE_VERBS = (r"saved|stored|noted|recorded|remembered|opened|closed|typed|sent
 # "I've saved that", but also "Your snack is now recorded as X" and a bare "Noted." / "Saved!"
 _CLAIMS_ACTION = re.compile(
     rf"\b(?:I[’']?ve|I have|I)\s+(?:just\s+|now\s+)?(?:{_DONE_VERBS})\b"
-    rf"|\b(?:is|are|has been|have been|was|were)\s+(?:now\s+|been\s+)*(?:saved|stored|noted|recorded|"
+    rf"|\b(?:is|are|has been|have been|was|were)\s+(?:now\s+|been\s+|already\s+|still\s+)*(?:saved|stored|noted|recorded|"
     rf"remembered|scheduled|set|added|deleted|removed|updated|written|typed|sent|open|opened|closed)\b"
     rf"|^\W*(?:(?:ok(?:ay)?|got it|sure|done)\W+)?(?:noted|saved|stored|recorded)\b"
+    # "Opened a new tab and typed hello" with no "I"
+    r"|^\W*(?:just\s+)?(?:opened|closed|typed|saved|launched|played|started|created|deleted|removed|added|"
+    r"wrote|scheduled|cancell?ed|canceled|paused|moved|updated|turned)\s+(?:a|an|the|it|that|your|my|this|up|"
+    r"in|into|to)\b"
+    # A short "Notepad closed." / "Reminder set."
+    r"|^\W*(?:[\w'-]+\W+){1,5}(?:opened|closed|saved|set|sent|started|stopped|added|deleted|removed|updated|"
+    r"scheduled|cancell?ed|played|paused|typed|launched|done)\W*$"
     # A decline only happens at an approval prompt, so saying one with no tool run repeats an old task.
     rf"|\b(?:owner|you)\s+(?:has\s+|have\s+)?(?:declined|denied|rejected|refused)\b", re.I)
 _CLAIM_CHECK = ("[Gnosis check] Your reply says you did something, but no tool has run in this task, so nothing "
@@ -58,9 +65,17 @@ _CURRENT: contextvars.ContextVar[tuple[TaskInfo, set[str], bool] | None] = conte
     "gnosis_task", default=None)
 
 
-def _needs_claim_check(msg: Any, acted: bool, checked: bool) -> bool:
+# A request that asks Gnosis to do something. Answered with no tool run, whatever the wording ("Opening
+# Notepad now…", "Notepad closed."), nothing was done.
+_ASKS_ACTION = re.compile(
+    r"^\W*(?:(?:hey\s+)?g?nosis\W+)?(?:(?:please|can you|could you|would you|will you|now)\W+)*(?:open|close|type|"
+    r"play|pause|resume|launch|remind|set|send|save|delete|remove|schedule|cancel|turn|"
+    r"click|press|switch|focus|minimi[sz]e|maximi[sz]e)\b", re.I)  # Not "remember": memory also learns by itself
+
+
+def _needs_claim_check(msg: Any, acted: bool, checked: bool, request: str = "") -> bool:
     return (not msg.tool_calls and not acted and not checked
-            and bool(_CLAIMS_ACTION.search(msg.content or "")))
+            and bool(_CLAIMS_ACTION.search(msg.content or "") or _ASKS_ACTION.search(request)))
 
 
 def current_tags() -> set[str]:
@@ -106,12 +121,14 @@ class Orchestrator:
     # ---- running tasks -------------------------------------------------------
 
     async def handle(self, text: str, session_id: str = "default",
-                     tags: set[str] | None = None, owner: bool = True, on_text: Any = None) -> str:
+                     tags: set[str] | None = None, owner: bool = True, on_text: Any = None,
+                     on_tool: Any = None) -> str:
         """Runs one request and returns the answer. `owner=False` is guest mode: voice ID didn't
         recognise the speaker. `on_text(delta)` receives the answer's text as it streams in, and
-        `on_text(None)` when text already sent should be discarded (it led to a tool call instead)."""
+        `on_text(None)` when text already sent should be discarded (it led to a tool call instead).
+        `on_tool(name)` is told as each tool starts."""
         info = self._new_task(text, session_id, owner)
-        info.on_text = on_text
+        info.on_text, info.on_tool = on_text, on_tool
         return await self._run(info, tags)
 
     def submit(self, text: str, session_id: str = "default", tags: set[str] | None = None,
@@ -281,13 +298,13 @@ class Orchestrator:
                                          on_text=stream_text, **(_THINK if checked and not acted else {}))
             msg = result.message
             messages.append(_assistant_dict(msg))
-            if streamed and (msg.tool_calls or _needs_claim_check(msg, acted, checked)):
+            if streamed and (msg.tool_calls or _needs_claim_check(msg, acted, checked, text)):
                 streamed = False
                 await stream_text(None)  # That text wasn't the answer
             if not msg.tool_calls:
                 # Models copy the [#id] tags from recalled memories even when told not to.
                 answer = _MEMORY_ID.sub("", msg.content or "").strip() or "Done."
-                if _needs_claim_check(msg, acted, checked):
+                if _needs_claim_check(msg, acted, checked, text):
                     # A fast model sometimes says "I've saved that" without calling anything. One nudge.
                     checked = True
                     self.audit.write("claim_check", task_id=task_id, answer=answer[:200])
@@ -300,6 +317,8 @@ class Orchestrator:
                     output = self._load_skill(task_id, call.function.arguments, loaded)
                 else:
                     acted = True
+                    if info.on_tool is not None:
+                        await info.on_tool(call.function.name)
                     output = await self._run_tool(task_id, call.function.name, call.function.arguments,
                                                   tags, owner, info)
                 messages.append({"role": "tool", "tool_call_id": call.id, "content": output})

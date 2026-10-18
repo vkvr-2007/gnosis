@@ -113,6 +113,17 @@ class ElevenLabsTTS:
             yield from self.fallback.synthesize(text)
 
 
+def warm(*voices: Any) -> None:
+    """Opens the connection to ElevenLabs ahead of time: the very first request in a process spends
+    seconds on DNS and TLS (5.4 s measured on the laptop, then 0.2-0.4 s)."""
+    for v in voices:
+        if isinstance(v, (ElevenLabsSTT, ElevenLabsTTS)):
+            try:
+                v.client.get(f"{API}/models", headers={"xi-api-key": v.key}, timeout=10)
+            except httpx.HTTPError:
+                pass  # The first real request falls back if ElevenLabs is down
+
+
 def load_stt(cfg: dict[str, Any], local: Any) -> Any:
     """The speech-to-text the settings ask for. `local` builds the on-device one (called only if needed)."""
     key = api_key()

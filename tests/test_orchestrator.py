@@ -117,11 +117,30 @@ def test_passive_claims_are_caught_too():
     for said in ["Okay. Your favorite snack is now recorded as zebra4ff6.", "Noted!",
                  "Got it, saved.", "Your reminder has been set for 9 PM.", "Spotify is open and ready. What would you like to play?", "Notepad is closed.",
                  # Recalled from an old task's episode, with no approval prompt in this one.
-                 "The owner declined the action to open Notepad.", "You declined that earlier."]:
+                 "The owner declined the action to open Notepad.", "You declined that earlier.",
+                 'Notepad is already open, window titled "*hello - Notepad".',
+                 'Opened a new blank tab in Notepad and typed "hello from Gnosis" there.',
+                 "Notepad closed.", "Reminder set!", "All done."]:
         assert _CLAIMS_ACTION.search(said), said
     for said in ["Your favourite snack is zebra.", "It's 22:47.", "Budget: 1500 rupees. Bananas: 6.",
-                 "The word is GNOSIS, and the circle is blue.", "Done."]:
+                 "The word is GNOSIS, and the circle is blue.", "Done.",
+                 "Set a budget first, then buy bananas.", "Closed on Sundays, the shop reopens Monday."]:
         assert not _CLAIMS_ACTION.search(said), said
+
+
+def test_an_action_request_answered_without_a_tool_is_nudged_whatever_the_wording(settings):
+    # Seen in `gnosis accept`: narrated instead of done.
+    llm = FakeLLM([reply('Opening a new blank tab in Notepad…\nThen typing "hello" there.'),
+                   reply(calls=[tool_call("get_time", {})]), reply("Typed it.")])
+    g = build(settings, llm=llm)
+    assert run(g, "Open a new blank tab in Notepad and type hello there.") == "Typed it."
+    assert "[Gnosis check]" in llm.calls[1]["messages"][-1]["content"]
+
+    from gnosis.core.orchestrator import _ASKS_ACTION
+    for asked in ["Close Notepad.", "please open spotify", "Hey Gnosis, play jazz", "Can you set a reminder"]:
+        assert _ASKS_ACTION.search(asked), asked
+    for asked in ["What time is it?", "Is Notepad open?", "Tell me a joke", "What does open source mean?"]:
+        assert not _ASKS_ACTION.search(asked), asked
 
 
 def test_a_plain_answer_or_a_real_action_is_not_nudged(settings):
