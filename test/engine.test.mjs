@@ -305,9 +305,9 @@ test('a request that says it is private thinks on the laptop, with the short too
 
 test("once a tool brings back the owner's personal data, the rest of the turn is local, and the cloud never sees it later", async () => {
   const dir = mkdtempSync(join(tmpdir(), 'gnosis-'))
-  writeFileSync(join(dir, 'note.txt'), 'call Asha on 98450 12345 about the launch')
+  writeFileSync(join(dir, 'note.txt'), 'the locker card is 4111 1111 1111 1111, ask Asha')
   const { fetchImpl, calls } = routedApi(call('c1', 'Read', { file_path: join(dir, 'note.txt') }),
-    say('Your note says to call Asha about the launch.'), say('You are welcome.'))
+    say('Your note says to ask Asha about the locker card.'), say('You are welcome.'))
   await withFetch(fetchImpl, async () => {
     const session = query({ prompt: (async function* () {
       yield { message: { content: 'read my note.txt' } }
@@ -322,8 +322,8 @@ test("once a tool brings back the owner's personal data, the rest of the turn is
   })
   assert.deepEqual(calls.map((c) => c.local), [false, true, false])
   const later = JSON.stringify(calls[2].body.messages)
-  assert.ok(!later.includes('98450'), 'the phone number reached the cloud')
-  assert.ok(!later.includes('call Asha'), 'the private answer reached the cloud')
+  assert.ok(!later.includes('4111'), 'the card number reached the cloud')
+  assert.ok(!later.includes('ask Asha'), 'the private answer reached the cloud')
   assert.ok(later.includes('[private, kept on the laptop]'))
 })
 
@@ -340,14 +340,15 @@ test('a file without personal data stays in the cloud (the owner: "rest all use 
 
 // -- the owner's privacy rules (privacy.mjs) --------------------------------------------------
 
-test('sensitive requests are local; everything else is cloud', async () => {
+test('secrets are local; email, contacts and everything else is cloud (the owner chose option b)', async () => {
   const { sensitiveRequest } = await import('../bridge/privacy.mjs')
-  for (const s of ["what's my wifi password?", "what's mom's number?", 'check my email', 'read my inbox',
-    'what is my bank account number', 'my Aadhaar card', 'send it to asha@example.com', 'call 98450 12345',
-    'keep this private', 'my PAN number', 'what medicines do I take', 'show my contacts'])
+  for (const s of ["what's my wifi password?", 'what is my bank account number', 'my Aadhaar card',
+    'keep this private', 'my PAN number', 'what medicines do I take', "what's my UPI PIN",
+    'card 4111 1111 1111 1111', 'the OTP is 482913'])
     assert.ok(sensitiveRequest(s), s)
   for (const s of ['what time is it?', 'play a cat video', 'weather in Hyderabad', 'open notepad',
-    'what is 12 times 8', 'tell me a joke', 'pin this tab'])
+    'what is 12 times 8', 'tell me a joke', 'pin this tab', 'check my email', 'read my inbox',
+    "what's mom's number?", 'show my contacts', 'send it to asha@example.com', 'call 98450 12345'])
     assert.equal(sensitiveRequest(s), null, s)
 })
 

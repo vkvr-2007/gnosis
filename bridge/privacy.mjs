@@ -5,11 +5,16 @@
  *    And if I have to add something sensitive I'll say a sentence with the keyword 'private' so it
  *    can store locally."
  *
+ * Then, the same day, after the on-device model proved unable to do the work (asked to check email it
+ * talked instead of opening Gmail, 105 s): option (b) — email and contacts run on the cloud like
+ * everything else, and only secrets stay local: passwords, PINs, OTPs, card and bank numbers, IDs,
+ * health, and "private" memories.
+ *
  * So a turn thinks on the on-device model (sdk.mjs) when:
- *   - the request is about sensitive things (passwords, contacts, email, bank and card details, IDs,
- *     health…) or says "private" — SENSITIVE_WORDS;
- *   - the request itself carries personal data — an email address, a phone or card number — findPII;
- *   - a tool that reads the owner's own data (their files, windows, pages) brought some back.
+ *   - the request is about secrets (passwords, PINs, bank and card numbers, IDs, health…) or says
+ *     "private" — SENSITIVE_WORDS;
+ *   - the request itself carries a secret — a card, Aadhaar or PAN number, "password is …" — findPII;
+ *   - a tool that reads the owner's own data (their files, windows, pages) brought one back.
  *
  * And a sentence with "private" in it that tells Gnosis something (not a question) is kept in the
  * private memory here — by code, not by any model, so it never leaves the laptop. Private memories are
@@ -25,18 +30,16 @@ export const SENSITIVE_WORDS = new RegExp(String.raw`\b(?:` + [
   // "PIN" only with a bank, card or "my": "pin this tab" is not a secret.
   'pass(?:word|words|code|phrase)', '(?:my|bank|atm|upi|card|debit|credit) pin', 'pin (?:code|number)', 'otp', 'cvv',
   'login', 'credentials?',
-  'contacts?', 'phone numbers?', 'mobile numbers?', "(?:mom|dad|mum|mother|father|wife|husband|friend|brother|sister)'?s? (?:number|phone|email|address)",
-  'e-?mails?', 'inbox', 'gmail', 'outlook', 'mails?',
-  'bank(?: account| details| balance)?', 'account numbers?', 'ifsc', 'upi(?: id| pin)?',
+  // Not email, contacts or phone numbers: the owner chose (b), those run on the cloud.
+  'bank (?:account|details|balance)', 'account numbers?', 'ifsc', 'upi(?: id| pin)?',
   'credit cards?', 'debit cards?', 'card numbers?', 'salary', 'income',
   'aadha?ar', 'pan(?: card| number)', 'passport', 'ssn', 'social security', 'driving licen[cs]e', 'voter id',
-  '(?:home |my )address', 'date of birth', 'dob',
+  'date of birth', 'dob',
   'medical', 'health', 'diagnos\\w*', 'prescriptions?', 'medicines?',
 ].join('|') + String.raw`)\b`, 'i')
 
+// Secrets only: email addresses and phone numbers go to the cloud under option (b).
 const PII = [
-  ['an email address', /[\w.+-]+@[\w-]+\.[\w.-]+/],
-  ['a phone number', /(?:\+91[\s-]?)?\b[6-9]\d{4}[\s-]?\d{5}\b|\+\d{1,3}[\s-]?\(?\d{2,4}\)?[\s-]?\d{3,4}[\s-]?\d{3,4}/],
   ['a card number', /\b(?:\d{4}[\s-]?){3}\d{1,4}\b/],
   ['an Aadhaar number', /\b\d{4}\s\d{4}\s\d{4}\b/],
   ['a PAN', /\b[A-Z]{5}\d{4}[A-Z]\b/],
