@@ -48,18 +48,21 @@
         "mcp__ayra_apps__apps_open",
         "mcp__ayra_apps__apps_read",
         "mcp__ayra_apps__apps_focus",
-        "mcp__ayra_apps__apps_close"
+        "mcp__ayra_apps__apps_close",
+        "mcp__ayra_browser__browser_open",
+        "mcp__ayra_browser__browser_read"
       ],
       "systemPrefix": "detailed thinking off"
     }
   },
   "private": {
-    "_about": "Private work thinks on the laptop (the local role) and is blanked from what the cloud model sees later. A request is private when it says so, or once one of these tools has read the owner's own data in it.",
-    "words": "\\b(?:privately|in private|private mode|keep (?:it|this|that) private|(?:it|this|that)'?s private|offline|on (?:the|my) laptop only)\\b",
+    "_about": "Private work thinks on the laptop (the local role) and is blanked from what the cloud model sees later. A request is private when it is sensitive (bridge/privacy.mjs: passwords, contacts, email, bank and card details, IDs, health, the word private, or personal data in it), or once one of these tools has brought back personal data.",
     "tools": [
       "Read",
       "Grep",
-      "mcp__ayra_apps__apps_read"
+      "mcp__ayra_apps__apps_read",
+      "mcp__ayra_browser__browser_read",
+      "mcp__ayra_browser__browser_open"
     ]
   }
 }

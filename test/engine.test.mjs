@@ -303,11 +303,11 @@ test('a request that says it is private thinks on the laptop, with the short too
   assert.deepEqual(calls[0].body.tools.map((t) => t.function.name), ['Read'])
 })
 
-test("once a tool reads the owner's data, the rest of the turn is local, and the cloud never sees it later", async () => {
+test("once a tool brings back the owner's personal data, the rest of the turn is local, and the cloud never sees it later", async () => {
   const dir = mkdtempSync(join(tmpdir(), 'gnosis-'))
-  writeFileSync(join(dir, 'note.txt'), 'secret plans: launch on Friday')
+  writeFileSync(join(dir, 'note.txt'), 'call Asha on 98450 12345 about the launch')
   const { fetchImpl, calls } = routedApi(call('c1', 'Read', { file_path: join(dir, 'note.txt') }),
-    say('Your note says the launch is on Friday.'), say('You are welcome.'))
+    say('Your note says to call Asha about the launch.'), say('You are welcome.'))
   await withFetch(fetchImpl, async () => {
     const session = query({ prompt: (async function* () {
       yield { message: { content: 'read my note.txt' } }
@@ -322,10 +322,70 @@ test("once a tool reads the owner's data, the rest of the turn is local, and the
   })
   assert.deepEqual(calls.map((c) => c.local), [false, true, false])
   const later = JSON.stringify(calls[2].body.messages)
-  assert.ok(!later.includes('secret plans'), 'the file contents reached the cloud')
-  assert.ok(!later.includes('launch is on Friday'), 'the private answer reached the cloud')
+  assert.ok(!later.includes('98450'), 'the phone number reached the cloud')
+  assert.ok(!later.includes('call Asha'), 'the private answer reached the cloud')
   assert.ok(later.includes('[private, kept on the laptop]'))
-  assert.ok(later.includes('read my note.txt'))
+})
+
+test('a file without personal data stays in the cloud (the owner: "rest all use cloud")', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'gnosis-'))
+  writeFileSync(join(dir, 'plan.txt'), 'launch on Friday')
+  const { fetchImpl, calls } = routedApi(call('c1', 'Read', { file_path: join(dir, 'plan.txt') }), say('Friday.'))
+  await withFetch(fetchImpl, async () => {
+    await collect(query({ prompt: 'when is the launch in plan.txt?', options: { tools: ['Read'],
+      persistSession: false, canUseTool: allow } }))
+  })
+  assert.deepEqual(calls.map((c) => c.local), [false, false])
+})
+
+// -- the owner's privacy rules (privacy.mjs) --------------------------------------------------
+
+test('sensitive requests are local; everything else is cloud', async () => {
+  const { sensitiveRequest } = await import('../bridge/privacy.mjs')
+  for (const s of ["what's my wifi password?", "what's mom's number?", 'check my email', 'read my inbox',
+    'what is my bank account number', 'my Aadhaar card', 'send it to asha@example.com', 'call 98450 12345',
+    'keep this private', 'my PAN number', 'what medicines do I take', 'show my contacts'])
+    assert.ok(sensitiveRequest(s), s)
+  for (const s of ['what time is it?', 'play a cat video', 'weather in Hyderabad', 'open notepad',
+    'what is 12 times 8', 'tell me a joke', 'pin this tab'])
+    assert.equal(sensitiveRequest(s), null, s)
+})
+
+test('"private" sentences are kept; questions about private things are not', async () => {
+  const { privateStatement } = await import('../bridge/privacy.mjs')
+  assert.equal(privateStatement('Private: my wifi password is sunflower42'), 'my wifi password is sunflower42')
+  assert.equal(privateStatement('my bank PIN is 4321, keep it private'), 'my bank PIN is 4321')
+  assert.equal(privateStatement('Hey Gnosis, remember privately that Asha is 98450 12345'), 'that Asha is 98450 12345')
+  assert.equal(privateStatement("what's my wifi password? it's private"), null)
+  assert.equal(privateStatement('privately, what is my PIN?'), null)
+  assert.equal(privateStatement('my wifi password is x'), null) // no "private": not kept by this rule
+})
+
+test('a private sentence is saved and recalled by code, with no model call; the cloud never sees it', async () => {
+  const { createPrivateMemory } = await import('../bridge/privacy.mjs')
+  const { privacyRules } = await import('../bridge/sdk.mjs')
+  const memory = createPrivateMemory(join(mkdtempSync(join(tmpdir(), 'gnosis-')), 'private.json'))
+  const privacy = privacyRules(undefined, memory)
+  const { fetchImpl, calls } = routedApi(say('Noon.'))
+  await withFetch(fetchImpl, async () => {
+    const session = query({ prompt: (async function* () {
+      yield { message: { content: '[Now: Sun]\nPrivate: my wifi password is sunflower42' } }
+      yield { message: { content: "what's my wifi password?" } }
+      yield { message: { content: 'what time is it?' } }
+    })(), options: { persistSession: false, privacy } })
+    const results = []
+    for await (const m of session) {
+      if (m.type === 'result') results.push(m.result)
+      if (results.length === 3) break
+    }
+    session.close()
+    assert.equal(results[0], "Got it. That's saved privately, on this laptop only.")
+    assert.equal(results[1], 'You told me privately: your wifi password is sunflower42.')
+  })
+  assert.deepEqual(memory.all().map((m) => m.text), ['my wifi password is sunflower42'])
+  assert.deepEqual(calls.map((c) => c.local), [false]) // Saving and recalling needed no model at all
+  const cloud = JSON.stringify(calls[0].body)
+  assert.ok(!cloud.includes('sunflower42'), 'the secret reached the cloud')
 })
 
 test("if the private model isn't running, Gnosis says so and nothing goes to the cloud", async () => {
@@ -355,4 +415,18 @@ test('the on-device model gets its own short prompt, starting with "detailed thi
   assert.ok(!system.includes('THE FULL PERSONA'))
   assert.ok(system.length < 1400)
   assert.match(system, /EstimatedChargeRemaining/)
+})
+
+test('private recall: a memory answers only when it holds every telling word of the question', async () => {
+  const { privateAnswer, privateSystem } = await Promise.all([import('../bridge/privacy.mjs'), import('../bridge/sdk.mjs')])
+    .then(([a, b]) => ({ ...a, ...b }))
+  const memories = [{ id: 1, text: 'my wifi password is sunflower42' }, { id: 2, text: "Asha's number is 98450 12345" }]
+  assert.equal(privateAnswer("what's my wifi password?", memories), 'You told me privately: your wifi password is sunflower42.')
+  assert.equal(privateAnswer("what is Asha's number", memories), "You told me privately: Asha's number is 98450 12345.")
+  assert.equal(privateAnswer("what's my bank password?", memories), null)
+  assert.equal(privateAnswer('what time is it?', memories), null)
+  assert.equal(privateAnswer('hey gnosis', memories), null)
+  // A question the code can't answer still gets the memories, on the laptop only
+  const system = privateSystem({ localSystem: 'LOCAL', memory: { relevant: () => memories } }, 'anything')
+  assert.match(system, /^LOCAL\nWhat the owner told you privately[\s\S]*- my wifi password is sunflower42/)
 })

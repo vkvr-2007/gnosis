@@ -114,7 +114,7 @@ if (install.status !== 0) console.error(`The shortcuts were not made (exit ${ins
 const loginLink = join(process.env.APPDATA ?? join(homedir(), 'AppData', 'Roaming'), 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Startup', 'Gnosis.lnk')
 spawn('explorer.exe', [startup && existsSync(loginLink) ? loginLink : EXE], { detached: true, stdio: 'ignore' }).unref()
 console.log(
-  `\nGnosis is in the tray, by the clock: click her icon to open her window, or press ${env('HOTKEY', 'ctrl+alt+a')} to talk.` +
-    '\nTo pin her: right-click "Gnosis" on the Desktop → Show more options → Pin to taskbar.',
+  `\nGnosis is in the tray, by the clock: click his icon to open his window, or press ${env('HOTKEY', 'ctrl+alt+a')} to talk.` +
+    '\nTo pin him: right-click "Gnosis" on the Desktop → Show more options → Pin to taskbar.',
 )
 if (install.status !== 0) process.exit(1)

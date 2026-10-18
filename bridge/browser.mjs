@@ -565,10 +565,10 @@ export function browserServer({ allowWrites, channel, approve, emitBlade, sendPh
         // Checked, not assumed: the player is given a few seconds, and started by hand if Chrome held it.
         const state = await page.evaluate(async () => {
           const wait = (ms) => new Promise((r) => setTimeout(r, ms))
-          for (let i = 0; i < 16; i++) {
+          for (let i = 0; i < 40; i++) { // Up to 20 s: a first video in a fresh tab took over 8 s to start (2026-10-18)
             const v = document.querySelector('video')
             if (v && !v.paused && v.currentTime > 0) return { playing: true }
-            if (v && v.paused && i === 6) v.play().catch(() => {})
+            if (v && v.paused && i === 12) v.play().catch(() => {})
             await wait(500)
           }
           return { playing: false, player: Boolean(document.querySelector('video')) }

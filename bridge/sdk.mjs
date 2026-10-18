@@ -28,6 +28,7 @@ import { z } from 'zod'
 import { BUILTINS } from './builtins.mjs'
 import { loadModels, modelFor } from './models.mjs'
 import { IDENTITY } from './identity.mjs'
+import { createPrivateMemory, findPII, privateAnswer, privateStatement, sensitiveRequest } from './privacy.mjs'
 
 // ---- tools -------------------------------------------------------------------------
 
@@ -245,11 +246,14 @@ export const requestText = (content) =>
  * tools whose output is the owner's own data (their files, the text of their windows). Private work
  * runs on the on-device model ("local" role) with its short list of tools.
  */
-export function privacyRules(cfg = loadModels()) {
+export function privacyRules(cfg = loadModels(), memory = createPrivateMemory()) {
   const p = cfg.private ?? {}
   return {
-    words: new RegExp(p.words ?? '(?!)', 'i'),
+    // Why a request is private (privacy.mjs: sensitive words, personal data, "private"), or null.
+    why: (request) => sensitiveRequest(request),
+    // Tools that read the owner's own data: what they bring back is checked for personal data.
     tools: new Set(p.tools ?? []),
+    memory,
     localTools: new Set(cfg.roles.local?.tools ?? []),
     localRoute: modelFor('local', cfg),
     localSystem: localSystemPrompt(IDENTITY.name, cfg.roles.local?.systemPrefix),
@@ -280,14 +284,22 @@ export function localSystemPrompt(name, prefix = 'detailed thinking off') {
 }
 
 /**
- * After a private turn, what the cloud model could later see of it is blanked: tool output and Gnosis's
- * own replies (which may quote that data). The owner's own words stay, so the conversation still reads.
+ * After a private turn, what the cloud model could later see of it is blanked: the owner's words (they
+ * may hold the secret itself), tool output, and Gnosis's own replies (which may quote it).
  */
 export function redactTurn(history, from) {
   for (let i = Math.max(from, 0); i < history.length; i++) {
     const m = history[i]
-    if (m.role === 'tool' || (m.role === 'assistant' && m.content)) history[i] = { ...m, content: PRIVATE_NOTE }
+    if (m.role === 'tool' || m.role === 'user' || (m.role === 'assistant' && m.content)) history[i] = { ...m, content: PRIVATE_NOTE }
   }
+}
+
+/** The on-device model's prompt for one private turn: its own short prompt, and what it may recall. */
+export function privateSystem(privacy, request) {
+  const memories = privacy.memory.relevant(request)
+  if (!memories.length) return privacy.localSystem
+  return `${privacy.localSystem}\nWhat the owner told you privately (it is on this laptop only; use it to answer, ` +
+    `and say it only when they ask for it):\n${memories.map((m) => `- ${m.text}`).join('\n')}`
 }
 
 // ---- query() ----------------------------------------------------------------------------
@@ -299,7 +311,7 @@ export function query({ prompt, options = {} }) {
     resume, persistSession = true, abortController, outputFormat, cwd = homedir(),
   } = options
   const cloudRoute = modelFor(model)
-  const privacy = privacyRules()
+  const privacy = options.privacy ?? privacyRules() // options.privacy: tests give their own memory
   const toolset = collectTools(options)
   const defOf = ([name, t]) => ({
     type: 'function', function: { name, description: String(t.description ?? '').slice(0, 1024), parameters: t.parameters },
@@ -334,17 +346,36 @@ export function query({ prompt, options = {} }) {
     const asksAction = toolDefs.length > 0 && ASKS_ACTION.test(request)
     let acted = false
     let checked = false
-    // Private: asked for in words ("privately"), or once a tool has read the owner's own data. From then
-    // on this turn thinks on the laptop, and nothing from it is sent to the cloud later.
-    let isPrivate = privacy.words.test(request)
+    // Private (privacy.mjs): a sensitive request, or once a tool has brought back the owner's personal
+    // data. From then on this turn thinks on the laptop, and nothing from it is sent to the cloud later.
+    const why = privacy.why(request)
+    let isPrivate = Boolean(why)
     const turnStart = history.length - 1
-    const goPrivate = (why) => {
-      if (!isPrivate) console.log(`[gnosis] private from here on (${why}): thinking on the laptop`)
+    const goPrivate = (reason) => {
+      if (!isPrivate) console.log(`[gnosis] private from here on (${reason}): thinking on the laptop`)
       isPrivate = true
     }
-    if (isPrivate) console.log('[gnosis] a private request: thinking on the laptop')
+    if (isPrivate) console.log(`[gnosis] a private request (${why}): thinking on the laptop`)
     try {
-      for (;;) {
+      // "Private: my wifi password is …" — kept by code, never shown to any model, and said back plainly.
+      const keep = isPrivate ? privateStatement(request) : null
+      // …and a question it answers is answered from there, by code, whether or not it looked sensitive.
+      const recalled = keep ? null : privateAnswer(request, privacy.memory.all())
+      if (keep) {
+        privacy.memory.add(keep)
+        console.log('[gnosis] kept a private memory on the laptop')
+        answer = "Got it. That's saved privately, on this laptop only."
+      } else if (recalled) {
+        goPrivate('answered from the private memory')
+        answer = recalled
+      }
+      if (keep || recalled) {
+        if (includePartialMessages) {
+          push({ type: 'stream_event', event: { type: 'content_block_delta', delta: { type: 'text_delta', text: answer } } })
+        }
+        history.push({ role: 'assistant', content: answer })
+      }
+      for (; !keep && !recalled;) {
         if (++turns > maxTurns) {
           push({ type: 'result', subtype: 'error_max_turns', session_id: sessionId, is_error: true })
           return
@@ -359,7 +390,7 @@ export function query({ prompt, options = {} }) {
         try {
           ({ toolCalls } = await streamChat({
           route,
-          messages: [{ role: 'system', content: route.onDevice ? privacy.localSystem : system }, ...history],
+          messages: [{ role: 'system', content: route.onDevice ? privateSystem(privacy, request) : system }, ...history],
           tools,
           signal,
           onText: (delta) => {
@@ -421,7 +452,10 @@ export function query({ prompt, options = {} }) {
           if (signal.aborted) throw new DOMException('Interrupted', 'AbortError')
           const result = await runTool(call, inputs[i], signal)
           history.push({ role: 'tool', tool_call_id: call.id, content: result.text || '(no output)' })
-          if (privacy.tools.has(call.name) && !result.isError) goPrivate(call.name)
+          if (privacy.tools.has(call.name) && !result.isError) {
+            const found = findPII(result.text)
+            if (found.length) goPrivate(`${call.name} brought back ${found.join(' and ')}`)
+          }
           push({
             type: 'user',
             message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: call.id, content: result.text, is_error: result.isError === true }] },
