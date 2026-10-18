@@ -6,7 +6,7 @@
  * owner's own button does that, so nothing she reads can grant her more.
  */
 
-import { createSdkMcpServer, tool } from '@anthropic-ai/claude-agent-sdk'
+import { createSdkMcpServer, tool } from './sdk.mjs'
 import { z } from 'zod'
 import { describe } from './allowances.mjs'
 

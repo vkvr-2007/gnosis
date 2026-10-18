@@ -50,7 +50,7 @@
  * (src/lib/research.ts, variant 'deep'): change both sides together or not at all.
  */
 
-import { tool } from '@anthropic-ai/claude-agent-sdk'
+import { tool } from './sdk.mjs'
 import { z } from 'zod'
 import { mkdir, rename, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'

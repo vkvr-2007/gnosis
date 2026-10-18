@@ -1,4 +1,4 @@
-import { createSdkMcpServer, tool } from '@anthropic-ai/claude-agent-sdk'
+import { createSdkMcpServer, tool } from './sdk.mjs'
 import { z } from 'zod'
 import { probeUrl } from './page.mjs'
 import { IDENTITY } from './identity.mjs'

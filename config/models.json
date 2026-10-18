@@ -1,0 +1,26 @@
+{
+  "_about": "Which models Gnosis thinks with. Read by bridge/models.mjs. Keys come from environment variables, never this file.",
+  "default": "planner",
+  "providers": {
+    "nvidia": { "baseUrl": "https://integrate.api.nvidia.com/v1", "keyEnv": "NVIDIA_API_KEY" },
+    "nebius": { "baseUrl": "https://api.studio.nebius.com/v1", "keyEnv": "NEBIUS_API_KEY" },
+    "local": { "baseUrl": "http://127.0.0.1:8081/v1", "onDevice": true }
+  },
+  "roles": {
+    "planner": {
+      "provider": "nvidia",
+      "model": "nvidia/nemotron-3-super-120b-a12b",
+      "extraBody": { "chat_template_kwargs": { "enable_thinking": false } }
+    },
+    "research": {
+      "provider": "nvidia",
+      "model": "nvidia/nemotron-3-super-120b-a12b",
+      "extraBody": { "chat_template_kwargs": { "enable_thinking": false } }
+    },
+    "local": {
+      "provider": "local",
+      "model": "nemotron-nano-local",
+      "temperature": 0
+    }
+  }
+}

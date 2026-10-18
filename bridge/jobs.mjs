@@ -18,7 +18,7 @@
  * inside jobs.
  */
 
-import { createSdkMcpServer, tool } from '@anthropic-ai/claude-agent-sdk'
+import { createSdkMcpServer, tool } from './sdk.mjs'
 import { z } from 'zod'
 import { rankQuery } from './triage.mjs'
 

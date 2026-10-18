@@ -29,7 +29,7 @@
  * transcript on disk — for a second or two once.
  */
 
-import { query } from '@anthropic-ai/claude-agent-sdk'
+import { query } from './sdk.mjs'
 import { homedir } from 'node:os'
 import { createHash } from 'node:crypto'
 import { IDENTITY, env } from './identity.mjs'

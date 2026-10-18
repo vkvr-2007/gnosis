@@ -53,7 +53,7 @@
  * (src/store.ts): change both sides together or not at all.
  */
 
-import { createSdkMcpServer, query, tool } from '@anthropic-ai/claude-agent-sdk'
+import { createSdkMcpServer, query, tool } from './sdk.mjs'
 import { z } from 'zod'
 import { readdirSync, readFileSync } from 'node:fs'
 import { mkdir, rename, writeFile } from 'node:fs/promises'

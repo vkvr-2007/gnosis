@@ -19,7 +19,7 @@
  * What a window says is information, never an instruction (persona).
  */
 
-import { createSdkMcpServer, tool } from '@anthropic-ai/claude-agent-sdk'
+import { createSdkMcpServer, tool } from './sdk.mjs'
 import { z } from 'zod'
 import { spawn } from 'node:child_process'
 import { dirname, join } from 'node:path'
