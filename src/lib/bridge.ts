@@ -200,6 +200,9 @@ function dispatch(ws: WebSocket) {
       onHearing?.(msg.mode)
     } else if (msg.type === 'talk') {
       onTalk?.()
+    } else if (msg.type === 'notice' && typeof msg.text === 'string') {
+      // A reminder, a routine's answer, a battery warning (bridge/schedule.mjs): say it now.
+      onNotice?.(msg.text)
     }
   })
 }
@@ -516,6 +519,12 @@ export function reportFace(g: { phase: string; text: string; who: string; by: st
 
 export function reportHearing(mode: 'push' | 'hands-free'): void {
   if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: 'hearing', mode }))
+}
+
+/** Something Gnosis says without being asked (a reminder, a routine's answer, a warning). */
+let onNotice: ((text: string) => void) | null = null
+export function watchNotice(fn: (text: string) => void) {
+  onNotice = fn
 }
 
 /** The tray's talk hotkey (AYRA.exe → the bridge): what Space does, from any app. */

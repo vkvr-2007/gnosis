@@ -141,12 +141,12 @@ export function visibleText(raw) {
  * One streamed chat completion. Calls onText for each piece of answer text and onToolStart the first
  * time each tool call appears, and resolves with { text, toolCalls, usage }.
  */
-export async function streamChat({ route, messages, tools, signal, onText, onToolStart, fetchImpl = fetch }) {
+export async function streamChat({ route, messages, tools, signal, onText, onToolStart, toolChoice = 'auto', fetchImpl = fetch }) {
   const body = {
     model: route.model,
     messages,
     stream: true,
-    ...(tools.length ? { tools, tool_choice: 'auto' } : {}),
+    ...(tools.length ? { tools, tool_choice: toolChoice } : {}),
     ...(route.temperature != null ? { temperature: route.temperature } : {}),
     ...(route.extraBody ?? {}),
   }
@@ -230,6 +230,9 @@ export const ASKS_ACTION = new RegExp(
   String.raw`(?:open|close|type|play|pause|resume|launch|remind|set|send|save|delete|remove|schedule|cancel|turn|` +
   String.raw`click|press|switch|focus|minimi[sz]e|maximi[sz]e|go to|search|find|run|start|stop|mute|unmute|remember|forget|note down)\b`,
   'i')
+
+/** A reply that says it is about to do something rather than doing it. */
+export const PROMISES = /^\W*(?:(?:sure|okay|ok|got it|on it)\W+)?(?:i['’]?ll|i will|let me|i['’]?m going to|fetching|checking|looking (?:that )?up|one moment|give me a (?:sec|second|moment))\b/i
 
 export const CLAIM_CHECK = (request) =>
   '[Gnosis check] Your reply says or implies the request was done, but no tool has run in this turn, so ' +
@@ -405,6 +408,9 @@ export function query({ prompt, options = {} }) {
           messages: [{ role: 'system', content: withMemory(route.onDevice ? privateSystem(privacy, request) : system,
             memory?.recallText(request, { includeSensitive: route.onDevice, actionRequest: asksAction })) }, ...history],
           tools,
+          // After the claim check's nudge the model must call a tool: with the full persona and some
+          // fifty tools, Nemotron answered "Remind me in 1 minute…" in words twice (2026-10-18).
+          toolChoice: checked && !acted ? 'required' : 'auto',
           signal,
           onText: (delta) => {
             text += delta
@@ -437,7 +443,10 @@ export function query({ prompt, options = {} }) {
             return null
           }
         })
-        if (hold && !toolCalls.length) {
+        // A reply that only promises ("I'll check your reminders. Fetching…") with nothing run, to any
+        // request: the same nudge. (Its words were already shown; the real answer follows.)
+        const promised = !hold && !toolCalls.length && !acted && !checked && tools.length > 0 && PROMISES.test(text)
+        if ((hold || promised) && !toolCalls.length) {
           // Answered an action with words alone: one nudge, and the held reply is never shown or spoken.
           checked = true
           console.log(`[gnosis] claim check: "${request.slice(0, 80)}" was answered without a tool`)

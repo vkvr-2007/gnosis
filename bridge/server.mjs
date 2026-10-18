@@ -51,8 +51,13 @@ import { openRemote, proxyError, vetTarget, PROXY_UA } from './net.mjs'
 import { renderPage } from './page.mjs'
 import { modelFor } from './models.mjs'
 import { createMemory, memoryServer } from './memory.mjs'
+import { createJobStore, createNotifier, createWatchers, scheduleServer, setBriefing, startSchedule } from './schedule.mjs'
 
 const MEMORY = createMemory()
+/** Reminders, routines, the briefing and the laptop watchers (schedule.mjs). Set up below the brain. */
+const SCHEDULE = createJobStore()
+let NOTIFIER = null
+let WATCHERS = null
 
 const PORT = Number(env('BRIDGE_PORT', 8787))
 
@@ -787,7 +792,18 @@ const BRAIN = createBrain({
   effort: EFFORT,
   gate: GATE,
   // Shared by every conversation (the window, Telegram, jobs): Gnosis's long-term memory (memory.mjs).
-  mcpServers: { ayra_memory: memoryServer(MEMORY) },
+  mcpServers: {
+    ayra_memory: memoryServer(MEMORY),
+    ayra_schedule: scheduleServer({
+      store: SCHEDULE,
+      get notifier() { return NOTIFIER },
+      get watchers() { return WATCHERS },
+      setBriefingAt: (at) => {
+        BRIEFING_STATE.set('briefing', at ?? 'off')
+        return setBriefing(SCHEDULE, at)
+      },
+    }),
+  },
   audit: AUDIT,
   // How long an idle conversation is worth continuing after a reload.
   resumeHours: Number(env('RESUME_HOURS', 6)),
@@ -1275,3 +1291,63 @@ wss.on('connection', (socket, req) => {
     conversation.close()
   })
 })
+
+/* ------------------------------------------- reminders, routines and the briefing (schedule.mjs) */
+
+/** Where the owner's choice of briefing time (or "off") is kept, so a restart never overrides it. */
+const BRIEFING_STATE = createStore()
+
+NOTIFIER = createNotifier({
+  // Said aloud in every open window of his (the face shows it and speaks it); false with none open.
+  speak: (text) => {
+    let told = 0
+    for (const send of HEARING.faces) {
+      send({ type: 'notice', text })
+      told++
+    }
+    return told > 0
+  },
+  phone: (text) => phone?.notify(text),
+  log: (entry) => AUDIT.log(entry),
+})
+WATCHERS = createWatchers({ notifier: NOTIFIER, memo: BRIEFING_STATE })
+
+/** A routine or the briefing, carried out as an ordinary request; resolves with the answer. */
+function runRequest(text) {
+  return new Promise((resolve) => {
+    let answer = ''
+    let settled = false
+    let conversation = null
+    const finish = (t) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      resolve(stripTags(String(t ?? '')).trim() || 'Done.')
+      try {
+        conversation?.close()
+      } catch { /* already closed */ }
+    }
+    const timer = setTimeout(() => finish(answer || `"${text}" took too long, so I stopped it.`), 180_000)
+    conversation = BRAIN.open({
+      channel: 'routine',
+      systemPrompt: TEXT_PROMPT,
+      emit: (ev) => {
+        if (ev.type === 'text') answer += ev.delta
+        else if (ev.type === 'done') finish(ev.text || answer)
+        else if (ev.type === 'error') finish(ev.message)
+      },
+      onEnd: () => finish(answer),
+    })
+    conversation.ask(text, `routine-${Date.now()}`)
+  })
+}
+
+{
+  // The daily briefing, 08:00 unless the owner changed it or turned it off (morning_briefing_time).
+  const saved = BRIEFING_STATE.get('briefing')
+  if (saved !== 'off' && !SCHEDULE.upcoming().some((j) => j.key === 'morning-briefing')) {
+    setBriefing(SCHEDULE, saved || env('BRIEFING', '08:00'))
+  }
+  startSchedule({ store: SCHEDULE, notifier: NOTIFIER, watchers: WATCHERS, runRequest })
+  console.log(`[gnosis] reminders and routines on: ${SCHEDULE.upcoming().length} scheduled`)
+}

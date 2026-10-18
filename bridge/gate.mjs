@@ -468,6 +468,10 @@ export function createGate({ allowWrites, laptop = false, connectors = DEFAULT_C
       // laptop. It reaches nothing of the owner's and nothing outside.
       if (server === 'ayra_memory') return true
 
+      // Reminders, routines and the briefing (schedule.mjs): Gnosis's own schedule file and notices.
+      // A routine runs later as an ordinary request, with every call reviewed here as usual.
+      if (server === 'ayra_schedule') return true
+
       const tool = mcpToolOf(name)
       if (EFFECTFUL_VERB.test(tool) && !VETO_EXEMPT.has(`${server}__${tool}`)) {
         return allowWrites

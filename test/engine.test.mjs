@@ -238,6 +238,8 @@ test('an action answered without a tool is nudged once, and the false claim is n
     assert.equal(streamed, 'Playing "Cats".')
     assert.equal(msgs.at(-1).result, 'Playing "Cats".')
     assert.match(sent[1].messages.at(-1).content, /^\[Gnosis check\][\s\S]*The request is: Open YouTube and play a cat video/)
+    assert.equal(sent[0].tool_choice, 'auto')
+    assert.equal(sent[1].tool_choice, 'required') // after the nudge it must act
   } finally {
     globalThis.fetch = globalThis.__fetch
   }
@@ -430,4 +432,23 @@ test('private recall: a memory answers only when it holds every telling word of 
   // A question the code can't answer still gets the memories, on the laptop only
   const system = privateSystem({ localSystem: 'LOCAL', memory: { relevant: () => memories } }, 'anything')
   assert.match(system, /^LOCAL\nWhat the owner told you privately[\s\S]*- my wifi password is sunflower42/)
+})
+
+test('a reply that only promises to act is nudged, and the retry must call a tool', async () => {
+  const { PROMISES } = await import('../bridge/sdk.mjs')
+  for (const s of ["I'll check your reminders for you.", 'Let me look that up.', 'Fetching current reminders…', 'Sure, I’ll do it now.'])
+    assert.ok(PROMISES.test(s), s)
+  for (const s of ['You have two reminders.', 'It is 9 PM.', 'I like that idea.']) assert.ok(!PROMISES.test(s), s)
+  const { fetchImpl, sent } = fakeApi(say("I'll check your reminders for you."), call('c1', 'mcp__s__list', {}), say('You have one.'))
+  globalThis.__fetch = globalThis.fetch
+  globalThis.fetch = fetchImpl
+  try {
+    const s = createSdkMcpServer({ name: 's', tools: [tool('list', 'List.', {}, async () => ({ content: [{ type: 'text', text: '#1 stretch' }] }))] })
+    const msgs = await collect(query({ prompt: 'What reminders do I have?', options: { mcpServers: { s }, persistSession: false,
+      canUseTool: async (n, input) => ({ behavior: 'allow', updatedInput: input }) } }))
+    assert.equal(msgs.at(-1).result, 'You have one.')
+    assert.equal(sent[1].tool_choice, 'required')
+  } finally {
+    globalThis.fetch = globalThis.__fetch
+  }
 })

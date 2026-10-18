@@ -22,6 +22,7 @@ import {
   watchConnection,
   watchHearing,
   watchTalk,
+  watchNotice,
   media,
   reportHearing,
   reportFace,
@@ -693,6 +694,16 @@ export default function App() {
     // How she listened last time, without announcing it.
     watchHearing((mode) => void setHearing(mode))
     watchTalk(() => press.current())
+    // A reminder or a routine's answer (bridge/schedule.mjs): shown in the conversation, and said
+    // aloud unless he is busy with something else, when it is only shown.
+    watchNotice((text) => {
+      const st = store.getState()
+      st.pushTurn({ id: `notice-${Date.now()}`, role: 'assistant', text })
+      if (st.phase !== 'dormant') return
+      const line = createSpeaker()
+      line.say(text)
+      void line.end()
+    })
     if (savedHearing() === 'hands-free') void setHearing('hands-free', false)
     else reportHearing('push')
   }
