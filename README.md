@@ -1,97 +1,70 @@
-# A.Y.R.A.
+# G.N.O.S.I.S.
 
-**AYRA** is a personal assistant for one person. Press **Space** at the laptop and talk, or message
-her on Telegram: she answers out loud in her ElevenLabs voice, searches the web, works in the owner's
-own Chrome and Windows apps, runs PowerShell and handles files — and asks first before spending
-money, sending or posting as the owner, deleting for good, or touching passwords and security
-settings. The face is an animated avatar; the brain is **Claude Code run headless through the Claude
-Agent SDK** on the owner's own Claude login, so there's no API key.
+**Gnosis** is a personal assistant for one person, thinking with **NVIDIA Nemotron**. Press **Space**
+at the laptop and talk, or say "Hey Gnosis": he answers out loud in an ElevenLabs voice, searches the
+web, plays videos, works in the owner's own Chrome and Windows apps, runs PowerShell and handles
+files — and asks first before spending money, sending or posting as the owner, deleting for good, or
+touching passwords and security settings. The face is an animated character.
 
-Long tasks can run in the background as jobs that report on Telegram, she can show you any tab or
-window as a picture, and the owner can let her send or post on a chosen site without asking ("Always").
-Memory, more apps and agents come one at a time: see [PLAN.md](PLAN.md). The rules for working on
-this repo are in [CLAUDE.md](CLAUDE.md), and the build log is in [PROGRESS.md](PROGRESS.md).
+Gnosis v3 is built on [AYRA](https://github.com/rehanshaik123/AYRA) (MIT): its face, its Node bridge,
+its tools, approvals, jobs and tray app are AYRA's. What changed:
+
+- **The brain is Nemotron, not Claude.** AYRA ran Claude Code through the Claude Agent SDK.
+  `bridge/sdk.mjs` stands in for that SDK with an agent loop over an OpenAI-compatible API —
+  Nemotron 3 Super on NVIDIA's API, thinking off, streamed — speaking the same message protocol, so
+  the rest of the bridge works unchanged. `bridge/builtins.mjs` rebuilds the Claude Code tools AYRA
+  used (PowerShell, files, web search and pages) under the same names, so the gate still reviews them.
+- **Web search** goes through the Tavily or Brave APIs when a key is set (`TAVILY_API_KEY`,
+  `BRAVE_API_KEY`), otherwise through a Google search in Gnosis's own Chrome (`bridge/web.mjs`).
+- **Private work stays on the laptop**: a request that says so ("privately…"), or a turn in which a
+  tool read the owner's files or windows, runs on the on-device Nemotron Nano (llama.cpp on
+  `127.0.0.1:8081`) and is blanked from what the cloud model sees later. No local model, no answer —
+  never the cloud instead.
+- **From Gnosis v2**: the claim check (an action answered without a tool is never spoken, and the
+  model is nudged to act), `browser_play_youtube` (finds a real video and checks it's playing), and
+  the "Hey Gnosis" wake word with its mishearings.
+- **Gnosis himself**: a male character (short black hair, hoodie, headphones that glow while he
+  works), a male voice, and friendly banter in place of AYRA's flirting.
+
+Models and providers are in [config/models.json](config/models.json) (NVIDIA, Nebius Token Factory,
+on-device); who he is, in [config/identity.json](config/identity.json).
 
 ## Run it
 
-Needs Windows 10/11 (Linux and macOS paths are kept working), Node.js 20+, a Claude login (the
-desktop app or `claude` CLI, signed in once) and Chrome or Edge in a real window.
+Needs Windows 10/11, Node.js 20+, Chrome, and `NVIDIA_API_KEY` set (a free key from build.nvidia.com).
+Optional: `ELEVENLABS_API_KEY` for the voice (otherwise the browser's own speech is used),
+`TAVILY_API_KEY` for faster search, and the local model for private requests.
 
 ```bash
 npm install
 npm run setup     # checks the machine, changes nothing
 npm start         # brain + face → open http://localhost:5173, click INITIALISE, press Space
-npm run shortcuts # Windows: AYRA.exe in the tray — starts with Windows, Ctrl+Alt+A to talk
+npm run shortcuts # Windows: Gnosis.exe in the tray — starts with Windows, Ctrl+Alt+A to talk
+npm run bench     # five standard questions, timed
+node scripts/ask.mjs "what time is it?"   # ask the running bridge from the terminal
 ```
 
-Optional settings go in `.env.local` (template: `.env.example`): `ELEVENLABS_API_KEY` for the voice
-and transcription (otherwise the browser's own speech is used), and the Telegram bot token and owner
-ID. In the HUD: **Space** to talk, **Space** again to send, **Space Space** or **Esc** to stop,
-**D** diagnostics, **T** an audio test.
+Keys are environment variables (or `.env.local`), never files in the repo. In the HUD: **Space** to
+talk, **Space** again to send, **Space Space** or **Esc** to stop, **D** diagnostics, **T** an audio
+test, **W** hands-free, **R** researcher mode. `avatar.html?pose=talk` on the face's dev server shows
+the character on his own.
 
 ## Hands-free
 
-Press **W** in her window (or **Ctrl+Alt+W** / the tray menu from any app) and just say "AYRA" —
-from any app, her window needn't be in front. Only short bursts of speech that start after a quiet
-moment are checked for her name (never the room, never while music plays), at most 120 an hour.
-After answering she listens about 15 seconds for a follow-up. **Alt+Space** is Space from any app. While she listens, whatever is playing (Spotify, a video) pauses, and resumes after. Sound that
-comes out of the laptop's own speakers — a video, another app saying her name — is recognised and
-ignored.
-
-## The bubble
-
-A small AYRA bubble sits on top of every app (drag it anywhere). Click it and she listens — your app
-stays in front; click while she talks to interrupt, double-click to stop everything. It glows by what
-she is doing and shows one line: what she heard, or what she is saying. Right-click it for hands-free,
-her window, or to hide it.
-
-## Researcher mode
-
-Press **R** in her window. Every question then goes to a deeper research run: a planner works out
-what you really need and picks the platforms; agents search GitHub, Stack Overflow, Hacker News and
-arXiv (their public APIs), Quora and the web at once; every result is scored for relevance (0–100)
-and ranked; and a final answer is written with citations. One to three minutes; the board shows each
-platform as it works. Press **R** again for normal mode. (Reddit needs its own API key — not yet set up.)
-
-## Quick commands
-
-"Open YouTube", "open Spotify", "open my downloads", "pause the music", "next song" are done at once,
-without a model turn (about a second).
+Press **W** in his window (or **Ctrl+Alt+W** / the tray menu from any app) and just say "Gnosis" —
+from any app, his window needn't be in front. After answering he listens about 15 seconds for a
+follow-up. While he listens, whatever is playing pauses, and resumes after. Sound from the laptop's
+own speakers is recognised and ignored.
 
 ## Research agent
 
-Every question is ranked in code first (`bridge/triage.mjs`, no model call). Only a clearly complex
-one — a comparison, several parts, "research …", "fact-check …", pros and cons, a contested or
-high-stakes decision — goes to her research agent; anything else gets one quick web search. While a
-run works a small progress card shows the rank, the agents and the reviewer; at the end two cards
-appear, the data that answers the question and the sources it used, and she says the verdict in a
-sentence or two. On Telegram you get the report as text with its numbered sources.
-
-Code, not a model, runs the four stages; each model step is a one-shot Claude agent with one narrow
-job (at most ten Claude calls a run):
-
-1. **Rank** — the depth score decides 3 or 4 parts; a simple question is refused at no cost.
-2. **Split** — the question becomes 3–4 parts that don't overlap, each with a search query.
-3. **Agents** — all parts at once: a searcher per part, then code reads its pages safely (ranked
-   by trust, at most two per site, scanned for prompt injection), then a reporter writes findings,
-   each with a word-for-word quote; a quote that isn't really on the page is dropped.
-4. **Review** — scores the findings, removes duplicates and off-topic ones, checks them against
-   the question, and writes a cited answer with a confidence; every figure on the data card is
-   copied from a checked finding and found on its page.
-
-The agents that read web pages have no tools, so text planted in a page can't make them act. Every
-report is saved in `data/research/`: the same question within 12 hours replays it, and without a
-connection she falls back to the closest saved report, marked offline.
-
-```bash
-npm run research -- "Compare iPhone 17 and Pixel 10 for camera, battery and price"
-npm run research -- "question" --fresh   # --fresh skips the saved report
-```
-
-`AYRA_RESEARCH_MODEL` (default `claude-sonnet-5-5`) sets the model for the workers; the review and
-the answer use `AYRA_MODEL`.
+A clearly complex question — a comparison, several parts, "research …", pros and cons — goes to the
+research agent: it splits the question into parts, sends a searcher and a reporter per part, and a
+reviewer scores the findings and writes a cited answer with a confidence (about 40 seconds). Press
+**R** for researcher mode, which sends every question to a deeper run across GitHub, Stack Overflow,
+Hacker News, arXiv, Quora and the web.
 
 ## Credits & licence
 
-MIT — see [LICENSE](LICENSE). Based on [JARVIS by Aditya Dewaskar](https://github.com/adewaskar/jarvis).
-The avatar is fan art of Orihime Inoue (Bleach), made for personal use only.
+MIT — see [LICENSE](LICENSE). Built on [AYRA](https://github.com/rehanshaik123/AYRA), itself based on
+[JARVIS by Aditya Dewaskar](https://github.com/adewaskar/jarvis). Gnosis's character is original.
