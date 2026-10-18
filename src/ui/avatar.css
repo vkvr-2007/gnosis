@@ -239,7 +239,7 @@ html[data-cards='1'] .avatar-stage { transform: translate(-21vw, -11vh) scale(0.
 
 /* From the owner's reference picture: a collared button-up, brass-trimmed headphones, a silver cross
    earring, heavier brows. */
-.avatar .av-collar-flap { fill: #25272e; stroke: #4a4e58; stroke-width: 1.6; stroke-linejoin: round }
+.avatar .av-collar-flap { fill: #2a2d34; stroke: #6a6f7a; stroke-width: 1.8; stroke-linejoin: round }
 .avatar .av-placket { fill: none; stroke: #33363e; stroke-width: 2 }
 .avatar .av-button { fill: #2c2f36; stroke: #5a5f6a; stroke-width: 1 }
 .avatar .av-hp-cup { fill: #121418; stroke: #b98a4f; stroke-width: 2.6 }
