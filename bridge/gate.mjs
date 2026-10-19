@@ -479,6 +479,9 @@ export function createGate({ allowWrites, laptop = false, connectors = DEFAULT_C
       // Music (spotify.mjs): Spotify's search, and its play button for the result that matches.
       if (server === 'ayra_music') return true
 
+      // The owner's phone over ADB (phone.mjs). Calls and messages are asked about in review().
+      if (server === 'ayra_phone') return true
+
       const tool = mcpToolOf(name)
       if (EFFECTFUL_VERB.test(tool) && !VETO_EXEMPT.has(`${server}__${tool}`)) {
         return allowWrites
@@ -507,6 +510,13 @@ export function createGate({ allowWrites, laptop = false, connectors = DEFAULT_C
     if (name === 'PowerShell' || name === 'Bash') {
       detail = String(input?.command ?? '')
       reason = riskOfCommand(detail)
+    } else if (name === 'mcp__ayra_phone__phone_call') {
+      // Calling and sending from the owner's phone are "sending as you": asked every time.
+      detail = `Call ${input?.who ?? ''}`
+      reason = 'calls someone from your phone'
+    } else if (name === 'mcp__ayra_phone__phone_send_message') {
+      detail = `${input?.app === 'sms' ? 'Text' : 'WhatsApp'} to ${input?.who ?? ''}: "${input?.text ?? ''}"`
+      reason = 'sends a message as you'
     } else if (['Write', 'Edit', 'MultiEdit', 'NotebookEdit'].includes(name)) {
       detail = String(input?.file_path ?? input?.notebook_path ?? '')
       reason = riskOfPath(detail)
