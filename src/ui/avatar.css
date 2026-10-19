@@ -236,16 +236,3 @@ html[data-cards='1'] .avatar-stage { transform: translate(-21vw, -11vh) scale(0.
   .avatar .av-tilt, .avatar .av-hand, .avatar .av-steam { animation: none !important }
 }
 .avatar .av-wave { fill: none; stroke: #4a5266; stroke-width: 2.4; stroke-linecap: round; opacity: 0.7 }
-
-/* From the owner's reference picture: a collared button-up, brass-trimmed headphones, a silver cross
-   earring, heavier brows. */
-.avatar .av-collar-flap { fill: #2a2d34; stroke: #6a6f7a; stroke-width: 1.8; stroke-linejoin: round }
-.avatar .av-placket { fill: none; stroke: #33363e; stroke-width: 2 }
-.avatar .av-button { fill: #2c2f36; stroke: #5a5f6a; stroke-width: 1 }
-.avatar .av-hp-cup { fill: #121418; stroke: #b98a4f; stroke-width: 2.6 }
-.avatar .av-hp-inner { fill: #1b1e24; stroke: #2a2d34; stroke-width: 1.5 }
-.avatar .av-hp-light { fill: #c99556; opacity: 1 }
-.avatar[data-pose="magic"] .av-hp-light { fill: color-mix(in srgb, var(--av-accent) 85%, white) }
-.avatar .av-hp-band { stroke: #121418 }
-.avatar .av-earring circle, .avatar .av-earring path { fill: none; stroke: #d4d8de; stroke-width: 2.6; stroke-linecap: round }
-.avatar .av-brow { stroke-width: 5.5 }

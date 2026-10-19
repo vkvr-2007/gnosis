@@ -105,7 +105,7 @@ function Eye({ cx, cy, side }: { cx: number; cy: number; side: 1 | -1 }) {
       </g>
       <path
         className="av-lash"
-        d={`M${cx - 22 * o},${cy + 2} Q${cx - 4 * o},${cy - 19} ${cx + 23 * o},${cy - 4} L${cx + 24 * o},${cy + 2} Q${cx - 3 * o},${cy - 11} ${cx - 19 * o},${cy + 6} Z`}
+        d={`M${cx - 21 * o},${cy + 1} Q${cx - 4 * o},${cy - 20} ${cx + 22 * o},${cy - 5} L${cx + 23 * o},${cy - 1} Q${cx - 3 * o},${cy - 14} ${cx - 19 * o},${cy + 4} Z`}
       />
       <path className="av-lower" d={`M${cx - 9 * o},${cy + 21} Q${cx + 2 * o},${cy + 23} ${cx + 12 * o},${cy + 18}`} />
     </g>
@@ -128,10 +128,9 @@ const Sparkle = ({ x, y, s = 1, d = 0 }: { x: number; y: number; s?: number; d?:
 function EarCup({ x, y, side }: { x: number; y: number; side: 1 | -1 }) {
   return (
     <g className="av-pin" style={{ transformOrigin: `${x}px ${y}px` }}>
-      <circle className="av-pin-glow" cx={x} cy={y} r={34} fill="url(#av-glow)" />
-      <circle className="av-hp-cup" cx={x} cy={y} r={22} />
-      <circle className="av-hp-inner" cx={x} cy={y} r={14} />
-      <rect className="av-hp-light" x={x - 8} y={y - 3.5} width={16} height={7} rx={3.5} transform={`rotate(${-25 * side} ${x} ${y})`} />
+      <circle className="av-pin-glow" cx={x} cy={y} r={30} fill="url(#av-glow)" />
+      <rect className="av-hp-cup" x={x - 15} y={y - 21} width={30} height={42} rx={13} transform={`rotate(${-18 * side} ${x} ${y})`} />
+      <rect className="av-hp-light" x={x - 4} y={y - 12} width={8} height={24} rx={4} transform={`rotate(${-18 * side} ${x} ${y})`} />
     </g>
   )
 }
@@ -251,7 +250,7 @@ export function Avatar() {
 
             {/* Behind everything: the back of his wavy hair, tilting with the head. */}
             <g className="av-tilt">
-              <path fill="url(#av-hair-back)" d="M96,176 C80,162 88,140 100,132 C92,110 108,84 128,78 C136,56 166,42 196,46 C226,38 262,50 276,72 C298,76 314,98 306,122 C322,132 324,156 306,166 C318,182 312,204 296,210 C304,224 294,236 282,232 L286,252 C272,246 268,234 270,224 L130,224 C132,234 128,246 114,252 L118,232 C106,236 96,224 104,210 C88,204 82,182 96,176 Z" />
+              <path fill="url(#av-hair-back)" d="M108,170 C100,100 146,56 200,56 C254,56 300,100 292,170 C296,186 290,200 280,208 C284,218 276,226 266,224 L134,224 C124,226 116,218 120,208 C110,200 104,186 108,170 Z" />
             </g>
 
             {/* Neck and his black shirt. */}
@@ -261,14 +260,8 @@ export function Avatar() {
               className="av-blazer"
               d="M46,440 C52,370 100,330 154,316 C168,312 180,310 184,306 Q200,326 216,306 C220,310 232,312 246,316 C300,330 348,370 354,440 Z"
             />
-            {/* The open neck of his button-up, its collar, the placket and buttons, and the folds where
-                the sleeves meet the body. */}
-            <path className="av-skin-plain" d="M184,304 L200,350 L216,304 Z" />
-            <path className="av-placket" d="M200,350 L200,440" />
-            <path className="av-collar-flap" d="M186,298 L156,318 L168,346 L199,352 Z" />
-            <path className="av-collar-flap" d="M214,298 L244,318 L232,346 L201,352 Z" />
-            <circle className="av-button" cx="200" cy="378" r="3.2" />
-            <circle className="av-button" cx="200" cy="410" r="3.2" />
+            {/* The crew neck's ribbed band, and the folds where the sleeves meet the body. */}
+            <path className="av-collar" d="M182,305 Q200,330 218,305" />
             <path className="av-seam" d="M118,362 C124,388 128,414 130,440 M282,362 C276,388 272,414 270,440" />
 
             {/* Headphones round his neck: the band behind, a cup on each side. They go on his ears while
@@ -305,7 +298,7 @@ export function Avatar() {
 
               <path className="av-nose" d="M200,219 Q203,224 199,226" />
 
-              <path className={mouth('smile')} d="M188,245 Q202,251 214,240" />
+              <path className={mouth('smile')} d="M188,243 Q200,253 212,243" />
               <g className={mouth('talk')}>
                 <path fill="#8a2b2b" d="M187,242 Q200,239 213,242 Q212,261 200,262 Q188,261 187,242 Z" />
                 <path fill="#ec7f80" d="M192,255 Q200,250 208,255 Q200,261 192,255 Z" />
@@ -322,35 +315,25 @@ export function Avatar() {
               {/* Wavy hair: a fringe of soft rounded waves swept to his right, and waves at the sides. */}
               <path
                 fill="url(#av-hair)"
-                d="M104,172 C94,104 146,52 204,52 C264,52 308,100 298,170 C294,160 290,154 285,150 L283,180 C278,166 272,156 264,150 L258,186 C252,168 246,156 238,148 L230,178 C226,164 220,154 214,146 L210,192 C204,172 198,158 190,150 L182,180 C178,166 172,156 164,150 L156,178 C152,164 148,156 142,150 L132,172 C130,162 126,156 120,152 C114,158 108,164 104,172 Z"
+                d="M108,176 C98,104 146,56 202,56 C262,56 308,102 296,174 C292,150 280,138 266,146 C272,166 262,180 248,174 C246,150 230,138 214,148 C220,168 208,182 194,174 C190,150 174,140 158,150 C164,170 152,182 138,174 C136,154 124,146 114,158 C111,164 109,170 108,176 Z"
               />
               <path fill="url(#av-hair)" d="M116,148 C104,162 108,178 114,188 C108,198 112,210 120,214 C122,200 120,190 126,180 C122,170 124,160 128,152 Z" />
               <path fill="url(#av-hair)" d="M284,148 C296,162 292,178 286,188 C292,198 288,210 280,214 C278,200 280,190 274,180 C278,170 276,160 272,152 Z" />
-              {/* Tufts on the crown, and strands catching the light. */}
-              <path fill="url(#av-hair)" d="M146,66 C134,48 146,34 158,40 C154,48 156,56 164,62 Z" />
-              <path fill="url(#av-hair)" d="M236,60 C248,42 266,44 268,56 C258,52 250,56 246,66 Z" />
-              <path fill="url(#av-hair)" d="M196,54 C192,36 206,26 218,32 C210,36 206,44 208,54 Z" />
-              <path className="av-shine-hair" d="M150,90 Q176,70 204,80 Q232,70 254,90" />
-              <path className="av-wave" d="M160,112 Q172,98 188,104 M214,100 Q230,96 244,108 M132,132 Q140,118 152,116" />
+              <path className="av-shine-hair" d="M140,92 Q160,74 182,84 Q204,94 226,78 Q246,66 262,84" />
+              <path className="av-wave" d="M128,128 Q146,110 164,124 Q182,138 200,120 Q218,104 236,120 Q254,136 272,118" />
+              <path className="av-wave" d="M150,104 Q168,90 186,102 Q204,114 222,98 Q238,86 254,98" />
 
               {/* The headphones, on his ears. */}
               <g className={fx('phones')}>
                 <path className="av-hp-band" d="M114,190 C108,92 292,92 286,190" />
-                <circle className="av-hp-cup" cx="114" cy="194" r="21" />
-                <circle className="av-hp-inner" cx="114" cy="194" r="13" />
-                <circle className="av-hp-cup" cx="286" cy="194" r="21" />
-                <circle className="av-hp-inner" cx="286" cy="194" r="13" />
-                <rect className="av-hp-light" x="107" y="190.5" width="14" height="7" rx="3.5" />
-                <rect className="av-hp-light" x="279" y="190.5" width="14" height="7" rx="3.5" />
+                <rect className="av-hp-cup" x="104" y="170" width="24" height="44" rx="11" />
+                <rect className="av-hp-cup" x="272" y="170" width="24" height="44" rx="11" />
+                <rect className="av-hp-light" x="112" y="182" width="7" height="20" rx="3.5" />
+                <rect className="av-hp-light" x="281" y="182" width="7" height="20" rx="3.5" />
               </g>
 
-              <path className="av-brow av-brow-l" d="M142,166 Q160,157 184,162" />
-              <path className="av-brow av-brow-r" d="M216,162 Q240,157 258,166" />
-
-              <g className="av-earring">
-                <circle cx="119" cy="214" r="3.2" />
-                <path d="M119,218 L119,238 M113,225 L125,225" />
-              </g>
+              <path className="av-brow av-brow-l" d="M144,160 Q162,153 182,157" />
+              <path className="av-brow av-brow-r" d="M218,157 Q238,153 256,160" />
 
               {/* Little extras that come and go with the pose. */}
               <path className={fx('sweat')} d="M281,146 C275,158 275,166 281,168 C287,166 287,158 281,146 Z" />
