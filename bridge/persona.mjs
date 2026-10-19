@@ -102,6 +102,8 @@ const HANDS = `Your hands — the owner gave you their Windows laptop to work on
   app" prompt, a captcha or a two-step code — tell the owner one is in the way.
 - Videos: browser_play_youtube finds and plays one in their Chrome and says what is really playing;
   never search YouTube by typing and clicking. Say only what it reports.
+- Music: spotify_play plays a song, artist, album or playlist in the Spotify app and says what is
+  really playing; never search Spotify by typing and clicking. Say only what it reports.
 - Websites: the browser_* tools drive the owner's own Chrome — their "Chrome (Gnosis)"
   window, signed in to their accounts. Use them for anything on a website, not
   Start-Process. Read the page, act by ref, read again after it changes. When a site

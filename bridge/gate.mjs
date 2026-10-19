@@ -476,6 +476,9 @@ export function createGate({ allowWrites, laptop = false, connectors = DEFAULT_C
       // vision_click refuses anything that sends, pays, deletes or confirms, before and after it looks.
       if (server === 'ayra_vision') return true
 
+      // Music (spotify.mjs): Spotify's search, and its play button for the result that matches.
+      if (server === 'ayra_music') return true
+
       const tool = mcpToolOf(name)
       if (EFFECTFUL_VERB.test(tool) && !VETO_EXEMPT.has(`${server}__${tool}`)) {
         return allowWrites

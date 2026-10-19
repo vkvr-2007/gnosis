@@ -52,6 +52,7 @@ import { renderPage } from './page.mjs'
 import { modelFor } from './models.mjs'
 import { createMemory, memoryServer } from './memory.mjs'
 import { describeImages, visionServer } from './vision.mjs'
+import { musicServer } from './spotify.mjs'
 import { useImageDescriber } from './sdk.mjs'
 import { createJobStore, createNotifier, createWatchers, scheduleServer, setBriefing, startSchedule } from './schedule.mjs'
 
@@ -824,6 +825,7 @@ const BRAIN = createBrain({
   mcpServers: {
     ayra_memory: memoryServer(MEMORY),
     ayra_vision: visionServer({ camera: cameraFrame }),
+    ayra_music: musicServer(),
     ayra_schedule: scheduleServer({
       store: SCHEDULE,
       get notifier() { return NOTIFIER },
