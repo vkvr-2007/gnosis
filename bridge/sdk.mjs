@@ -240,6 +240,14 @@ export const ASKS_ACTION = new RegExp(
   String.raw`click|press|switch|focus|minimi[sz]e|maximi[sz]e|go to|search|find|run|start|stop|mute|unmute|remember|forget|note down|look)\b`,
   'i')
 
+/**
+ * A question only a tool can answer: the owner's phone, their reminders, what's on the screen. Asked
+ * "is my phone connected?" with no phone ever paired, Nemotron answered "It is connected. Battery is
+ * 36%." with no tool run, and "what's my laptop battery?" got a made-up 73% (it was 100%), 2026-10-19:
+ * these are held for a tool like an action is.
+ */
+export const ASKS_LIVE = /\b(?:my|the) phone(?:'s)?\b|\bphone (?:battery|notifications?)\b|\bwhat(?:'s| is) on (?:my|the) screen\b|\b(?:my|any) reminders?\b|\b(?:battery|charging|disk space|free space|storage|cpu|ram|memory usage|wi-?fi|volume|brightness)\b/i
+
 /** A reply that says it is about to do something rather than doing it. */
 export const PROMISES = /^\W*(?:(?:sure|okay|ok|got it|on it)\W+)?(?:i['’]?ll|i will|let me|i['’]?m going to|fetching|checking|looking (?:that )?up|one moment|give me a (?:sec|second|moment))\b/i
 
@@ -367,7 +375,7 @@ export function query({ prompt, options = {} }) {
     let answer = ''
     let turns = 0
     const request = requestText(userContent)
-    const asksAction = toolDefs.length > 0 && ASKS_ACTION.test(request)
+    const asksAction = toolDefs.length > 0 && (ASKS_ACTION.test(request) || ASKS_LIVE.test(request))
     let acted = false
     let checked = false
     // Private (privacy.mjs): a sensitive request, or once a tool has brought back the owner's personal
