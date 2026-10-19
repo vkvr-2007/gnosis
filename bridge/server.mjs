@@ -53,7 +53,9 @@ import { modelFor } from './models.mjs'
 import { createMemory, memoryServer } from './memory.mjs'
 import { describeImages, visionServer } from './vision.mjs'
 import { musicServer } from './spotify.mjs'
-import { adbRunner, createPhone, findAdb, phoneServer } from './phone.mjs'
+import { adbRunner, createAppPhone, createPhone, createPhoneRouter, findAdb, phoneServer } from './phone.mjs'
+import { createDeviceHub } from './devices.mjs'
+import QRCode from 'qrcode'
 import { useImageDescriber } from './sdk.mjs'
 import { createJobStore, createNotifier, createWatchers, scheduleServer, setBriefing, startSchedule } from './schedule.mjs'
 
@@ -818,6 +820,61 @@ function cameraFrame() {
 // Pictures from apps_screenshot and browser_screenshot are described to the brain (vision.mjs).
 useImageDescriber(describeImages)
 
+/**
+ * The owner's devices over Wi-Fi (devices.mjs): the Gnosis phone app. Its questions are answered in
+ * one conversation of their own, one at a time; reminders and notices reach it too.
+ */
+const DEVICE_ASKS = []
+let deviceConversation = null
+let deviceAnswer = null
+function askFromDevice(device, text, reply) {
+  DEVICE_ASKS.push({ text, reply })
+  if (!deviceAnswer) nextDeviceAsk()
+}
+function nextDeviceAsk() {
+  const next = DEVICE_ASKS.shift()
+  if (!next) return
+  let said = ''
+  const timer = setTimeout(() => finish("That took too long, so I stopped."), 180_000)
+  const finish = (t) => {
+    if (deviceAnswer !== next) return
+    clearTimeout(timer)
+    next.reply(stripTags(String(t ?? said)).trim() || 'Done.', true)
+    deviceAnswer = null
+    nextDeviceAsk()
+  }
+  deviceAnswer = next
+  next.finish = finish
+  deviceConversation ??= BRAIN.open({
+    channel: 'phone',
+    systemPrompt: TEXT_PROMPT,
+    emit: (ev) => {
+      const cur = deviceAnswer
+      if (!cur) return
+      if (ev.type === 'text') said += ev.delta
+      else if (ev.type === 'done') cur.finish(ev.text || said)
+      else if (ev.type === 'error') cur.finish(ev.message)
+    },
+    onEnd: () => {
+      deviceConversation = null
+      deviceAnswer?.finish(said)
+    },
+  })
+  deviceConversation.ask(next.text, `phone-${Date.now()}`)
+}
+const DEVICES = createDeviceHub({ onAsk: askFromDevice })
+DEVICES.start()
+
+/** A QR code in every open window of his (set_up_phone), kept up for two minutes. */
+async function showQr(url, title) {
+  if (!HEARING.faces.size) return false
+  const image = await QRCode.toDataURL(url, { margin: 2, width: 360, color: { dark: '#141414', light: '#ffffff' } })
+  for (const send of HEARING.faces) {
+    send({ type: 'blade', blade: { id: `qr-${Date.now().toString(36)}`, title: title.toUpperCase(), kind: 'image', url: image, size: 'wide', hold: 'sticky' } })
+  }
+  return true
+}
+
 const BRAIN = createBrain({
   model: MODEL,
   effort: EFFORT,
@@ -827,7 +884,10 @@ const BRAIN = createBrain({
     ayra_memory: memoryServer(MEMORY),
     ayra_vision: visionServer({ camera: cameraFrame }),
     ayra_music: musicServer(),
-    ayra_phone: phoneServer(createPhone({ run: findAdb() ? adbRunner(findAdb()) : null })),
+    ayra_phone: phoneServer(createPhoneRouter({
+      app: createAppPhone(DEVICES),
+      adb: createPhone({ run: findAdb() ? adbRunner(findAdb()) : null }),
+    }), { hub: DEVICES, showQr }),
     ayra_schedule: scheduleServer({
       store: SCHEDULE,
       get notifier() { return NOTIFIER },
@@ -1346,7 +1406,11 @@ NOTIFIER = createNotifier({
     }
     return told > 0
   },
-  phone: (text) => phone?.notify(text),
+  // Telegram when it's set up, and the Gnosis app on the owner's phone when it's connected.
+  phone: (text) => {
+    const apps = DEVICES.notice(text)
+    return phone?.notify(text) || apps > 0
+  },
   log: (entry) => AUDIT.log(entry),
 })
 WATCHERS = createWatchers({ notifier: NOTIFIER, memo: BRIEFING_STATE })

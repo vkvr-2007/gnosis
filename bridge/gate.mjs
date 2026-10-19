@@ -514,6 +514,9 @@ export function createGate({ allowWrites, laptop = false, connectors = DEFAULT_C
       // Calling and sending from the owner's phone are "sending as you": asked every time.
       detail = `Call ${input?.who ?? ''}`
       reason = 'calls someone from your phone'
+    } else if (name === 'mcp__ayra_phone__forget_device') {
+      detail = `Unpair ${input?.which ?? ''}`
+      reason = 'unpairs one of your devices'
     } else if (name === 'mcp__ayra_phone__phone_send_message') {
       detail = `${input?.app === 'sms' ? 'Text' : 'WhatsApp'} to ${input?.who ?? ''}: "${input?.text ?? ''}"`
       reason = 'sends a message as you'

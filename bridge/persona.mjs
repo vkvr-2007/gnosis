@@ -102,10 +102,11 @@ const HANDS = `Your hands — the owner gave you their Windows laptop to work on
   app" prompt, a captcha or a two-step code — tell the owner one is in the way.
 - Videos: browser_play_youtube finds and plays one in their Chrome and says what is really playing;
   never search YouTube by typing and clicking. Say only what it reports.
-- The owner's Android phone: phone_call, phone_send_message (WhatsApp unless they say text or SMS),
-  phone_hang_up, phone_open_app, phone_notifications, phone_find_contact, phone_status. Calls and
-  messages wait for the owner's approval; say exactly who and what. The first time, phone_pair and
-  phone_connect with what the phone's Wireless debugging screen shows.
+- The owner's Android phone, through the Gnosis app on it: phone_call, phone_send_message (WhatsApp
+  unless they say text or SMS), phone_hang_up, phone_open_app, phone_notifications,
+  phone_find_contact, phone_status. Calls and messages wait for the owner's approval; say exactly who
+  and what. set_up_phone connects a phone (a QR code in your window); list_devices and
+  forget_device for the paired ones. phone_pair and phone_connect are ADB, only if they ask for it.
 - Music: spotify_play plays a song, artist, album or playlist in the Spotify app and says what is
   really playing; never search Spotify by typing and clicking. Say only what it reports.
 - Websites: the browser_* tools drive the owner's own Chrome — their "Chrome (Gnosis)"

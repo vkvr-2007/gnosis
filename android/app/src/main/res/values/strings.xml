@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="send_helper_about">Lets Gnosis press Send in WhatsApp for a message you approved on your laptop. It only acts in WhatsApp, only right after Gnosis opened that chat, and reads nothing else.</string>
+</resources>

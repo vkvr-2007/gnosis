@@ -1,0 +1,26 @@
+// The Gnosis phone app: plain Java on the Android framework, plus OkHttp for the link to the laptop.
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.gnosis.phone'
+    compileSdk 36
+
+    defaultConfig {
+        applicationId 'com.gnosis.phone'
+        minSdk 26
+        targetSdk 35
+        versionCode 1
+        versionName '1.0'
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+}

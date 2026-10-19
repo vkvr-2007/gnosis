@@ -122,6 +122,17 @@ export function matchContacts(contacts, who) {
 }
 const dedupe = (list) => [...new Map(list.map((c) => [c.number.replace(/^\+?91/, ''), c])).values()]
 
+/** A number for "who": a number as is, or exactly one contact. */
+export async function resolveWho(who, contacts) {
+  if (/^[\s\d+()-]{3,}$/.test(String(who))) return { number: normalizeNumber(who), name: '' }
+  const found = matchContacts(await contacts(), who)
+  if (!found.length) throw new Error(`There's no contact called "${who}" on the phone.`)
+  if (found.length > 1) throw new Error(`More than one contact matches "${who}": ${found.slice(0, 6).map((c) => c.name).join(', ')}. Which one?`)
+  return found[0]
+}
+
+const named = (c) => (c.name ? `${c.name} (${c.number})` : c.number)
+
 /**
  * The phone.
  * @param {{ run: ((args: string[], timeout?: number) => Promise<string>) | null, file?: string,
@@ -198,16 +209,7 @@ export function createPhone({ run, file = PHONE_FILE, sleep = (ms) => new Promis
     return contactCache.list
   }
 
-  /** A number for "who": a number as is, or exactly one contact. */
-  async function numberFor(who) {
-    if (/^[\s\d+()-]{3,}$/.test(String(who))) return { number: normalizeNumber(who), name: '' }
-    const found = matchContacts(await contacts(), who)
-    if (!found.length) throw new Error(`There's no contact called "${who}" on the phone.`)
-    if (found.length > 1) throw new Error(`More than one contact matches "${who}": ${found.slice(0, 6).map((c) => c.name).join(', ')}. Which one?`)
-    return found[0]
-  }
-
-  const named = (c) => (c.name ? `${c.name} (${c.number})` : c.number)
+  const numberFor = (who) => resolveWho(who, contacts)
 
   return {
     devices,
@@ -284,8 +286,86 @@ export function createPhone({ run, file = PHONE_FILE, sleep = (ms) => new Promis
   }
 }
 
+/**
+ * The phone through the Gnosis app (devices.mjs) instead of ADB: the same calls, each one a command
+ * to the app. Contacts come from the app and are matched here, as with ADB.
+ * @param {{ command: (op: string, args?: object, opts?: object) => Promise<any>, phone: () => object | null }} hub
+ */
+export function createAppPhone(hub) {
+  let contactCache = null
+  async function contacts() {
+    if (contactCache && Date.now() - contactCache.at < 10 * 60_000) return contactCache.list
+    const rows = await hub.command('contacts', {}, { timeout: 60_000 })
+    const list = []
+    for (const r of Array.isArray(rows) ? rows : []) {
+      try {
+        if (r?.name) list.push({ name: String(r.name), number: normalizeNumber(r.number) })
+      } catch {
+        /* not a number */
+      }
+    }
+    contactCache = { at: Date.now(), list }
+    return list
+  }
+  const numberFor = (who) => resolveWho(who, contacts)
+  return {
+    connected: () => Boolean(hub.phone()),
+    async status() {
+      const s = await hub.command('status')
+      return { model: s?.model ?? hub.phone()?.device?.model ?? 'Your phone', battery: s?.battery ?? null, charging: Boolean(s?.charging) }
+    },
+    async call(who) {
+      const c = await numberFor(who)
+      await hub.command('call', { number: c.number })
+      return `Calling ${named(c)} on your phone.`
+    },
+    async hangUp() {
+      await hub.command('hang_up')
+      return 'Hung up.'
+    },
+    async sendSms(who, text) {
+      const c = await numberFor(who)
+      await hub.command('sms', { number: c.number, text })
+      return `Sent the text to ${named(c)}.`
+    },
+    async sendWhatsapp(who, text) {
+      const c = await numberFor(who)
+      const number = c.number.replace(/^\+/, '')
+      const r = await hub.command('whatsapp', { number: number.length === 10 ? `91${number}` : number, text }, { timeout: 30_000 })
+      return r?.sent ? `Sent the WhatsApp message to ${named(c)}.`
+        : `Opened the WhatsApp chat with ${named(c)} and your text, but couldn't press Send (turn on "Gnosis send helper" in the phone's Accessibility settings). It's waiting on your phone.`
+    },
+    async openApp(name) {
+      const r = await hub.command('open_app', { name })
+      return `Opened ${r?.label ?? name} on your phone.`
+    },
+    async notifications() {
+      const list = await hub.command('notifications')
+      return (Array.isArray(list) ? list : []).map((n) => ({ app: String(n.app ?? ''), title: String(n.title ?? ''), text: String(n.text ?? '') }))
+    },
+    async findContact(who) {
+      return matchContacts(await contacts(), who)
+    },
+  }
+}
+
+/** The phone through the app when it's connected, otherwise through ADB. */
+export function createPhoneRouter({ app, adb }) {
+  const pick = () => (app?.connected() ? app : adb)
+  const via = (name) => (...args) => pick()[name](...args)
+  return {
+    status: via('status'), call: via('call'), hangUp: via('hangUp'), sendSms: via('sendSms'), sendWhatsapp: via('sendWhatsapp'),
+    openApp: via('openApp'), notifications: via('notifications'), findContact: via('findContact'),
+    pair: (...a) => adb.pair(...a), connect: (...a) => adb.connect(...a),
+  }
+}
+
 /** The phone tools (server ayra_phone). Calls and messages are asked about first (gate.mjs). */
-export function phoneServer(phone) {
+/**
+ * @param {object} phone — createPhone, createAppPhone or createPhoneRouter
+ * @param {{ hub?: ReturnType<import('./devices.mjs').createDeviceHub>, showQr?: (url: string, title: string) => Promise<boolean> }} [devices]
+ */
+export function phoneServer(phone, { hub = null, showQr = null } = {}) {
   const text = (t) => ({ content: [{ type: 'text', text: t }] })
   const fail = (t) => ({ content: [{ type: 'text', text: t }], isError: true })
   const guard = (fn) => async (args) => {
@@ -304,8 +384,9 @@ export function phoneServer(phone) {
           const s = await phone.status()
           return `${s.model} is connected, battery ${s.battery ?? '?'}%${s.charging ? ' and charging' : ''}.`
         })),
+      ...(hub ? deviceTools(hub, showQr, { text, fail }) : []),
       tool('phone_pair',
-        "Pair the owner's phone the first time: on the phone, Settings > Developer options > Wireless debugging > " +
+        "Only if the owner wants ADB instead of the Gnosis app (set_up_phone). Pair over developer mode: on the phone, Settings > Developer options > Wireless debugging > " +
           '"Pair device with pairing code" shows an IP address and port and a six-digit code. Then phone_connect with the ' +
           'address and port shown on the Wireless debugging screen itself (a different port).',
         { address: z.string().describe('IP:port from the pairing dialog'), code: z.string() },
@@ -335,4 +416,36 @@ export function phoneServer(phone) {
         })),
     ],
   })
+}
+
+/** Setting up the Gnosis app on a phone, and the paired devices. */
+function deviceTools(hub, showQr, { text, fail }) {
+  return [
+    tool('set_up_phone',
+      "Connect the owner's phone (or another device) to Gnosis with the Gnosis app: shows a QR code in your window " +
+        'for them to scan with the phone. It downloads the app and pairs it, over Wi-Fi. Use it for "set up my phone", ' +
+        '"connect my phone", "install Gnosis on my phone".',
+      {},
+      async () => {
+        const p = hub.pair()
+        if (!p.url) return fail("I can't find the laptop on a Wi-Fi network, so a phone can't reach me. Is the laptop on Wi-Fi?")
+        const shown = showQr ? await showQr(p.url, 'Scan with your phone') : false
+        const built = p.apk ? '' : " (The app file isn't built yet on this laptop.)"
+        return text(`${shown ? 'A QR code is in my window. ' : ''}On the phone, scan it with the camera (or open ${p.url} ` +
+          'in its browser), download and install the app, then tap "Open Gnosis and connect". If the app is already ' +
+          `installed, type address ${p.address} and code ${p.code} in it. The code works for ten minutes. The phone must ` +
+          `be on the same Wi-Fi.${built} Windows may ask whether Node.js can use the network: allow it for private networks.`)
+      }),
+    tool('list_devices', 'The devices paired with Gnosis and whether each is connected now.', {}, async () => {
+      const all = hub.list()
+      if (!all.length) return text('No devices paired yet. set_up_phone connects one.')
+      return text(all.map((d) => `${d.name}${d.model && d.model !== d.name ? ` (${d.model})` : ''}: ` +
+        (d.online ? 'connected' : 'not connected')).join('\n'))
+    }),
+    tool('forget_device', 'Unpair a device, so it can no longer connect. The owner approves it first.', { which: z.string() },
+      async ({ which }) => {
+        const name = hub.forget(which)
+        return name ? text(`Forgot ${name}. It can't connect any more.`) : fail(`No paired device matches "${which}".`)
+      }),
+  ]
 }
