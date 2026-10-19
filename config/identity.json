@@ -9,8 +9,8 @@
   "voice": {
     "gender": "male",
     "prefer": [],
-    "elevenLabsId": "JBFqnCBsd6RMkjVDRZzb",
-    "_elevenLabsId": "George, a built-in ElevenLabs voice. The owner's chosen voice oaGwHLz3csUaSnc2NBD4 is a library voice, which ElevenLabs only allows on a paid plan (402 paid_plan_required, 2026-10-18); put it here once the account allows it."
+    "elevenLabsId": "uPAdReDjrJ1KtAcuguzK",
+    "_elevenLabsId": "The owner's choice (2026-10-19), accepted on their ElevenLabs account. Their earlier pick oaGwHLz3csUaSnc2NBD4 is a library voice, refused on a free plan (402)."
   },
   "wake": {
     "names": [

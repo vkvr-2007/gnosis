@@ -87,5 +87,5 @@ test('the voice persona: a task in a line, a question answered, details in <more
 })
 
 test('the premium voice is the one the owner chose', () => {
-  assert.equal(raw.voice.elevenLabsId, 'JBFqnCBsd6RMkjVDRZzb') // George, until the owner's pick is allowed on their plan
+  assert.equal(raw.voice.elevenLabsId, 'uPAdReDjrJ1KtAcuguzK') // the owner's pick, 2026-10-19
 })
