@@ -135,7 +135,7 @@ if (dev) {
 } else {
   buildFaceIfStale()
   console.log(`\n${IDENTITY.wordmark} starting.\n`)
-  run('ayra', process.execPath, ['bridge/server.mjs', '--face'], '36', bridgeEnv)
+  run('gnosis', process.execPath, ['bridge/server.mjs', '--face'], '36', bridgeEnv)
   console.log(
     `\nOpen http://localhost:${port || 5173} in Chrome, click INITIALISE and say ` +
       `"Hey ${IDENTITY.name}". Ctrl-C stops everything.\n`,

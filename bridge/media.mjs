@@ -57,7 +57,7 @@ export function createMedia({ run = runScript, enabled = process.platform === 'w
       queue(async () => {
         if (!enabled) return
         const now = await run('pause')
-        if (now.length) log(`[ayra] paused for listening: ${now.join(', ')}`)
+        if (now.length) log(`[gnosis] paused for listening: ${now.join(', ')}`)
         paused = [...new Set([...paused, ...now])]
       }),
     resume: () =>

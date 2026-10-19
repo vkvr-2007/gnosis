@@ -446,7 +446,7 @@ export function displayTools(emitBlade, { cards } = {}) {
       // the child element rather than the parent.
       const text = String(args.html ?? '').replace(/<[^>]*>/g, '').trim()
       if (!text && !/<(img|video|iframe|source)\b/i.test(args.html ?? '')) {
-        console.warn('[ayra] display called with an empty body:', args.title)
+        console.warn('[gnosis] display called with an empty body:', args.title)
         return {
           isError: true,
           content: [

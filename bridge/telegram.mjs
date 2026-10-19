@@ -151,7 +151,7 @@ export function startTelegram({ token, ownerId, brain, systemPrompt, servers = {
       try {
         onComplex?.(rank)
       } catch (err) {
-        console.warn(`[ayra] telegram: research warm-up failed — ${err?.message ?? err}`)
+        console.warn(`[gnosis] telegram: research warm-up failed — ${err?.message ?? err}`)
       }
     }
     ensureConversation().ask(batch.map((m) => m.text).join('\n'), id, {
@@ -165,7 +165,7 @@ export function startTelegram({ token, ownerId, brain, systemPrompt, servers = {
     const { chatId, typing: timer } = turn
     clearInterval(timer)
     turn = null
-    reply(chatId, text).catch((err) => console.warn(`[ayra] telegram reply failed: ${err.message}`))
+    reply(chatId, text).catch((err) => console.warn(`[gnosis] telegram reply failed: ${err.message}`))
     next()
   }
 
@@ -216,7 +216,7 @@ export function startTelegram({ token, ownerId, brain, systemPrompt, servers = {
         },
       })
         .then((sent) => asked.set(event.id, sent?.message_id))
-        .catch((err) => console.warn(`[ayra] telegram: could not send an Approve request — ${err.message}`))
+        .catch((err) => console.warn(`[gnosis] telegram: could not send an Approve request — ${err.message}`))
     }
     if (event.type === 'approved' && asked.has(event.id)) {
       const messageId = asked.get(event.id)
@@ -310,7 +310,7 @@ export function startTelegram({ token, ownerId, brain, systemPrompt, servers = {
         call('sendMessage', { chat_id: ownerId, text: piece }).catch((err) => {
           const passing = !err?.code || err.code === 429 || err.code >= 500
           if (passing) outbox.push(piece)
-          else console.warn(`[ayra] telegram: a note was refused (${err.message})`)
+          else console.warn(`[gnosis] telegram: a note was refused (${err.message})`)
         })
       }
     }
@@ -330,24 +330,24 @@ export function startTelegram({ token, ownerId, brain, systemPrompt, servers = {
         for (const update of updates) {
           offset = update.update_id + 1
           if (update.message) {
-            await handle(update.message).catch((err) => console.warn(`[ayra] telegram message failed: ${err.message}`))
+            await handle(update.message).catch((err) => console.warn(`[gnosis] telegram message failed: ${err.message}`))
           }
           if (update.callback_query) {
             await handleButton(update.callback_query).catch((err) =>
-              console.warn(`[ayra] telegram button failed: ${err.message}`),
+              console.warn(`[gnosis] telegram button failed: ${err.message}`),
             )
           }
         }
         next()
       } catch (err) {
         if (err.code === 401 || err.code === 404) {
-          console.error('[ayra] telegram: the bot token was rejected — check AYRA_TELEGRAM_TOKEN in .env.local')
+          console.error('[gnosis] telegram: the bot token was rejected — check AYRA_TELEGRAM_TOKEN in .env.local')
           return
         }
         console.warn(
           err.code === 409
-            ? '[ayra] telegram: another copy of Gnosis is reading this bot — is a second bridge running?'
-            : `[ayra] telegram: connection problem (${err.message}); retrying in ${backoff / 1000}s`,
+            ? '[gnosis] telegram: another copy of Gnosis is reading this bot — is a second bridge running?'
+            : `[gnosis] telegram: connection problem (${err.message}); retrying in ${backoff / 1000}s`,
         )
         await new Promise((resolve) => setTimeout(resolve, backoff))
         backoff = Math.min(backoff * 2, 30_000)
@@ -361,14 +361,14 @@ export function startTelegram({ token, ownerId, brain, systemPrompt, servers = {
     for (let wait = 2_000; !stopped; wait = Math.min(wait * 2, 60_000)) {
       try {
         const me = await call('getMe')
-        console.log(`[ayra] telegram: @${me.username} is listening — answering only the owner`)
+        console.log(`[gnosis] telegram: @${me.username} is listening — answering only the owner`)
         break
       } catch (err) {
         if (err.code === 401 || err.code === 404) {
-          console.error('[ayra] telegram: the bot token was rejected — check AYRA_TELEGRAM_TOKEN in .env.local')
+          console.error('[gnosis] telegram: the bot token was rejected — check AYRA_TELEGRAM_TOKEN in .env.local')
           return
         }
-        console.warn(`[ayra] telegram not reachable yet (${err.message}); trying again in ${wait / 1000}s`)
+        console.warn(`[gnosis] telegram not reachable yet (${err.message}); trying again in ${wait / 1000}s`)
         await new Promise((resolve) => setTimeout(resolve, wait))
       }
     }
@@ -402,7 +402,7 @@ export function startTelegram({ token, ownerId, brain, systemPrompt, servers = {
       return call('sendPhoto', form, 60_000).then(
         () => true,
         (err) => {
-          console.warn(`[ayra] telegram: could not send a picture — ${err.message}`)
+          console.warn(`[gnosis] telegram: could not send a picture — ${err.message}`)
           return false
         },
       )

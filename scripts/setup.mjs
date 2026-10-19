@@ -21,7 +21,7 @@ function line(tag, msg) {
 }
 
 // --- Identity --------------------------------------------------------------
-let identity = { name: 'Gnosis', honorific: '', language: 'en-IN', wake: { names: ['ayra'] } };
+let identity = { name: 'Gnosis', honorific: '', language: 'en-IN', wake: { names: ['gnosis'] } };
 try {
   identity = JSON.parse(readFileSync('config/identity.json', 'utf8'));
 } catch (err) {

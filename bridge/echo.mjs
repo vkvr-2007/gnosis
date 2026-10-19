@@ -371,7 +371,7 @@ export function createSpeakerMeter({
     try {
       proc = spawnMeter()
     } catch (err) {
-      log(`[ayra] speaker meter could not start (${err?.message ?? err}) — name checks go on without it`)
+      log(`[gnosis] speaker meter could not start (${err?.message ?? err}) — name checks go on without it`)
       return
     }
     child = proc
@@ -405,10 +405,10 @@ export function createSpeakerMeter({
       const reason = stderr.trim().split('\n')[0]?.trim() || why
       quickFails = now() - startedAt < QUICK_FAIL_MS ? quickFails + 1 : 1
       if (quickFails >= MAX_QUICK_FAILS) {
-        log(`[ayra] speaker meter keeps stopping (${reason}) — name checks go on without it`)
+        log(`[gnosis] speaker meter keeps stopping (${reason}) — name checks go on without it`)
         return
       }
-      log(`[ayra] speaker meter stopped (${reason}) — starting it again`)
+      log(`[gnosis] speaker meter stopped (${reason}) — starting it again`)
       restart = setTimeout(() => {
         restart = null
         if (wanted && !child) launch()

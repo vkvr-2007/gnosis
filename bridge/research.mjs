@@ -828,7 +828,7 @@ export function createResearch({
     try {
       warm(spec, count)
     } catch (err) {
-      console.warn(`[ayra] research: could not start an agent early: ${err?.message ?? err}`)
+      console.warn(`[gnosis] research: could not start an agent early: ${err?.message ?? err}`)
     }
   }
 
@@ -979,7 +979,7 @@ export function createResearch({
       try {
         onUpdate(structuredClone(state))
       } catch (err) {
-        console.warn(`[ayra] research update failed: ${err?.message ?? err}`)
+        console.warn(`[gnosis] research update failed: ${err?.message ?? err}`)
       }
     }
     r.push = () => {
@@ -1050,7 +1050,7 @@ export function createResearch({
       }
       s.state = 'fail'
       s.note = r.timeUp ? 'out of time' : cleanLine(err?.message ?? err, 60)
-      console.warn(`[ayra] research ${key} failed: ${err?.message ?? err}`)
+      console.warn(`[gnosis] research ${key} failed: ${err?.message ?? err}`)
       return false
     } finally {
       s.ms = Math.max(0, now() - t0)
@@ -1407,7 +1407,7 @@ export function createResearch({
                   : `${phase === 'report' ? 'report' : phase === 'read' ? 'reading' : 'search'} failed`
           // A part cut off by the clock is expected; only a real failure is worth a line.
           if (!err?.part && !r.stopped && !r.timeUp && !window.signal.aborted) {
-            console.warn(`[ayra] research part ${p.i} failed: ${err?.message ?? err}`)
+            console.warn(`[gnosis] research part ${p.i} failed: ${err?.message ?? err}`)
           }
         } finally {
           settled++
@@ -1654,7 +1654,7 @@ export function createResearch({
       return applyReview(r, res.data ?? {})
     } catch (err) {
       if (r.stopped) throw err
-      console.warn(`[ayra] research review failed: ${err?.message ?? err}`)
+      console.warn(`[gnosis] research review failed: ${err?.message ?? err}`)
       const why = signal.aborted ? 'the review took too long' : /no facts kept/.test(err?.message) ? 'the review kept nothing' : 'the review failed'
       fallback(r, why)
       return { state: 'fail', note: 'findings kept as they are' }
@@ -1870,7 +1870,7 @@ export function createResearch({
     } catch (err) {
       if (r.stopped) stopNow(r)
       else {
-        console.error(`[ayra] research failed: ${err?.stack ?? err}`)
+        console.error(`[gnosis] research failed: ${err?.stack ?? err}`)
         fail(r, `Something went wrong: ${cleanLine(err?.message ?? err, 120)}`)
       }
     } finally {
@@ -1887,7 +1887,7 @@ export function createResearch({
       if (keepPlanner) ready()
     }
     if (state.status === 'done' && state.mode === 'live') {
-      await save(r).catch((err) => console.warn(`[ayra] research not saved: ${err?.message ?? err}`))
+      await save(r).catch((err) => console.warn(`[gnosis] research not saved: ${err?.message ?? err}`))
     }
     log(state)
     return structuredClone(state)
@@ -2100,7 +2100,7 @@ export function researchTools({ research, emitBlade, channel = 'hud', turn }) {
         const signal = extra && typeof extra === 'object' && extra.signal instanceof AbortSignal ? extra.signal : undefined
         const t = currentTurn()
         const onScreen = Boolean(emitBlade)
-        console.log(`[ayra] research (${channel}): ${cleanLine(question, 80)}`)
+        console.log(`[gnosis] research (${channel}): ${cleanLine(question, 80)}`)
         const state = await research.run(question, {
           rank: t?.rank ?? null,
           original: typeof t?.text === 'string' ? t.text : '',

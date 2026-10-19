@@ -578,9 +578,9 @@ export function interrupt(): void {
   cancel()
 }
 
-/** `mcp__ayra__display` -> `ayra · display` */
+/** `mcp__ayra_memory__remember` -> `memory · remember`: the bridge's ayra_ prefix is not shown. */
 function prettyToolName(raw: string): string {
   if (!raw.startsWith('mcp__')) return raw
   const [, server, ...rest] = raw.split('__')
-  return `${server} · ${rest.join(' ').replace(/_/g, ' ')}`
+  return `${server.replace(/^ayra_?/, '') || 'gnosis'} · ${rest.join(' ').replace(/_/g, ' ')}`
 }

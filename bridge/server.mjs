@@ -71,7 +71,7 @@ const PORT = Number(env('BRIDGE_PORT', 8787))
  * its own error to the browser.
  */
 process.on('unhandledRejection', (err) => {
-  console.error('[ayra] unhandled rejection:', err)
+  console.error('[gnosis] unhandled rejection:', err)
 })
 
 /** Who may talk to this bridge — local dev pages by default; see origin.mjs. */
@@ -302,7 +302,7 @@ async function proxyRemote(req, res, cors, { kinds, maxBytes, timeoutMs, ranged 
     if (sent > maxBytes) {
       // Headers went out long ago, so a truncated body is the only way left to
       // say no. The player sees a short read; we see this line in the log.
-      console.warn(`[ayra] proxy cut ${target.href} at ${maxBytes} bytes`)
+      console.warn(`[gnosis] proxy cut ${target.href} at ${maxBytes} bytes`)
       upstream.destroy()
       res.destroy()
       return
@@ -344,7 +344,7 @@ const http = await import('node:http')
 const handleRequest = async (req, res) => {
   const origin = req.headers.origin
   if (origin && !ORIGINS.allowed(origin)) {
-    console.warn(`[ayra] refused http request from origin ${origin}`)
+    console.warn(`[gnosis] refused http request from origin ${origin}`)
     res.writeHead(403, { vary: 'origin' })
     return res.end('forbidden')
   }
@@ -661,7 +661,7 @@ const server = http.createServer((req, res) => {
   // unhandled rejection and leave the browser waiting on a socket that is
   // never going to answer.
   handleRequest(req, res).catch((err) => {
-    console.error('[ayra] request failed:', err)
+    console.error('[gnosis] request failed:', err)
     if (!res.headersSent) res.writeHead(500)
     res.end()
   })
@@ -676,12 +676,12 @@ const wss = new WebSocketServer({
   verifyClient: ({ origin, req }, done) => {
     const path = (req.url ?? '/').split('?')[0]
     if (path !== '/' && path !== '/ws' && path !== '/listen' && path !== '/wake') {
-      console.warn(`[ayra] rejected websocket on path ${path}`)
+      console.warn(`[gnosis] rejected websocket on path ${path}`)
       return done(false, 403, 'Forbidden')
     }
     if (!ORIGINS.allowed(origin)) {
       console.warn(
-        `[ayra] rejected websocket from origin ${origin ?? '(none)'}` +
+        `[gnosis] rejected websocket from origin ${origin ?? '(none)'}` +
           ' — set AYRA_ALLOWED_ORIGINS to permit it',
       )
       return done(false, 403, 'Forbidden')
@@ -709,24 +709,24 @@ if (process.argv.includes('--face') || env('SERVE_FACE') === '1') {
   })
 }
 
-console.log(`[ayra] ${IDENTITY.name} bridge listening on ws://localhost:${PORT}`)
+console.log(`[gnosis] ${IDENTITY.name} bridge listening on ws://localhost:${PORT}`)
 console.log(
-  `[ayra] speech ${elevenKey() ? `via ElevenLabs, voice ${VOICE_ID}` : 'using browser fallback voice'}`,
+  `[gnosis] speech ${elevenKey() ? `via ElevenLabs, voice ${VOICE_ID}` : 'using browser fallback voice'}`,
 )
-console.log(`[ayra] thinking with ${modelFor(MODEL).model} (${modelFor(MODEL).provider}) · research workers ${modelFor(RESEARCH_MODEL).model}`)
+console.log(`[gnosis] thinking with ${modelFor(MODEL).model} (${modelFor(MODEL).provider}) · research workers ${modelFor(RESEARCH_MODEL).model}`)
 console.log(
   ALLOW_WRITES
-    ? '[ayra] tools: web, the HUD display, the laptop (PowerShell, files, its own Chrome, Windows apps) · asks first: money, sending as you, deleting for good, passwords/security'
-    : '[ayra] tools: web, the HUD display, reading the laptop\'s files · writes off (AYRA_ALLOW_WRITES=0)',
+    ? '[gnosis] tools: web, the HUD display, the laptop (PowerShell, files, its own Chrome, Windows apps) · asks first: money, sending as you, deleting for good, passwords/security'
+    : '[gnosis] tools: web, the HUD display, reading the laptop\'s files · writes off (AYRA_ALLOW_WRITES=0)',
 )
 console.log(
-  `[ayra] connectors (read-only): ${GATE.allowedConnectors.join(', ') || 'none'}` +
+  `[gnosis] connectors (read-only): ${GATE.allowedConnectors.join(', ') || 'none'}` +
     (GATE.excludedConnectors.length
       ? ` · removed: ${GATE.excludedConnectors.join(', ')}`
       : ''),
 )
 console.log(
-  '[ayra] accepting local dev origins' +
+  '[gnosis] accepting local dev origins' +
     (ORIGINS.extra.size ? ` plus ${[...ORIGINS.extra].join(', ')}` : '') +
     (ORIGINS.allowNoOrigin ? ' and clients that send no origin' : ''),
 )
@@ -756,7 +756,7 @@ const CONVERSATIONS = new Set()
 function halt(by) {
   const declined = APPROVALS.halt(by)
   for (const c of CONVERSATIONS) c.interrupt()
-  console.log(`[ayra] stopped by ${by}${declined ? ` — ${declined} waiting action(s) declined` : ''}`)
+  console.log(`[gnosis] stopped by ${by}${declined ? ` — ${declined} waiting action(s) declined` : ''}`)
 }
 
 /**
@@ -896,7 +896,7 @@ const JOBS = createJobs({
   tell: (text) => {
     if (phone) return phone.notify(text)
     early.push(text)
-    console.log(`[ayra] job: ${text.split('\n')[0]}`)
+    console.log(`[gnosis] job: ${text.split('\n')[0]}`)
   },
   audit: AUDIT,
   // A job cut off by a restart is reported on the next start.
@@ -915,7 +915,7 @@ CONVERSATIONS.add(JOBS)
 const TELEGRAM_TOKEN = env('TELEGRAM_TOKEN')
 const TELEGRAM_OWNER = env('TELEGRAM_OWNER_ID')
 if (env('TELEGRAM', 'on') === 'off') {
-  console.log('[ayra] telegram: off for this process (AYRA_TELEGRAM=off)')
+  console.log('[gnosis] telegram: off for this process (AYRA_TELEGRAM=off)')
 } else if (TELEGRAM_TOKEN && TELEGRAM_OWNER) {
   const telegram = startTelegram({
     token: TELEGRAM_TOKEN,
@@ -967,7 +967,7 @@ if (env('TELEGRAM', 'on') === 'off') {
   // "I'm back" after the laptop was off or asleep for a while (presence.mjs).
   watchPresence({ store: createStore(), notify: (text) => telegram.notify(text) })
 } else if (TELEGRAM_TOKEN) {
-  console.log('[ayra] telegram: token set but AYRA_TELEGRAM_OWNER_ID is missing — channel off')
+  console.log('[gnosis] telegram: token set but AYRA_TELEGRAM_OWNER_ID is missing — channel off')
 }
 
 /**
@@ -1055,7 +1055,7 @@ wss.on('connection', (socket, req) => {
       log: (msg) => console.warn(msg),
     })
   }
-  console.log('[ayra] client connected')
+  console.log('[gnosis] client connected')
 
   const send = (msg) => {
     if (socket.readyState === socket.OPEN) socket.send(JSON.stringify(msg))
@@ -1101,7 +1101,7 @@ wss.on('connection', (socket, req) => {
           const args = parseCard(json)
           const verdict = args ? checkData(args, cards.evidence()) : { ok: false, error: 'the card was not JSON' }
           if (verdict.ok) cards.showData(verdict.data, verdict.urls)
-          else if (!verdict.already) console.warn(`[ayra] data card not shown: ${verdict.error}`)
+          else if (!verdict.already) console.warn(`[gnosis] data card not shown: ${verdict.error}`)
         }),
       }
     }
@@ -1217,7 +1217,7 @@ wss.on('connection', (socket, req) => {
       try {
         RESEARCH.ready()
       } catch (err) {
-        console.warn(`[ayra] research warm-up failed — ${err?.message ?? err}`)
+        console.warn(`[gnosis] research warm-up failed — ${err?.message ?? err}`)
       }
     }
     const note = noteFor(done.splice(0))
@@ -1240,7 +1240,7 @@ wss.on('connection', (socket, req) => {
     send({ type: 'text', delta: did.said, ask: id ?? undefined })
     send({ type: 'done', text: did.said, ask: id ?? undefined })
     AUDIT.log({ type: 'fast', channel: 'hud', ask: id, text: clip(text), did: did.note, ms: Date.now() - t0 })
-    console.log(`[ayra] fast: ${did.note} (${Date.now() - t0} ms)`)
+    console.log(`[gnosis] fast: ${did.note} (${Date.now() - t0} ms)`)
   }
 
   socket.on('message', (raw) => {
@@ -1260,7 +1260,7 @@ wss.on('connection', (socket, req) => {
         try {
           DEEP.ready()
         } catch (err) {
-          console.warn(`[ayra] researcher warm-up failed — ${err?.message ?? err}`)
+          console.warn(`[gnosis] researcher warm-up failed — ${err?.message ?? err}`)
         }
         conversation.ask(`${noteFor(done.splice(0))}${RESEARCHER_ASK}\n${msg.text}`, id, { text: msg.text })
         return
@@ -1319,7 +1319,7 @@ wss.on('connection', (socket, req) => {
   HEARING.faces.add(send)
 
   socket.on('close', () => {
-    console.log('[ayra] client disconnected')
+    console.log('[gnosis] client disconnected')
     HEARING.faces.delete(send)
     // The last window gone: the bubble shows her as closed, not frozen mid-phase.
     if (!HEARING.faces.size) Object.assign(FACE, { phase: 'offline', text: '', who: '', by: '', at: Date.now() })

@@ -50,14 +50,28 @@ export async function probeCapabilities(): Promise<Capabilities> {
     if (res.ok) {
       const h = (await res.json()) as { stt?: boolean; tts?: boolean }
       current = { stt: Boolean(h.stt), tts: Boolean(h.tts) }
+      probed = true
+      return current
     }
   } catch {
     // Bridge down or slow — stay on the browser engines rather than blocking
     // boot on a health check that is only an optimisation.
   }
   probed = true
+  // Asked again until the bridge answers. Gnosis starts with Windows, so his window often opens
+  // before the bridge is up (or while it restarts); asked only once, he stayed on the Windows voice
+  // until the window was reloaded (the owner, 2026-10-18: "eleven labs voice is not working").
+  if (!retrying) {
+    retrying = true
+    setTimeout(() => {
+      retrying = false
+      void probeCapabilities()
+    }, 10_000)
+  }
   return current
 }
+
+let retrying = false
 
 /** A short human label for the HUD: what voice stack is actually in play. */
 export function engineLabel(): string {

@@ -123,7 +123,7 @@ export function relayListening(client, { key, language, keyterms, connect, log =
         toFace({ type: 'final', text: m.text ?? '' })
       } else if (ERRORS.has(type) || m.error) {
         const message = String(m.error ?? m.message ?? type)
-        log(`[ayra] listen: ElevenLabs ${type}: ${message}`)
+        log(`[gnosis] listen: ElevenLabs ${type}: ${message}`)
         toFace({ type: 'error', code: type, message })
         // An auth or quota failure will not cure itself mid-session.
         if (type !== 'insufficient_audio_activity' && type !== 'commit_throttled') closeUpstream()
@@ -138,7 +138,7 @@ export function relayListening(client, { key, language, keyterms, connect, log =
     })
     u.on('error', (err) => {
       if (u !== upstream) return
-      log(`[ayra] listen: upstream failed — ${err?.message ?? err}`)
+      log(`[gnosis] listen: upstream failed — ${err?.message ?? err}`)
       toFace({ type: 'error', code: 'unavailable', message: String(err?.message ?? err) })
       closeUpstream()
     })

@@ -43,7 +43,7 @@ export function createAudit(dir = LOG_DIR) {
       chain = chain
         .then(() => (ready ??= mkdir(dir, { recursive: true })))
         .then(() => appendFile(file, line))
-        .catch((err) => console.warn(`[ayra] audit log write failed: ${err.message}`))
+        .catch((err) => console.warn(`[gnosis] audit log write failed: ${err.message}`))
       return chain
     },
     /** Resolves once every line logged so far is on disk. */

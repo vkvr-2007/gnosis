@@ -600,7 +600,7 @@ export default function App() {
       // for the rest of the page, recoverable only by reloading. Reset it and
       // put the button back so the user can simply press it again.
       booting.current = false
-      console.error('[ayra] power-up failed:', err)
+      console.error('[gnosis] power-up failed:', err)
       store.getState().setPhase('offline')
       store
         .getState()
@@ -804,7 +804,7 @@ export default function App() {
         t.say(withHonorific('Audio test. If you can hear this, speech output is working.'))
         void t.end().then(() => {
           const d = (window as unknown as Record<string, Record<string, unknown>>).__tts
-          console.info('[ayra] audio test →', d)
+          console.info('[gnosis] audio test →', d)
           if (d && d.started === 0 && d.rescued === 0) {
             store.getState().setError(
               `No sound produced. engine=${d.engine} voice=${d.voice} error=${d.lastError || 'none'}`,

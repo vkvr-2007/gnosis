@@ -5,6 +5,9 @@ import { answerApproval } from '../lib/bridge'
 import { Suggestions } from './Suggestions'
 import { Blades } from './Blades'
 import { IDENTITY } from '../identity'
+import { toolPhrase } from '../lib/toolphrase'
+
+export { toolPhrase }
 
 /**
  * Gnosis's interface (gnosis.css).
@@ -30,38 +33,6 @@ const hintFor: Partial<Record<Phase, string>> = {
   dormant: 'Press Space to talk',
   listening: 'Space to send',
   speaking: 'Esc to stop',
-}
-
-/** A tool's name as a person would say it: "mcp__ayra_browser__browser_open" → "Opening a page". */
-export function toolPhrase(name: string): string {
-  const tool = name.split('__').pop() ?? name
-  const known: Record<string, string> = {
-    browser_play_youtube: 'Finding a video on YouTube',
-    browser_open: 'Opening a page',
-    browser_read: 'Reading the page',
-    browser_click: 'Clicking in Chrome',
-    browser_type: 'Typing in Chrome',
-    browser_tabs: 'Looking at your tabs',
-    browser_close: 'Closing a tab',
-    apps_open: 'Opening an app',
-    apps_read: 'Reading the window',
-    apps_click: 'Clicking in the app',
-    apps_type: 'Typing in the app',
-    apps_close: 'Closing the app',
-    WebSearch: 'Searching the web',
-    WebFetch: 'Reading a page',
-    PowerShell: 'Running a command',
-    Read: 'Reading a file',
-    Write: 'Writing a file',
-    Edit: 'Editing a file',
-    Glob: 'Looking for files',
-    Grep: 'Searching your files',
-    research: 'Researching',
-    deep_research: 'Researching in depth',
-  }
-  if (known[tool]) return known[tool]
-  const words = tool.replace(/^(?:apps|browser|jobs|rules)_/, '').replace(/[_-]+/g, ' ').trim()
-  return words ? `${words[0].toUpperCase()}${words.slice(1)}` : 'Working'
 }
 
 /* ------------------------------------------------------------- word reveal */

@@ -96,11 +96,14 @@ if (typeof window !== 'undefined') {
  */
 let nativeBroken = false
 /**
- * ElevenLabs said no for good — out of credits (402/429) or a bad key
- * (401/403). Latched for the session so every later sentence goes straight to
- * the browser voice instead of waiting on a request that will fail again.
+ * ElevenLabs said no: out of credits or a paid-only voice (401/402), a bad key (403), or too many
+ * at once (429). Later sentences go straight to the browser voice for a while instead of waiting
+ * on a request that will fail again, then ElevenLabs is tried again. It used to be latched until
+ * the window reloaded, so one refusal left Gnosis on the Windows voice for good (the owner,
+ * 2026-10-18: "eleven labs voice is not working").
  */
-let cloudRefused = false
+let cloudRefusedUntil = 0
+const cloudOff = () => Date.now() < cloudRefusedUntil
 
 let speakingAt = 0
 
@@ -261,7 +264,7 @@ function pickVoice(): SpeechSynthesisVoice | null {
  *  always naming a speechSynthesis voice that a cloud or neural engine has
  *  quietly replaced. */
 export function currentVoiceName(): string {
-  if (caps().tts && !cloudRefused) return 'ElevenLabs'
+  if (caps().tts && !cloudOff()) return 'ElevenLabs'
   return pickVoice()?.name ?? 'default'
 }
 
@@ -391,7 +394,7 @@ export function createSpeaker(): Speaker {
     // premium path automatic with no flag to set. It falls back to the browser
     // voice on any failure, so a student without a key still hears him speak.
     // `nativeBroken` latches on once the system voice has proved unusable.
-    if (!cloudRefused && (caps().tts || nativeBroken)) {
+    if (!cloudOff() && (caps().tts || nativeBroken)) {
       // Recorded at the moment the tier is chosen rather than only when the
       // native voice latches over. Without this the panel reported 'system'
       // for a session that had spoken every one of its sentences through
@@ -456,7 +459,7 @@ export function createSpeaker(): Speaker {
         nativeBroken = true
         diag.nativeBroken = true
         diag.engine = 'elevenlabs'
-        console.warn('[ayra] system voice is not producing sound — using the bridge speech proxy from here on')
+        console.warn('[gnosis] system voice is not producing sound — using the bridge speech proxy from here on')
       }
       const rescue = await fetchCloudAudio(item.text).catch(() => null)
       if (rescue && !cancelled) {
@@ -553,7 +556,7 @@ export function createSpeaker(): Speaker {
         // barge-in. Everything else means the engine could not speak.
         if (code !== 'interrupted' && code !== 'canceled') {
           diag.failures++
-          console.error(`[ayra] speech failed (${code}) on voice "${u.voice?.name ?? 'default'}"`)
+          console.error(`[gnosis] speech failed (${code}) on voice "${u.voice?.name ?? 'default'}"`)
         }
         finish()
       }
@@ -564,7 +567,7 @@ export function createSpeaker(): Speaker {
       // silent sentence is recoverable and a stuck queue is not.
       watchdog = setTimeout(() => {
         if (done || started) return
-        console.warn('[ayra] speech did not start — un-wedging the engine')
+        console.warn('[gnosis] speech did not start — un-wedging the engine')
         speechSynthesis.cancel()
         speechSynthesis.resume()
         try {
@@ -575,7 +578,7 @@ export function createSpeaker(): Speaker {
         }
         watchdog = setTimeout(() => {
           if (done || started) return
-          console.error('[ayra] speech engine is not responding — switching to the cloud voice')
+          console.error('[gnosis] speech engine is not responding — switching to the cloud voice')
           diag.failures++
           diag.lastError = diag.lastError || 'no-start'
           finish()
@@ -807,7 +810,7 @@ export async function prefetchLines(texts: readonly string[]): Promise<void> {
   const store = await lineStore()
   for (const raw of texts) {
     const text = shape(raw)
-    if (!text || text.length > LINE_MAX || lines.has(text) || cloudRefused || !caps().tts) continue
+    if (!text || text.length > LINE_MAX || lines.has(text) || cloudOff() || !caps().tts) continue
     const hit = await store?.match(lineKey(text)).catch(() => undefined)
     if (hit) {
       lines.set(text, await hit.blob())
@@ -835,8 +838,10 @@ async function fetchCloudAudio(text: string): Promise<string | null> {
       return URL.createObjectURL(blob)
     }
     if ([401, 402, 403, 429].includes(res.status)) {
-      cloudRefused = true
-      console.warn(`[ayra] ElevenLabs refused speech (${res.status}) — using the browser voice from now on`)
+      // Too many at once clears in seconds; credits and plan limits are tried again every few minutes.
+      const wait = res.status === 429 ? 20_000 : 5 * 60_000
+      cloudRefusedUntil = Date.now() + wait
+      console.warn(`[gnosis] ElevenLabs refused speech (${res.status}): the browser voice for ${wait / 1000} s`)
     }
   } catch {
     /* fall through */

@@ -193,8 +193,8 @@ export function createBrain({
       .slice(0, 16)
     const recent = saved?.id && Date.now() - Date.parse(saved.updatedAt) < resumeHours * 3_600_000
     const resume = recent && saved.fingerprint === fingerprint ? saved.id : undefined
-    if (resume) console.log(`[ayra] resuming the ${channel} conversation (${resume.slice(0, 8)}…)`)
-    else if (recent) console.log(`[ayra] ${channel}: her tools or instructions changed — starting a fresh conversation`)
+    if (resume) console.log(`[gnosis] resuming the ${channel} conversation (${resume.slice(0, 8)}…)`)
+    else if (recent) console.log(`[gnosis] ${channel}: her tools or instructions changed — starting a fresh conversation`)
     audit.log({ type: 'session', channel, event: resume ? 'resume' : 'open', session: resume ?? null })
     const remember = (sessionId) => {
       if (stateKey && sessionId) {
@@ -209,7 +209,7 @@ export function createBrain({
     const forget = () => {
       if (!stateKey) return
       store.delete(stateKey)
-      console.warn(`[ayra] could not resume the ${channel} conversation; the next one starts fresh`)
+      console.warn(`[gnosis] could not resume the ${channel} conversation; the next one starts fresh`)
       audit.log({ type: 'session', channel, event: 'resume_failed', session: resume })
     }
 
@@ -424,14 +424,14 @@ export function createBrain({
             const review = gate.review(toolName, input)
             let ok = review.verdict === 'allow'
             if (review.verdict === 'ask') {
-              console.log(`[ayra] tool ${toolName} -> asking the owner (${review.reason})`)
+              console.log(`[gnosis] tool ${toolName} -> asking the owner (${review.reason})`)
               ok = await approve({ channel, tool: toolName, reason: review.reason, detail: review.detail })
             }
             audit.log({
               type: 'decision', channel, tool: toolName, allowed: ok,
               ...(review.verdict === 'ask' ? { asked: review.reason } : {}),
             })
-            console.log(`[ayra] tool ${toolName} -> ${ok ? 'allow' : 'deny'}`)
+            console.log(`[gnosis] tool ${toolName} -> ${ok ? 'allow' : 'deny'}`)
             if (ok) return { behavior: 'allow', updatedInput: input }
             return {
               behavior: 'deny',
@@ -482,7 +482,7 @@ export function createBrain({
       proc.napping = true
       stop(proc)
       audit.log({ type: 'session', channel, event: 'asleep' })
-      console.log(`[ayra] ${channel}: idle — the brain sleeps until the next question`)
+      console.log(`[gnosis] ${channel}: idle — the brain sleeps until the next question`)
     }
 
     const napLater = () => {
@@ -598,7 +598,7 @@ export function createBrain({
               } else {
                 const apiError = msg.subtype === 'success'
                 console.error(
-                  `[ayra] turn failed: ${apiError ? 'api error' : msg.subtype}`,
+                  `[gnosis] turn failed: ${apiError ? 'api error' : msg.subtype}`,
                   apiError ? (msg.result ?? '') : (msg.errors ?? ''),
                 )
                 audit.log({
@@ -652,12 +652,12 @@ export function createBrain({
                   .filter((s) => s.status !== 'needs-auth' && s.status !== 'failed')
                   .map((s) => s.name)
                 emit({ type: 'ready', servers: usable })
-                console.log(`[ayra] ${usable.length} MCP servers available`)
+                console.log(`[gnosis] ${usable.length} MCP servers available`)
                 // What the model can actually reach, by exact name — the only
                 // reliable way to write gate rules for servers this bridge did
                 // not configure itself, such as the owner's claude.ai connectors.
                 if (env('DEBUG') === '1') {
-                  console.log(`[ayra] tools (${msg.tools?.length ?? 0}): ${(msg.tools ?? []).join(', ')}`)
+                  console.log(`[gnosis] tools (${msg.tools?.length ?? 0}): ${(msg.tools ?? []).join(', ')}`)
                 }
               }
               break
@@ -670,7 +670,7 @@ export function createBrain({
         end()
       } catch (err) {
         if (proc.napping) return
-        console.error('[ayra] session error:', err)
+        console.error('[gnosis] session error:', err)
         audit.log({ type: 'error', channel, message: 'session error', detail: clip(err?.message ?? err) })
         // Died before it ever started: most likely the resume itself.
         if (proc.resumeId && !proc.started) forget()
@@ -747,7 +747,7 @@ export function createBrain({
       warm() {
         if (closed) return
         if (!live) {
-          console.log(`[ayra] ${channel}: someone is talking — waking the brain`)
+          console.log(`[gnosis] ${channel}: someone is talking — waking the brain`)
           wake(lastSession)
         }
         napLater()

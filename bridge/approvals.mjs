@@ -45,7 +45,7 @@ export function createApprovals({ timeoutMs = APPROVAL_TIMEOUT_MS, audit, allowa
       try {
         fn(event)
       } catch (err) {
-        console.warn(`[ayra] approvals: a listener failed — ${err?.message ?? err}`)
+        console.warn(`[gnosis] approvals: a listener failed — ${err?.message ?? err}`)
       }
     }
   }
@@ -60,7 +60,7 @@ export function createApprovals({ timeoutMs = APPROVAL_TIMEOUT_MS, audit, allowa
     const kept = ok && always && Boolean(request.always) && Boolean(allowances?.add(request))
     audit?.log({ type: 'approval', channel: request.channel, tool: request.tool, reason: request.reason, ok, by })
     if (kept) audit?.log({ type: 'allowance', kind: request.scope.kind, where: request.scope.where, by })
-    console.log(`[ayra] approval ${id}: ${ok ? 'yes' : 'no'}${kept ? `, and always ${placeOf(request.scope)}` : ''} (${by}) — ${request.reason}`)
+    console.log(`[gnosis] approval ${id}: ${ok ? 'yes' : 'no'}${kept ? `, and always ${placeOf(request.scope)}` : ''} (${by}) — ${request.reason}`)
     tell({ type: 'approved', id, ok, by, always: kept })
     entry.resolve(ok)
     return true
@@ -77,7 +77,7 @@ export function createApprovals({ timeoutMs = APPROVAL_TIMEOUT_MS, audit, allowa
     ask({ channel, tool, reason, detail = '', scope = null }) {
       if (allowances?.allows({ reason, scope })) {
         audit?.log({ type: 'approval', channel, tool, reason, ok: true, by: 'allowance' })
-        console.log(`[ayra] allowed ahead ${placeOf(scope)} — ${reason}`)
+        console.log(`[gnosis] allowed ahead ${placeOf(scope)} — ${reason}`)
         return Promise.resolve(true)
       }
       const id = `ap${++seq}-${run}`

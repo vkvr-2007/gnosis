@@ -92,7 +92,7 @@ export function createJobs({ open, tell, limits = JOB_LIMITS, progressMs = PROGR
     store?.set('job', null)
     onFinish?.(done)
     audit?.log({ type: 'job', id: job.id, outcome, steps: job.steps })
-    console.log(`[ayra] job ${job.id} ${outcome} after ${job.steps} steps`)
+    console.log(`[gnosis] job ${job.id} ${outcome} after ${job.steps} steps`)
     tell(report(done))
     // Let the last answer land before the conversation goes.
     setTimeout(() => job.conversation.close(), 1000).unref?.()

@@ -118,7 +118,7 @@ test('a burst from the speakers: no check, not counted, nothing for the face, on
   assert.deepEqual(judged, [1_800_000_000_000, 1_800_000_000_000, 1_800_000_000_000])
   assert.deepEqual(client.sent, [{ type: 'ready' }, { type: 'heard', text: 'Hey AYRA' }])
   assert.equal(logs.length, 2)
-  assert.match(logs[0], /^\[ayra\] wake: that burst came from the speakers \(corr 0\.82\) — ignored$/)
+  assert.match(logs[0], /^\[gnosis\] wake: that burst came from the speakers \(corr 0\.82\) — ignored$/)
 })
 
 test('a speaker judge that fails, or has no verdict, never costs the owner a check', async () => {

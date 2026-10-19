@@ -71,7 +71,7 @@ export function serveFace({ dir, port, host = '127.0.0.1', log = console.log }) 
       res.end('not found')
     }
   })
-  server.on('error', (err) => log(`[ayra] face: could not serve on ${host}:${port} — ${err.message}`))
-  server.listen(port, host, () => log(`[ayra] face on http://localhost:${port}`))
+  server.on('error', (err) => log(`[gnosis] face: could not serve on ${host}:${port} — ${err.message}`))
+  server.listen(port, host, () => log(`[gnosis] face on http://localhost:${port}`))
   return server
 }

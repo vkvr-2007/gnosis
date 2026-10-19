@@ -126,7 +126,7 @@ export function relayWake(client, { key, keyterms = [], language = 'en', transcr
     // nothing counted, nothing for the face.
     const v = judge(data, t)
     if (v?.fromSpeakers) {
-      log(`[ayra] wake: that burst came from the speakers (corr ${Number(v.corr).toFixed(2)}) — ignored`)
+      log(`[gnosis] wake: that burst came from the speakers (corr ${Number(v.corr).toFixed(2)}) — ignored`)
       note({ kind: 'burst', ms, result: 'speakers', ...meterOf(v) })
       return
     }
@@ -136,7 +136,7 @@ export function relayWake(client, { key, keyterms = [], language = 'en', transcr
       note({ kind: 'burst', ms, result: 'cap' })
       if (!warned) {
         warned = true
-        log(`[ayra] wake: ${perHour} checks this hour — pausing them until the hour is up`)
+        log(`[gnosis] wake: ${perHour} checks this hour — pausing them until the hour is up`)
         toFace({ type: 'error', code: 'limit', message: `${perHour} name checks this hour; say it again a little later, or press the hotkey` })
       }
       return
@@ -151,7 +151,7 @@ export function relayWake(client, { key, keyterms = [], language = 'en', transcr
       if (text) toFace({ type: 'heard', text })
     } catch (err) {
       note({ kind: 'burst', ms, result: 'error', error: clipped(err?.message ?? String(err)) })
-      log(`[ayra] wake: ${err?.message ?? err}`)
+      log(`[gnosis] wake: ${err?.message ?? err}`)
     }
   })
 

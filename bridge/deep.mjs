@@ -591,7 +591,7 @@ export function createDeepResearch({
     try {
       warm(spec, count)
     } catch (err) {
-      console.warn(`[ayra] researcher: could not start an agent early: ${err?.message ?? err}`)
+      console.warn(`[gnosis] researcher: could not start an agent early: ${err?.message ?? err}`)
     }
   }
 
@@ -681,7 +681,7 @@ export function createDeepResearch({
       try {
         onUpdate(structuredClone(state))
       } catch (err) {
-        console.warn(`[ayra] researcher update failed: ${err?.message ?? err}`)
+        console.warn(`[gnosis] researcher update failed: ${err?.message ?? err}`)
       }
     }
     r.push = () => {
@@ -748,7 +748,7 @@ export function createDeepResearch({
         throw new Stopped()
       }
       s.note = r.timeUp ? 'out of time' : cleanLine(err?.message ?? err, 60)
-      console.warn(`[ayra] researcher ${key} failed: ${err?.message ?? err}`)
+      console.warn(`[gnosis] researcher ${key} failed: ${err?.message ?? err}`)
       return false
     } finally {
       s.ms = Math.max(0, now() - t0)
@@ -845,7 +845,7 @@ export function createDeepResearch({
     try {
       if (typeof r.P.itemFromPage === 'function') return r.P.itemFromPage(page, platform, via)
     } catch (err) {
-      console.warn(`[ayra] researcher: itemFromPage failed: ${err?.message ?? err}`)
+      console.warn(`[gnosis] researcher: itemFromPage failed: ${err?.message ?? err}`)
     }
     return { platform, url: page.url, title: page.title, published: page.published, author: page.author, kind: 'page', signals: {}, signal: '', text: page.text, via }
   }
@@ -935,7 +935,7 @@ export function createDeepResearch({
     const lists = results.filter((x) => x.status === 'fulfilled').map((x) => (Array.isArray(x.value) ? x.value : []))
     if (!lists.length) {
       const why = results.find((x) => x.status === 'rejected')?.reason
-      if (!sig.aborted) console.warn(`[ayra] researcher ${lane.platform}: ${why?.message ?? why}`)
+      if (!sig.aborted) console.warn(`[gnosis] researcher ${lane.platform}: ${why?.message ?? why}`)
       // A free limit used up says so ("GitHub's free limit is used up for now"): the owner can wait it out.
       const limited = why?.code === 'RATE_LIMITED' ? cleanLine(why.message, 60) : ''
       throw laneError(sig.aborted ? 'timed out' : limited || 'search failed')
@@ -1110,7 +1110,7 @@ export function createDeepResearch({
     }
     for (const found of res?.searches ?? []) addLinks(r, lane, found)
     if (!lane.links.length) {
-      if (failure) console.warn(`[ayra] researcher ${lane.platform} search failed: ${failure?.message ?? failure}`)
+      if (failure) console.warn(`[gnosis] researcher ${lane.platform} search failed: ${failure?.message ?? failure}`)
       throw laneError(failure ? 'search failed' : 'no results')
     }
     takeSearchFindings(r, lane, res?.data)
@@ -1253,7 +1253,7 @@ export function createDeepResearch({
                   ? err.message
                   : `${phase === 'report' ? 'report' : phase === 'read' ? 'reading' : 'search'} failed`
           if (!err?.lane && !r.stopped && !r.timeUp && !window.signal.aborted) {
-            console.warn(`[ayra] researcher ${lane.platform} failed: ${err?.message ?? err}`)
+            console.warn(`[gnosis] researcher ${lane.platform} failed: ${err?.message ?? err}`)
           }
         } finally {
           settled++
@@ -1417,7 +1417,7 @@ export function createDeepResearch({
       return applyRank(r, res.data ?? {})
     } catch (err) {
       if (r.stopped) throw err
-      console.warn(`[ayra] researcher rank failed: ${err?.message ?? err}`)
+      console.warn(`[gnosis] researcher rank failed: ${err?.message ?? err}`)
       const note = applyRank(r, null)
       return { state: 'fail', note: `${note} · ranked by code` }
     }
@@ -1530,7 +1530,7 @@ export function createDeepResearch({
       return state.data ? 'answer written · figures checked' : 'answer written'
     } catch (err) {
       if (r.stopped) throw err
-      console.warn(`[ayra] researcher final failed: ${err?.message ?? err}`)
+      console.warn(`[gnosis] researcher final failed: ${err?.message ?? err}`)
       answerByCode(r)
       state.gaps = [`Not written up (${signal.aborted ? 'it took too long' : 'the writer failed'}): the facts and the ranked sources stand as they are.`]
       return { state: 'fail', note: 'answer from the facts' }
@@ -1729,7 +1729,7 @@ export function createDeepResearch({
       P = await platformsModule()
     } catch (err) {
       current = null
-      console.error(`[ayra] researcher: platforms.mjs did not load: ${err?.stack ?? err}`)
+      console.error(`[gnosis] researcher: platforms.mjs did not load: ${err?.stack ?? err}`)
       const out = refuse('Researcher mode is not available: its platform search did not load.')
       log(out)
       return out
@@ -1749,7 +1749,7 @@ export function createDeepResearch({
     } catch (err) {
       if (r.stopped) stopNow(r)
       else {
-        console.error(`[ayra] researcher failed: ${err?.stack ?? err}`)
+        console.error(`[gnosis] researcher failed: ${err?.stack ?? err}`)
         fail(r, `Something went wrong: ${cleanLine(err?.message ?? err, 120)}`)
       }
     } finally {
@@ -1765,7 +1765,7 @@ export function createDeepResearch({
       cool((key) => KEYS.has(key) && !(plannerKept && key === reasonKey))
     }
     if (state.status === 'done') {
-      await save(r).catch((err) => console.warn(`[ayra] researcher report not saved: ${err?.message ?? err}`))
+      await save(r).catch((err) => console.warn(`[gnosis] researcher report not saved: ${err?.message ?? err}`))
     }
     log(state)
     return structuredClone(state)
@@ -1916,7 +1916,7 @@ export function deepTools({ deep, emitBlade, channel = 'hud', turn }) {
         const signal = extra && typeof extra === 'object' && extra.signal instanceof AbortSignal ? extra.signal : undefined
         const t = currentTurn()
         const onScreen = Boolean(emitBlade)
-        console.log(`[ayra] researcher (${channel}): ${cleanLine(question, 80)}`)
+        console.log(`[gnosis] researcher (${channel}): ${cleanLine(question, 80)}`)
         const state = await deep.run(question, {
           original: typeof t?.text === 'string' ? t.text : '',
           signal,

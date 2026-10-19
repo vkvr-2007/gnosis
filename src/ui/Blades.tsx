@@ -1,4 +1,5 @@
 import { Component, memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { toolPhrase } from '../lib/toolphrase'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useStore, bladeLife, dockOrder, TURN_MS, type Blade } from '../store'
 import { BRIDGE_HTTP_URL } from '../config'
@@ -781,7 +782,7 @@ export function BladeSweep() {
             // each one rather than silently swapping the text mid-sweep.
             <div className="blade-carrier">
               <span key={activeTool} className="blade-tool">
-                {activeTool}
+                {toolPhrase(activeTool)}
               </span>
             </div>
           )}

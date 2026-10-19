@@ -378,7 +378,7 @@ async function spaced(spacingMs, signal) {
 // ---------------------------------------------------------------------------
 
 /** Sent to every API: GitHub requires a User-Agent, and an honest one is what each API's terms ask for. */
-export const API_UA = 'personal-research-assistant/1.0 (+https://github.com/rehanshaik123/AYRA)'
+export const API_UA = 'gnosis-research-assistant/1.0 (+https://github.com/vkvr-2007/gnosis)'
 
 const API_TIMEOUT_MS = 8000
 const enc = encodeURIComponent

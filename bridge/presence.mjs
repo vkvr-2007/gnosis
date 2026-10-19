@@ -47,7 +47,7 @@ export function watchPresence({ store, notify, now = Date.now, every = TICK_MS, 
     try {
       store.set('aliveAt', t)
     } catch (err) {
-      console.warn(`[ayra] presence: could not note the time (${err?.message ?? err})`)
+      console.warn(`[gnosis] presence: could not note the time (${err?.message ?? err})`)
     }
   }
   const start = now()

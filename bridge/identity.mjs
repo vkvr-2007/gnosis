@@ -23,7 +23,7 @@ if (existsSync(envFile) && typeof process.loadEnvFile === 'function') {
   try {
     process.loadEnvFile(envFile)
   } catch (err) {
-    console.warn(`[ayra] could not read .env.local: ${err.message}`)
+    console.warn(`[gnosis] could not read .env.local: ${err.message}`)
   }
 }
 
