@@ -90,6 +90,16 @@ export function createMemory(file = MEMORY_FILE) {
       return true
     },
     facts: (includeSensitive = false) => load().facts.filter((f) => includeSensitive || !f.sensitive),
+    /** Past exchanges, oldest first (the "Your data" screen). */
+    episodes: () => load().episodes,
+    /** Forgets one past exchange by when it happened, or all of them. */
+    forgetEpisodes(at = null) {
+      const d = load()
+      const before = d.episodes.length
+      d.episodes = at == null ? [] : d.episodes.filter((e) => e.at !== at)
+      save(d)
+      return before - d.episodes.length
+    },
     /** One exchange, as a line of history. */
     addEpisode(request, answer) {
       const d = load()

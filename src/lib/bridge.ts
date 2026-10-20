@@ -208,6 +208,9 @@ function dispatch(ws: WebSocket) {
     } else if (msg.type === 'settings') {
       // The tray's Settings item.
       onSettings?.()
+    } else if (msg.type === 'yourdata') {
+      // The tray's Your data item.
+      onYourData?.()
     } else if (msg.type === 'camera' && typeof msg.id === 'string') {
       // look_through_camera (bridge/vision.mjs): one webcam frame, sent back as a JPEG.
       const id = msg.id
@@ -558,6 +561,11 @@ export function reportHearing(mode: 'push' | 'hands-free'): void {
 /** Something Gnosis says without being asked (a reminder, a routine's answer, a warning). */
 let onNotice: ((text: string) => void) | null = null
 let onSettings: (() => void) | null = null
+let onYourData: (() => void) | null = null
+/** The tray asks for the Your data screen. */
+export function watchYourData(fn: () => void) {
+  onYourData = fn
+}
 /** The tray asks for the Settings screen. */
 export function watchSettings(fn: () => void) {
   onSettings = fn

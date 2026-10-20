@@ -57,7 +57,11 @@ import { adbRunner, createAppPhone, createPhone, createPhoneRouter, findAdb, pho
 import { createDeviceHub } from './devices.mjs'
 import { teachServer } from './teach.mjs'
 import { attachmentNote, attachmentServer, createAttachments } from './attachments.mjs'
-import { createVoiceId, GUEST_TOOLS, voiceIdServer } from './voiceid.mjs'
+import { createVoiceId, GUEST_TOOLS, PASSAGE, voiceIdServer } from './voiceid.mjs'
+import { createDataView } from './yourdata.mjs'
+import { createPrivateMemory } from './privacy.mjs'
+import { createSkillStore } from './teach.mjs'
+import { startWithWindows, setStartWithWindows } from './startup.mjs'
 import { keyStatus, KEYS, saveSecret, testKey } from './secrets.mjs'
 import { cleanSettings, readSettings, writeSettings } from './settings.mjs'
 import QRCode from 'qrcode'
@@ -369,7 +373,7 @@ const handleRequest = async (req, res) => {
   // never grants — so no page can turn the microphone on.
   const trayCall =
     ((req.url === '/hearing' || req.url === '/face') && req.method === 'GET') ||
-    ((req.url === '/hearing' || req.url === '/talk' || req.url === '/settings-open') && req.method === 'POST')
+    ((req.url === '/hearing' || req.url === '/talk' || req.url === '/settings-open' || req.url === '/data-open') && req.method === 'POST')
   if (trayCall) {
     if (origin || req.headers['x-ayra'] !== 'tray') {
       res.writeHead(403)
@@ -391,9 +395,9 @@ const handleRequest = async (req, res) => {
       return reply(200, { ok: true })
     }
     // The tray's Settings item: his window shows the Settings screen.
-    if (req.url === '/settings-open') {
+    if (req.url === '/settings-open' || req.url === '/data-open') {
       if (!HEARING.faces.size) return reply(409, { error: "his window isn't open" })
-      for (const send of HEARING.faces) send({ type: 'settings' })
+      for (const send of HEARING.faces) send({ type: req.url === '/data-open' ? 'yourdata' : 'settings' })
       return reply(200, { ok: true })
     }
     let body = ''
@@ -443,6 +447,42 @@ const handleRequest = async (req, res) => {
     }
   }
 
+  // The Your data screen (src/ui/YourData.tsx): everything he keeps, to see and clear. Only from his
+  // own window (an allowed Origin), like Settings.
+  if (req.url === '/data') {
+    const json = (code, body) => {
+      res.writeHead(code, { ...cors, 'content-type': 'application/json' })
+      res.end(JSON.stringify(body))
+    }
+    if (!origin) return json(403, { error: 'forbidden' })
+    if (req.method === 'GET') return json(200, DATA.view())
+    if (req.method !== 'POST') return json(405, { error: 'POST' })
+    let body
+    try {
+      let raw = ''
+      for await (const chunk of req) {
+        raw += chunk
+        if (raw.length > 16 * 1024) throw new Error('too large')
+      }
+      body = JSON.parse(raw || '{}')
+    } catch {
+      return json(400, { error: 'That request was not readable.' })
+    }
+    try {
+      if (body.what === 'learn_voice') {
+        await VOICE.startEnrolment()
+        showPassage('READ THIS ALOUD', PASSAGE)
+        for (const send of HEARING.faces) send({ type: 'notice', text: 'Press Space and read the passage aloud. I will say when I have your voice.' })
+        return json(200, { ok: true })
+      }
+      const out = DATA.act(body)
+      console.log(`[gnosis] your data: ${body.what}${out.ok === false ? ' (nothing there)' : ''}`)
+      return json(200, { ...out, view: DATA.view() })
+    } catch (err) {
+      return json(400, { error: err.message })
+    }
+  }
+
   // The Settings screen (src/ui/Settings.tsx): only from his own window, which always sends its
   // Origin (checked above); never from another program, and never a key back out.
   if (req.url === '/settings' || req.url === '/settings/test') {
@@ -463,6 +503,7 @@ const handleRequest = async (req, res) => {
       return json(200, {
         honorific: IDENTITY.honorific ?? '', voiceId: IDENTITY.voice?.elevenLabsId ?? '',
         quietHours: saved.quietHours ?? '23:00-07:00', briefing, keys: keyStatus(),
+        startWithWindows: startWithWindows(), voice: VOICE.status(), privateModel: await privateModelUp(),
       })
     }
     if (req.method !== 'POST') return json(405, { error: 'POST' })
@@ -489,12 +530,13 @@ const handleRequest = async (req, res) => {
         BRIEFING_STATE.set('briefing', clean.briefing)
         setBriefing(SCHEDULE, clean.briefing === 'off' ? null : clean.briefing)
       }
+      if (typeof body.startWithWindows === 'boolean') await setStartWithWindows(body.startWithWindows)
       const { briefing, ...rest } = clean
       if (Object.keys(rest).length) writeSettings(rest)
       // Name, voice, quiet hours and keys are read at start-up: the bridge starts again with them
       // (Gnosis.exe restarts it at once; his window reconnects by itself).
       const restart = Object.keys(rest).length > 0 || Object.keys(keys).length > 0
-      console.log(`[gnosis] settings changed: ${[...Object.keys(clean), ...Object.keys(keys).map((k) => `key ${k}`)].join(', ') || 'nothing'}`)
+      console.log(`[gnosis] settings changed: ${[...Object.keys(clean), ...(typeof body.startWithWindows === 'boolean' ? ['start with Windows'] : []), ...Object.keys(keys).map((k) => `key ${k}`)].join(', ') || 'nothing'}`)
       json(200, { ok: true, restart })
       if (restart) setTimeout(() => process.exit(0), 600)
       return
@@ -942,6 +984,18 @@ function showPassage(title, words) {
 
 /** Files and pictures dropped on his window (attachments.mjs); a week old and they go. */
 const ATTACHMENTS = createAttachments()
+/** Everything he keeps, for the Your data screen (yourdata.mjs). DEVICES is filled in once it exists. */
+let DATA = null
+/** Whether the on-laptop model for private requests (config/models.json "local") answers. */
+async function privateModelUp() {
+  try {
+    const url = modelFor('local').baseUrl.replace(/\/v1\/?$/, '')
+    const r = await fetch(`${url}/health`, { signal: AbortSignal.timeout(1500) })
+    return r.ok
+  } catch {
+    return false
+  }
+}
 try {
   ATTACHMENTS.cleanUp()
 } catch { /* nothing to clean */ }
@@ -1019,6 +1073,8 @@ const DEVICES = createDeviceHub({ onAsk: askFromDevice })
 // Paused (the owner, 2026-10-20: "lets put a pause on the phone app ... make it into a good windows
 // app first"): the device link opens a port on the home network, so it only starts when asked for.
 const DEVICES_ON = env('DEVICES', '') === '1' || process.env.GNOSIS_DEVICES === '1'
+DATA = createDataView({ memory: MEMORY, privateMemory: createPrivateMemory(), schedule: SCHEDULE, skills: createSkillStore(),
+  attachments: ATTACHMENTS, voice: VOICE, devices: DEVICES_ON ? DEVICES : null, readSettings })
 if (DEVICES_ON) DEVICES.start()
 
 /** A QR code in every open window of his (set_up_phone), kept up for two minutes. */

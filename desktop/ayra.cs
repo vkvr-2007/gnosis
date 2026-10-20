@@ -183,7 +183,8 @@ namespace Gnosis
         menu.Items.Add(bubbleItem);
       }
       if (config.Chrome != null) menu.Items.Add("Open Chrome (Gnosis)", null, delegate { window.OpenChrome(); });
-      menu.Items.Add("Settings", null, delegate { OpenSettings(); });
+      menu.Items.Add("Settings", null, delegate { OpenScreen(false); });
+      menu.Items.Add("Your data", null, delegate { OpenScreen(true); });
       menu.Items.Add(new ToolStripSeparator());
       menu.Items.Add("Restart Gnosis", null, delegate { ThreadPool.QueueUserWorkItem(delegate { bridge.Restart(); }); });
       menu.Items.Add("Show log", null, delegate { bridge.ShowLog(); });
@@ -256,15 +257,15 @@ namespace Gnosis
       });
     }
 
-    // His window, with the Settings screen showing (opened first when it is closed).
-    void OpenSettings()
+    // His window, with the Settings or Your data screen showing (opened first when it is closed).
+    void OpenScreen(bool data)
     {
       ThreadPool.QueueUserWorkItem(delegate
       {
         Open(false);
         int faces = 0;
         for (int i = 0; i < 40 && faces == 0; i++) { Thread.Sleep(500); Hearing.Get(config, out faces); }
-        if (faces > 0) Hearing.Settings(config);
+        if (faces > 0) { if (data) Hearing.YourData(config); else Hearing.Settings(config); }
       });
     }
 
@@ -912,6 +913,9 @@ namespace Gnosis
 
     // The tray's Settings item: his window shows its Settings screen.
     public static int Settings(Config c) { return Press(c, c.TalkUrl.Substring(0, c.TalkUrl.LastIndexOf('/')) + "/settings-open"); }
+
+    // The tray's Your data item: his window shows everything he keeps.
+    public static int YourData(Config c) { return Press(c, c.TalkUrl.Substring(0, c.TalkUrl.LastIndexOf('/')) + "/data-open"); }
 
     static int Press(Config c, string url)
     {

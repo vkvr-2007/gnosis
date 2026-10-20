@@ -35,6 +35,21 @@ const hintFor: Partial<Record<Phase, string>> = {
   speaking: 'Esc to stop',
 }
 
+/** A control that presses its keyboard key, so the button and the key can never disagree. */
+function KeyButton({ k, code, kbd, label, on }: { k: string; code: string; kbd: string; label: string; on?: boolean }) {
+  return (
+    <button
+      type="button"
+      className={on ? 'g-key g-key-on' : 'g-key'}
+      onMouseDown={(e) => e.preventDefault()}
+      onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: k, code, bubbles: true }))}
+      title={`${label} (${kbd})`}
+    >
+      <kbd>{kbd}</kbd> {label}
+    </button>
+  )
+}
+
 /* ------------------------------------------------------------- word reveal */
 
 /**
@@ -143,7 +158,6 @@ export function Hud() {
   const turns = useStore((s) => s.turns)
   const activeTool = useStore((s) => s.activeTool)
   const error = useStore((s) => s.error)
-  const voice = useStore((s) => s.voice)
 
   const handsFree = hearing === 'hands-free'
   const status = researching && (phase === 'thinking' || phase === 'tooling') ? 'Researching' : statusText[phase]
@@ -230,15 +244,17 @@ export function Hud() {
 
       <Suggestions />
 
-      <footer className="g-keys">
-        <span><kbd>Space</kbd> talk</span>
-        <span><kbd>Esc</kbd> stop</span>
-        <span><kbd>W</kbd> hands-free {handsFree ? 'on' : 'off'}</span>
-        <span><kbd>R</kbd> research {researching ? 'on' : 'off'}</span>
-        <span><kbd>S</kbd> settings</span>
-        <span><kbd>D</kbd> diagnostics</span>
-        {voice && <span><kbd>V</kbd> {voice.replace(/\(.*?\)/g, '').trim()}</span>}
-      </footer>
+      {/* Every key has a button too (the owner, 2026-10-20). A button presses its key, so each does
+          exactly what the key does; it never takes the focus, so Space can't click it afterwards. */}
+      <nav className="g-keys" aria-label="Controls">
+        <KeyButton k=" " code="Space" kbd="Space" label="Talk" />
+        <KeyButton k="Escape" code="Escape" kbd="Esc" label="Stop" />
+        <KeyButton k="w" code="KeyW" kbd="W" label={`Hands-free ${handsFree ? 'on' : 'off'}`} on={handsFree} />
+        <KeyButton k="r" code="KeyR" kbd="R" label={`Researcher ${researching ? 'on' : 'off'}`} on={researching} />
+        <KeyButton k="s" code="KeyS" kbd="S" label="Settings" />
+        <KeyButton k="y" code="KeyY" kbd="Y" label="Your data" />
+        <KeyButton k="d" code="KeyD" kbd="D" label="Diagnostics" />
+      </nav>
     </div>
   )
 }

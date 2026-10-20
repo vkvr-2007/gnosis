@@ -338,6 +338,17 @@ export const ASKS_LIVE = /\b(?:my|the) phone(?:'s)?\b|\bphone (?:battery|notific
  */
 export const ACTION_HINTS = []
 
+/**
+ * What the owner actually said, without the notes the bridge puts in front of a request for the brain
+ * ("[Voice ID: …]", "[The owner attached …]", a finished job's note): only that is kept in their history.
+ */
+export function ownWords(request) {
+  const text = String(request)
+  if (!text.startsWith('[')) return text
+  const end = text.lastIndexOf(']\n')
+  return end >= 0 ? text.slice(end + 2).trim() || text : text
+}
+
 /** A reply that says it is about to do something rather than doing it. */
 export const PROMISES = /^\W*(?:(?:sure|okay|ok|got it|on it)\W+)?(?:i['’]?ll|i will|let me|i['’]?m going to|fetching|checking|looking (?:that )?up|one moment|give me a (?:sec|second|moment))\b/i
 
@@ -599,7 +610,7 @@ export function query({ prompt, options = {} }) {
       // The exchange, as a line of history for later recall: never a private one.
       else if (memory && answer && !keep && !recalled) {
         try {
-          memory.addEpisode(request, answer)
+          memory.addEpisode(ownWords(request), answer)
         } catch (err) {
           console.warn('[gnosis] could not save the exchange to memory:', err?.message ?? err)
         }

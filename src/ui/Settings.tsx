@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { BRIDGE_HTTP_URL } from '../config'
 import { watchSettings } from '../lib/bridge'
+import { useStore } from '../store'
 
 /**
  * Settings: what Gnosis calls you, his voice, the morning briefing, quiet hours, and his keys.
@@ -18,7 +19,13 @@ type Loaded = {
   quietHours: string
   briefing: string
   keys: Record<string, KeyState>
+  startWithWindows?: boolean
+  voice?: { enrolled: boolean; seconds?: number; at?: string }
+  privateModel?: boolean
 }
+
+/** Presses a key, so a switch here does exactly what its key does (App.tsx). */
+const press = (key: string, code: string) => window.dispatchEvent(new KeyboardEvent('keydown', { key, code, bubbles: true }))
 
 const call = async (path: string, body?: unknown) => {
   const res = await fetch(`${BRIDGE_HTTP_URL}${path}`, body === undefined ? undefined : {
@@ -38,6 +45,8 @@ export function Settings() {
   const [tests, setTests] = useState<Record<string, string>>({})
   const [status, setStatus] = useState('')
   const [saving, setSaving] = useState(false)
+  const handsFree = useStore((st) => st.hearing === 'hands-free')
+  const researching = useStore((st) => st.mode === 'research')
 
   const load = useCallback(async () => {
     try {
@@ -163,6 +172,18 @@ export function Settings() {
 
   const keyList = loaded ? Object.entries(loaded.keys) : []
 
+  /** Changes that apply at once, without Save. */
+  const now = async (what: string, run: () => Promise<unknown>) => {
+    setStatus(`${what}…`)
+    try {
+      await run()
+      await load()
+      setStatus(`${what}: done.`)
+    } catch (err) {
+      setStatus((err as Error).message)
+    }
+  }
+
   return (
     <div className="settings-backdrop" onMouseDown={(e) => e.target === e.currentTarget && !first && close()}>
       <section className="settings" role="dialog" aria-label="Settings">
@@ -198,6 +219,42 @@ export function Settings() {
                 <span>to</span>
                 <input type="time" value={form.quietTo} disabled={!form.quiet} onChange={(e) => setForm({ ...form, quietTo: e.target.value })} />
               </span>
+            </div>
+
+            <div className="settings-sec">Listening and modes <span className="settings-dim">(these change at once)</span></div>
+            <div className="settings-row">
+              <label className="settings-check"><input type="checkbox" checked={handsFree} onChange={() => press('w', 'KeyW')} /> Hands-free: he listens for "Gnosis" without Space</label>
+            </div>
+            <div className="settings-row">
+              <label className="settings-check"><input type="checkbox" checked={researching} onChange={() => press('r', 'KeyR')} /> Researcher mode: every question gets deep research</label>
+            </div>
+            <div className="settings-row">
+              <label className="settings-check">
+                <input type="checkbox" checked={Boolean(loaded?.startWithWindows)}
+                  onChange={(e) => void now('Start with Windows', () => call('/settings', { startWithWindows: e.target.checked }))} />
+                Start Gnosis when I sign in to Windows
+              </label>
+            </div>
+
+            <div className="settings-sec">Voice ID</div>
+            <div className="settings-row">
+              <span>{loaded?.voice?.enrolled ? `He knows your voice (from ${loaded.voice.seconds} s of speech). Other voices can ask questions but not have him act.` : 'Off. Teach him your voice so only you can have him act.'}</span>
+              <span className="settings-pair">
+                <button className="settings-btn" onClick={() => void now('Learn my voice', async () => { await call('/data', { what: 'learn_voice' }); close() })}>
+                  {loaded?.voice?.enrolled ? 'Learn again' : 'Learn my voice'}
+                </button>
+                {loaded?.voice?.enrolled && <button className="settings-btn" onClick={() => void now('Forget my voice', () => call('/data', { what: 'forget_voice' }))}>Forget</button>}
+              </span>
+            </div>
+
+            <div className="settings-sec">Privacy</div>
+            <div className="settings-row">
+              <span>Passwords, card and bank numbers, health details and anything you call "private" are handled on this laptop, never in the cloud.
+                The on-laptop model is <b className={loaded?.privateModel ? 'settings-ok' : 'settings-bad'}>{loaded?.privateModel ? 'running' : 'not running'}</b>{loaded?.privateModel ? '.' : ', so those requests are refused for now.'}</span>
+            </div>
+            <div className="settings-row">
+              <span>See and delete everything he has stored about you.</span>
+              <button className="settings-btn" onClick={() => { close(); setTimeout(() => press('y', 'KeyY'), 50) }}>Your data</button>
             </div>
           </>
         )}

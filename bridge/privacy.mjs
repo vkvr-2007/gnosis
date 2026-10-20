@@ -132,6 +132,14 @@ export function createPrivateMemory(file = MEMORY_FILE) {
       return item
     },
     all: load,
+    /** Deletes one private note (the "Your data" screen). */
+    remove(id) {
+      const items = load()
+      const kept = items.filter((m) => m.id !== id)
+      if (kept.length === items.length) return false
+      writeFileSync(file, JSON.stringify(kept, null, 2))
+      return true
+    },
     /** The memories that share words with the request first, then the newest; at most `limit`. */
     relevant(request, limit = 20) {
       const words = new Set(String(request).toLowerCase().match(/[a-z0-9]{3,}/g) ?? [])

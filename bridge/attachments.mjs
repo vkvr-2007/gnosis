@@ -66,6 +66,25 @@ export function createAttachments(dir = ATTACH_DIR) {
         return null
       }
     },
+    /** Everything kept, newest first. */
+    list() {
+      if (!existsSync(dir)) return []
+      return readdirSync(dir).filter((f) => f.endsWith('.json')).map((f) => {
+        try {
+          return JSON.parse(readFileSync(join(dir, f), 'utf8'))
+        } catch {
+          return null
+        }
+      }).filter(Boolean).sort((a, b) => b.at - a.at)
+    },
+    /** Deletes one. */
+    remove(id) {
+      const a = this.get(id)
+      if (!a) return false
+      rmSync(a.path, { force: true })
+      rmSync(metaPath(id), { force: true })
+      return true
+    },
     /** Attachments older than a week go. Returns how many. */
     cleanUp(now = Date.now()) {
       if (!existsSync(dir)) return 0

@@ -543,3 +543,10 @@ test('a model that is not there (404) hands over to its backup; one that says no
     fetchImpl: async (u, init) => (asked.push(JSON.parse(init.body).model), new Response('bad', { status: 400 })) }), /API Error: 400/)
   assert.deepEqual(asked, ['main'])
 })
+
+test("history keeps only the owner's own words, not the notes put in front of them", async () => {
+  const { ownWords } = await import('../bridge/sdk.mjs')
+  assert.equal(ownWords('[Voice ID: not the owner (0.19).]\nwhat time is it?'), 'what time is it?')
+  assert.equal(ownWords('[The owner attached the file "a":\n<<<\nmilk]\n>>>]\nwhat is on it?'), 'what is on it?')
+  assert.equal(ownWords('open notepad [now]'), 'open notepad [now]')
+})

@@ -431,3 +431,37 @@ html[data-cards='1'] .g-assistant .g-text { font-size: 18px; }
 @media (max-width: 760px) {
   .attach-tray { left: 16px; right: 16px; bottom: 44px; max-width: none; }
 }
+
+/* ------------------------------------------------------------ the controls (Hud KeyButton) */
+.g-keys { pointer-events: auto; }
+.g-key {
+  display: inline-flex; align-items: center; gap: 8px; flex-direction: row-reverse;
+  background: none; border: 1px solid transparent; border-radius: 9px; padding: 3px 4px 3px 8px;
+  color: var(--muted); font: inherit; font-size: 12.5px; cursor: pointer; text-transform: none; letter-spacing: 0;
+}
+.g-key:hover { color: var(--text); border-color: rgba(255, 255, 255, 0.08); background: rgba(255, 255, 255, 0.03); }
+.g-key:active { transform: translateY(1px); }
+.g-key:focus-visible { outline: 2px solid rgba(239, 154, 76, 0.55); outline-offset: 1px; }
+.g-key-on { color: var(--ember); }
+.g-key-on kbd { border-color: rgba(239, 154, 76, 0.5); color: var(--ember); }
+@media (max-width: 760px) {
+  .g-key { flex-direction: row; }
+  .g-keys .g-key:nth-child(n + 4) { display: inline-flex; }
+}
+
+/* ------------------------------------------------------------- your data (ui/YourData.tsx) */
+.yd { width: min(720px, 100%); }
+.yd-sec { margin-top: 16px; }
+.yd-sec-head { display: flex; align-items: baseline; gap: 10px; }
+.yd-sec-head h3 { margin: 0; font-size: 15px; font-weight: 600; color: var(--ember, #ef9a4c); }
+.yd-empty { margin: 6px 0 0; }
+.yd-list { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.yd-list li { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 6px 8px; border-radius: 8px; background: rgba(255, 255, 255, 0.025); line-height: 1.45; }
+.yd-list li > span { min-width: 0; overflow-wrap: anywhere; }
+.yd-list li.yd-all { background: none; justify-content: flex-start; padding-left: 0; }
+.yd-del {
+  flex: none; background: none; border: 1px solid rgba(229, 103, 90, 0.45); color: var(--danger, #e5675a);
+  border-radius: 7px; padding: 3px 9px; font: 500 12px 'Outfit Variable', system-ui, sans-serif; cursor: pointer;
+}
+.yd-del:hover { background: rgba(229, 103, 90, 0.1); }
+.yd-inline { margin-left: 10px; padding: 4px 10px; }
