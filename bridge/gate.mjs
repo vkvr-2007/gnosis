@@ -482,6 +482,9 @@ export function createGate({ allowWrites, laptop = false, connectors = DEFAULT_C
       // Another look at a picture the owner attached (attachments.mjs): his own data folder only.
       if (server === 'ayra_attachments') return true
 
+      // Voice ID (voiceid.mjs): learning and forgetting the owner's voice print; forgetting asks first.
+      if (server === 'ayra_voice') return true
+
       // The owner's phone over ADB (phone.mjs). Calls and messages are asked about in review().
       if (server === 'ayra_phone') return true
 
@@ -521,6 +524,9 @@ export function createGate({ allowWrites, laptop = false, connectors = DEFAULT_C
       // Calling and sending from the owner's phone are "sending as you": asked every time.
       detail = `Call ${input?.who ?? ''}`
       reason = 'calls someone from your phone'
+    } else if (name === 'mcp__ayra_voice__forget_my_voice') {
+      detail = 'Forget your voice print (voice ID off)'
+      reason = 'turns voice ID off'
     } else if (name === 'mcp__ayra_teach__save_skill') {
       const steps = Array.isArray(input?.steps) ? input.steps.length : 0
       detail = `Save the skill "${input?.name ?? ''}": ${input?.description ?? ''} (${steps} steps)`

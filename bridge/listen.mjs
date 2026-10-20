@@ -68,10 +68,16 @@ export const audioMessage = (pcm, commit = false) => ({
  *
  * @param {{ send: (data: string) => void, on: Function, readyState: number, OPEN: number }} client
  * @param {{ key: string, language?: string, keyterms?: string[],
- *           connect?: (url: string, key: string) => any, log?: (msg: string) => void }} options
- *   connect — opens the upstream socket; injected so tests can fake it
+ *           connect?: (url: string, key: string) => any, log?: (msg: string) => void,
+ *           onSegment?: (pcm: Buffer, text: string) => void }} options
+ *   connect   — opens the upstream socket; injected so tests can fake it
+ *   onSegment — each finished segment's audio with its words, for voice ID (voiceid.mjs)
  */
-export function relayListening(client, { key, language, keyterms, connect, log = () => {} }) {
+export function relayListening(client, { key, language, keyterms, connect, log = () => {}, onSegment = null }) {
+  // This segment's audio so far (16 kHz 16-bit PCM), at most 30 s, for voice ID.
+  let segment = []
+  let segmentBytes = 0
+  const SEGMENT_MAX = SAMPLE_RATE * 2 * 30
   let upstream = null
   let ready = false
   let held = [] // messages waiting for the upstream session to start
@@ -120,6 +126,16 @@ export function relayListening(client, { key, language, keyterms, connect, log =
       } else if (type === 'partial_transcript') {
         if (m.text) toFace({ type: 'partial', text: m.text })
       } else if (type === 'committed_transcript' || type === 'committed_transcript_with_timestamps') {
+        if (onSegment && segmentBytes) {
+          const pcm = Buffer.concat(segment)
+          try {
+            onSegment(pcm, m.text ?? '')
+          } catch (err) {
+            log(`[gnosis] listen: voice ID failed — ${err?.message ?? err}`)
+          }
+        }
+        segment = []
+        segmentBytes = 0
         toFace({ type: 'final', text: m.text ?? '' })
       } else if (ERRORS.has(type) || m.error) {
         const message = String(m.error ?? m.message ?? type)
@@ -153,6 +169,11 @@ export function relayListening(client, { key, language, keyterms, connect, log =
 
   client.on('message', (data, isBinary) => {
     if (isBinary) {
+      if (onSegment && segmentBytes < SEGMENT_MAX) {
+        const chunk = Buffer.from(data)
+        segment.push(chunk)
+        segmentBytes += chunk.length
+      }
       forward(audioMessage(data))
       return
     }

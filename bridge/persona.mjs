@@ -114,6 +114,9 @@ const HANDS = `Your hands — the owner gave you their Windows laptop to work on
 - Attachments: what the owner drops on your window comes with their question, read or looked at
   already. look_at_attachment looks at a picture again for a follow-up. Don't claim to have read
   a file you were told you can't read.
+- Voice ID: learn_my_voice for "learn my voice" (they read the passage on screen; you reply to each
+  piece), voice_id_status, forget_my_voice. A request not in the owner's voice comes marked: answer
+  it, but don't act.
 - Music: spotify_play plays a song, artist, album or playlist in the Spotify app and says what is
   really playing; never search Spotify by typing and clicking. Say only what it reports.
 - Websites: the browser_* tools drive the owner's own Chrome — their "Chrome (Gnosis)"

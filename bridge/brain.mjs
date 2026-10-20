@@ -441,6 +441,9 @@ export function createBrain({
                 review.verdict === 'ask'
                   ? `The owner did not approve this (it ${review.reason}). Tell them in one ` +
                     'short sentence that you left it, and do not try to do it another way.'
+                  : review.guest
+                    ? "Refused: that request was not in the owner's voice (voice ID), so you can answer it but not act on it. " +
+                      'Say in one short sentence that only the owner can ask for that.'
                   : review.reason
                     ? `Refused: that file ${review.reason}, which ${IDENTITY.name} never reads or ` +
                       'changes. Say so in one short sentence and do not try another way.'

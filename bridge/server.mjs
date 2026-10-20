@@ -57,6 +57,7 @@ import { adbRunner, createAppPhone, createPhone, createPhoneRouter, findAdb, pho
 import { createDeviceHub } from './devices.mjs'
 import { teachServer } from './teach.mjs'
 import { attachmentNote, attachmentServer, createAttachments } from './attachments.mjs'
+import { createVoiceId, GUEST_TOOLS, voiceIdServer } from './voiceid.mjs'
 import { keyStatus, KEYS, saveSecret, testKey } from './secrets.mjs'
 import { cleanSettings, readSettings, writeSettings } from './settings.mjs'
 import QRCode from 'qrcode'
@@ -891,6 +892,54 @@ const RESEARCHER_ASK =
   '[Researcher mode is on: answer this with deep_research, passing the question made self-contained ' +
   '(resolve "it" or "that" from our conversation). Then say the verdict in one or two sentences.]'
 
+/**
+ * Voice ID (voiceid.mjs): each finished segment from the microphone is judged against the owner's
+ * voice print (or added to it while learning). A request in someone else's voice is a guest's: the
+ * gate below refuses every tool but web search until it's answered.
+ */
+const VOICE = createVoiceId()
+/** The latest segment heard: its words, what voice ID made of it, and when. */
+let HEARD = null
+/** A judgement still being made (the embedding takes a moment); asks wait for it, briefly. */
+let HEARING_NOW = Promise.resolve()
+function onSegment(pcm, text) {
+  HEARING_NOW = VOICE.hear(pcm, text).then((r) => {
+    HEARD = { r, text, at: Date.now() }
+    if (r.judged) console.log(`[gnosis] voice ID: ${r.owner ? 'the owner' : 'not the owner'} (${r.score.toFixed(2)})`)
+    else if (r.enrol) console.log(`[gnosis] voice ID: learning (${r.enrol}${r.seconds ? `, ${Math.round(r.seconds)} s` : ''})`)
+  }).catch((err) => console.warn(`[gnosis] voice ID couldn't judge that: ${err?.message ?? err}`))
+}
+const sameWords = (a, b) => {
+  const n = (s) => String(s).toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim()
+  return Boolean(n(a)) && (n(b).includes(n(a)) || n(a).includes(n(b)))
+}
+/** What voice ID made of the words this request was spoken in, when they were just heard. */
+async function heardFor(text) {
+  await Promise.race([HEARING_NOW, new Promise((r) => setTimeout(r, 2000))])
+  return HEARD && Date.now() - HEARD.at < 20_000 && sameWords(HEARD.text, text) ? HEARD.r : null
+}
+/** A guest's request in progress: { score, until, ask }, or null. */
+let GUEST = null
+function setGuest(verdict, ask) {
+  GUEST = verdict ? { score: verdict.score, until: Date.now() + 120_000, ask } : null
+  if (GUEST) console.log(`[gnosis] voice ID: answering as for a guest (${verdict.score.toFixed(2)}): no actions`)
+}
+const guestNow = () => Boolean(GUEST && Date.now() < GUEST.until)
+/** The gate, with voice ID in front of it: a guest's request gets web search and nothing else. */
+function guardForVoice(gate) {
+  const refused = { verdict: 'deny', guest: true }
+  return {
+    ...gate,
+    decide: (name) => (guestNow() && !GUEST_TOOLS.has(name) ? false : gate.decide(name)),
+    review: (name, input) => (guestNow() && !GUEST_TOOLS.has(name) ? refused : gate.review(name, input)),
+  }
+}
+/** Words to read aloud, on a card in his window. */
+function showPassage(title, words) {
+  const html = `<p style="font-size:22px;line-height:1.6;margin:0">${words.replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' })[c])}</p>`
+  for (const send of HEARING.faces) send({ type: 'blade', blade: { id: `read-${Date.now().toString(36)}`, title, kind: 'markup', html, size: 'wide', hold: 'sticky' } })
+}
+
 /** Files and pictures dropped on his window (attachments.mjs); a week old and they go. */
 const ATTACHMENTS = createAttachments()
 try {
@@ -985,7 +1034,7 @@ async function showQr(url, title) {
 const BRAIN = createBrain({
   model: MODEL,
   effort: EFFORT,
-  gate: GATE,
+  gate: guardForVoice(GATE),
   // Shared by every conversation (the window, Telegram, jobs): Gnosis's long-term memory (memory.mjs).
   mcpServers: {
     ayra_memory: memoryServer(MEMORY),
@@ -993,6 +1042,7 @@ const BRAIN = createBrain({
     ayra_music: musicServer(),
     ayra_teach: teachServer(),
     ayra_attachments: attachmentServer({ store: ATTACHMENTS }),
+    ayra_voice: voiceIdServer(VOICE, { showText: showPassage }),
     ayra_phone: phoneServer(createPhoneRouter({
       app: createAppPhone(DEVICES),
       adb: createPhone({ run: findAdb() ? adbRunner(findAdb()) : null }),
@@ -1158,6 +1208,7 @@ function listen(socket) {
     keyterms: [IDENTITY.name],
     connect: (url, k) => new WebSocket(url, { headers: { 'xi-api-key': k } }),
     log: (msg) => console.warn(msg),
+    onSegment,
   })
 }
 
@@ -1425,6 +1476,24 @@ wss.on('connection', (socket, req) => {
     if (msg.type === 'ask' && typeof msg.text === 'string') {
       const id = typeof msg.id === 'string' ? msg.id : null
       latest = id
+      void (async () => {
+      // Voice ID (voiceid.mjs): the words were heard a moment ago, and judged as they finished.
+      const heard = await heardFor(msg.text)
+      if (heard?.enrol) {
+        // Reading the passage for "learn my voice": not a question.
+        const said = heard.enrol === 'done'
+          ? `Got it, ${IDENTITY.honorific || 'thanks'}. I know your voice now, and only you can have me act.`
+          : heard.enrol === 'more' ? 'Thanks, keep reading, a little more.' : "I didn't catch that clearly. Please read it again."
+        send({ type: 'text', delta: said, ask: id ?? undefined })
+        send({ type: 'done', text: said, ask: id ?? undefined })
+        return
+      }
+      const verdict = VOICE.verdictFor(msg.text)
+      setGuest(verdict && !verdict.owner ? verdict : null, id)
+      const guestNote = GUEST
+        ? `[Voice ID: this request was not in the owner's voice (match ${GUEST.score.toFixed(2)}). Answer questions, but don't act: ` +
+          `every tool except searching the web is refused. If they ask for an action, say only ${IDENTITY.honorific || 'the owner'} can ask for that.]\n`
+        : ''
       // Researcher mode (the R key): every question goes to deep_research.
       // The planner starts while the brain reads the question.
       if (msg.mode === 'research') {
@@ -1433,7 +1502,7 @@ wss.on('connection', (socket, req) => {
         } catch (err) {
           console.warn(`[gnosis] researcher warm-up failed — ${err?.message ?? err}`)
         }
-        conversation.ask(`${noteFor(done.splice(0))}${RESEARCHER_ASK}\n${msg.text}`, id, { text: msg.text })
+        conversation.ask(`${noteFor(done.splice(0))}${guestNote}${RESEARCHER_ASK}\n${msg.text}`, id, { text: msg.text })
         return
       }
       // "Open YouTube", "pause the music": done in code at once (fastpath.mjs),
@@ -1442,17 +1511,18 @@ wss.on('connection', (socket, req) => {
       const ids = Array.isArray(msg.attachments) ? msg.attachments.filter((x) => typeof x === 'string') : []
       if (ids.length) {
         void attachmentNote(ids, msg.text, { store: ATTACHMENTS })
-          .catch((err) => `[The owner attached files, but they couldn't be read: ${err?.message ?? err}. Say so.]
-`)
-          .then((attached) => askBrain(msg.text, id, attached))
+          .catch((err) => `[The owner attached files, but they couldn't be read: ${err?.message ?? err}. Say so.]\n`)
+          .then((attached) => askBrain(msg.text, id, guestNote + attached))
         return
       }
-      const fast = ALLOW_WRITES && WINDOWS ? parseFast(msg.text) : null
+      // The fast path acts at once, so never for a voice that isn't the owner's.
+      const fast = ALLOW_WRITES && WINDOWS && !GUEST ? parseFast(msg.text) : null
       if (fast) {
         void quick(fast, msg.text, id)
         return
       }
-      askBrain(msg.text, id)
+      askBrain(msg.text, id, guestNote)
+      })()
     }
 
     if (msg.type === 'interrupt') {

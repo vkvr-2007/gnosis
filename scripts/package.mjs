@@ -29,7 +29,7 @@ const APP = join(STAGE, 'app')
 const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'))
 const identity = JSON.parse(readFileSync(join(ROOT, 'config', 'identity.json'), 'utf8'))
 /** What the bridge imports at run time; everything else is built into the window or only for development. */
-const RUNTIME_PACKAGES = ['zod', 'ws', 'qrcode', 'puppeteer-core']
+const RUNTIME_PACKAGES = ['zod', 'ws', 'qrcode', 'puppeteer-core', 'sherpa-onnx-node']
 
 const step = (what) => console.log(`- ${what}`)
 const run = (cmd, args, opts = {}) => {
