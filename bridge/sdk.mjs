@@ -237,7 +237,7 @@ export async function streamChat({ route, messages, tools, signal, onText, onToo
 export const ASKS_ACTION = new RegExp(
   String.raw`^\W*(?:(?:hey\s+|ok(?:ay)?\s+)?g?nosis\W+)?(?:(?:please|can you|could you|would you|will you|now)\W+)*` +
   String.raw`(?:open|close|type|play|pause|resume|launch|remind|set|send|save|delete|remove|schedule|cancel|turn|` +
-  String.raw`click|press|switch|focus|minimi[sz]e|maximi[sz]e|go to|search|find|run|start|stop|mute|unmute|remember|forget|note down|look)\b`,
+  String.raw`click|press|switch|focus|minimi[sz]e|maximi[sz]e|go to|search|find|run|start|stop|mute|unmute|remember|forget|note down|look|watch me|learn|teach|let me show)\b`,
   'i')
 
 /**
@@ -247,6 +247,13 @@ export const ASKS_ACTION = new RegExp(
  * these are held for a tool like an action is.
  */
 export const ASKS_LIVE = /\b(?:my|the) phone(?:'s)?\b|\bphone (?:battery|notifications?)\b|\bwhat(?:'s| is) on (?:my|the) screen\b|\b(?:my|any) reminders?\b|\b(?:battery|charging|disk space|free space|storage|cpu|ram|memory usage|wi-?fi|volume|brightness)\b/i
+
+/**
+ * More requests that need a tool, depending on what is going on: a tool server adds one (teach.mjs:
+ * "done" while it is watching). Asked "watch me" and then "done", Nemotron said it was watching and
+ * then that it had stopped, with no tool run either time (2026-10-19).
+ */
+export const ACTION_HINTS = []
 
 /** A reply that says it is about to do something rather than doing it. */
 export const PROMISES = /^\W*(?:(?:sure|okay|ok|got it|on it)\W+)?(?:i['’]?ll|i will|let me|i['’]?m going to|fetching|checking|looking (?:that )?up|one moment|give me a (?:sec|second|moment))\b/i
@@ -375,7 +382,7 @@ export function query({ prompt, options = {} }) {
     let answer = ''
     let turns = 0
     const request = requestText(userContent)
-    const asksAction = toolDefs.length > 0 && (ASKS_ACTION.test(request) || ASKS_LIVE.test(request))
+    const asksAction = toolDefs.length > 0 && (ASKS_ACTION.test(request) || ASKS_LIVE.test(request) || ACTION_HINTS.some((h) => h(request)))
     let acted = false
     let checked = false
     // Private (privacy.mjs): a sensitive request, or once a tool has brought back the owner's personal

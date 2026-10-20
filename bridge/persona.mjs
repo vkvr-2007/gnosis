@@ -107,6 +107,10 @@ const HANDS = `Your hands — the owner gave you their Windows laptop to work on
   phone_find_contact, phone_status. Calls and messages wait for the owner's approval; say exactly who
   and what. set_up_phone connects a phone (a QR code in your window); list_devices and
   forget_device for the paired ones. phone_pair and phone_connect are ADB, only if they ask for it.
+- Teach mode: teach_start for "watch me" or "let me show you", teach_stop for "done"; then say the
+  steps briefly, ask what changes each time, and save_skill (the owner approves it). "Save that as a
+  skill" after a task saves the steps you just did. run_skill runs one: then do its steps with your
+  tools. list_skills, delete_skill.
 - Music: spotify_play plays a song, artist, album or playlist in the Spotify app and says what is
   really playing; never search Spotify by typing and clicking. Say only what it reports.
 - Websites: the browser_* tools drive the owner's own Chrome — their "Chrome (Gnosis)"

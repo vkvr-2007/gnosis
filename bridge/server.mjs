@@ -55,6 +55,7 @@ import { describeImages, visionServer } from './vision.mjs'
 import { musicServer } from './spotify.mjs'
 import { adbRunner, createAppPhone, createPhone, createPhoneRouter, findAdb, phoneServer } from './phone.mjs'
 import { createDeviceHub } from './devices.mjs'
+import { teachServer } from './teach.mjs'
 import QRCode from 'qrcode'
 import { useImageDescriber } from './sdk.mjs'
 import { createJobStore, createNotifier, createWatchers, scheduleServer, setBriefing, startSchedule } from './schedule.mjs'
@@ -884,6 +885,7 @@ const BRAIN = createBrain({
     ayra_memory: memoryServer(MEMORY),
     ayra_vision: visionServer({ camera: cameraFrame }),
     ayra_music: musicServer(),
+    ayra_teach: teachServer(),
     ayra_phone: phoneServer(createPhoneRouter({
       app: createAppPhone(DEVICES),
       adb: createPhone({ run: findAdb() ? adbRunner(findAdb()) : null }),

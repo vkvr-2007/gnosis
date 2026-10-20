@@ -482,6 +482,10 @@ export function createGate({ allowWrites, laptop = false, connectors = DEFAULT_C
       // The owner's phone over ADB (phone.mjs). Calls and messages are asked about in review().
       if (server === 'ayra_phone') return true
 
+      // Teach mode and saved skills (teach.mjs). Saving and deleting a skill are asked about in review();
+      // running one only hands its steps back, and each step's own call is reviewed here as usual.
+      if (server === 'ayra_teach') return true
+
       const tool = mcpToolOf(name)
       if (EFFECTFUL_VERB.test(tool) && !VETO_EXEMPT.has(`${server}__${tool}`)) {
         return allowWrites
@@ -514,6 +518,13 @@ export function createGate({ allowWrites, laptop = false, connectors = DEFAULT_C
       // Calling and sending from the owner's phone are "sending as you": asked every time.
       detail = `Call ${input?.who ?? ''}`
       reason = 'calls someone from your phone'
+    } else if (name === 'mcp__ayra_teach__save_skill') {
+      const steps = Array.isArray(input?.steps) ? input.steps.length : 0
+      detail = `Save the skill "${input?.name ?? ''}": ${input?.description ?? ''} (${steps} steps)`
+      reason = 'saves a skill I can run later'
+    } else if (name === 'mcp__ayra_teach__delete_skill') {
+      detail = `Delete the skill "${input?.name ?? ''}"`
+      reason = 'deletes a saved skill'
     } else if (name === 'mcp__ayra_phone__forget_device') {
       detail = `Unpair ${input?.which ?? ''}`
       reason = 'unpairs one of your devices'
