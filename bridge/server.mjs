@@ -864,7 +864,10 @@ function nextDeviceAsk() {
   deviceConversation.ask(next.text, `phone-${Date.now()}`)
 }
 const DEVICES = createDeviceHub({ onAsk: askFromDevice })
-DEVICES.start()
+// Paused (the owner, 2026-10-20: "lets put a pause on the phone app ... make it into a good windows
+// app first"): the device link opens a port on the home network, so it only starts when asked for.
+const DEVICES_ON = env('DEVICES', '') === '1' || process.env.GNOSIS_DEVICES === '1'
+if (DEVICES_ON) DEVICES.start()
 
 /** A QR code in every open window of his (set_up_phone), kept up for two minutes. */
 async function showQr(url, title) {
@@ -889,7 +892,7 @@ const BRAIN = createBrain({
     ayra_phone: phoneServer(createPhoneRouter({
       app: createAppPhone(DEVICES),
       adb: createPhone({ run: findAdb() ? adbRunner(findAdb()) : null }),
-    }), { hub: DEVICES, showQr }),
+    }), { hub: DEVICES_ON ? DEVICES : null, showQr }),
     ayra_schedule: scheduleServer({
       store: SCHEDULE,
       get notifier() { return NOTIFIER },
