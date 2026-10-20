@@ -47,5 +47,7 @@ export function modelFor(name, cfg = loadModels(), environ = process.env) {
     extraBody: spec.extraBody,
     temperature: spec.temperature,
     onDevice: Boolean(provider.onDevice),
+    // Other models of the same provider to try when this one is unavailable (sdk.mjs streamChat).
+    fallbacks: Array.isArray(spec.fallbacks) ? spec.fallbacks.filter((m) => m !== spec.model) : [],
   }
 }

@@ -525,3 +525,21 @@ test('a model that never answers, or stalls, is given up on; Esc is still Esc', 
     Object.assign(STREAM_TIMEOUTS, saved)
   }
 })
+
+test('a model that is not there (404) hands over to its backup; one that says no (400) does not', async () => {
+  const route = { baseUrl: 'https://x/v1', model: 'main', fallbacks: ['backup'] }
+  const asked = []
+  const ok = (text) => new Response(`data: ${JSON.stringify({ choices: [{ delta: { content: text } }] })}\n\n`, { status: 200 })
+  const fetchImpl = async (url, init) => {
+    const { model } = JSON.parse(init.body)
+    asked.push(model)
+    return model === 'main' ? new Response('{"status":404,"title":"Not Found"}', { status: 404 }) : ok('From the backup.')
+  }
+  const out = await streamChat({ route, messages: [], tools: [], fetchImpl, retryWaits: [1] })
+  assert.equal(out.text, 'From the backup.')
+  assert.deepEqual(asked, ['main', 'backup'])
+  asked.length = 0
+  await assert.rejects(streamChat({ route, messages: [], tools: [], retryWaits: [1],
+    fetchImpl: async (u, init) => (asked.push(JSON.parse(init.body).model), new Response('bad', { status: 400 })) }), /API Error: 400/)
+  assert.deepEqual(asked, ['main'])
+})

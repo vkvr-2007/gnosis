@@ -23,7 +23,12 @@
         "chat_template_kwargs": {
           "enable_thinking": false
         }
-      }
+      },
+      "_fallbacks": "Tried in turn when this model is unavailable (NVIDIA answered 404 for it on 2026-10-20) or keeps failing, before anything has been said. Same provider, same settings.",
+      "fallbacks": [
+        "nvidia/nemotron-3.5-super-vl-120b-a12b",
+        "nvidia/nemotron-3-ultra-550b-a55b"
+      ]
     },
     "research": {
       "provider": "nvidia",
@@ -32,7 +37,12 @@
         "chat_template_kwargs": {
           "enable_thinking": false
         }
-      }
+      },
+      "_fallbacks": "Tried in turn when this model is unavailable (NVIDIA answered 404 for it on 2026-10-20) or keeps failing, before anything has been said. Same provider, same settings.",
+      "fallbacks": [
+        "nvidia/nemotron-3.5-super-vl-120b-a12b",
+        "nvidia/nemotron-3-ultra-550b-a55b"
+      ]
     },
     "vision": {
       "provider": "nvidia",

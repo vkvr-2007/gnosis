@@ -158,13 +158,29 @@ export async function streamChat(opts) {
   const onText = opts.onText && ((piece) => ((started = true), opts.onText(piece)))
   const onToolStart = opts.onToolStart && ((call) => ((started = true), opts.onToolStart(call)))
   const waits = opts.retryWaits ?? RETRY_WAITS
-  for (let attempt = 0; ; attempt++) {
-    try {
-      return await streamOnce({ ...opts, onText, onToolStart })
-    } catch (err) {
-      if (started || opts.signal?.aborted || attempt >= waits.length || !retryable(err)) throw err
-      console.warn(`[gnosis] model call failed (${err?.message ?? err}); trying again in ${waits[attempt] / 1000} s`)
-      await new Promise((r) => setTimeout(r, waits[attempt]))
+  // The model itself, then its backups (config/models.json "fallbacks") when it is unavailable.
+  const models = [opts.route.model, ...(opts.route.fallbacks ?? [])]
+  for (const [i, model] of models.entries()) {
+    const route = i ? { ...opts.route, model } : opts.route
+    for (let attempt = 0; ; attempt++) {
+      try {
+        const out = await streamOnce({ ...opts, route, onText, onToolStart })
+        if (i) console.warn(`[gnosis] answered with the backup model ${model}`)
+        return out
+      } catch (err) {
+        if (started || opts.signal?.aborted) throw err
+        // Not there at all (404, 410): straight to the next model. Busy or down: a couple of retries first.
+        const gone = err?.status === 404 || err?.status === 410
+        const last = i === models.length - 1
+        if (!gone && attempt < waits.length && retryable(err)) {
+          console.warn(`[gnosis] model call failed (${err?.message ?? err}); trying again in ${waits[attempt] / 1000} s`)
+          await new Promise((r) => setTimeout(r, waits[attempt]))
+          continue
+        }
+        if (last || !(gone || retryable(err))) throw err
+        console.warn(`[gnosis] ${model} is unavailable (${String(err?.message ?? err).slice(0, 80)}); trying ${models[i + 1]}`)
+        break
+      }
     }
   }
 }
