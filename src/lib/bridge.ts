@@ -138,20 +138,22 @@ let firstReady = deferred()
 
 let everConnected = false
 
-/** Backoff for the automatic re-dial. It gives up after the last delay rather
- *  than retrying forever — a bridge that has been down for half a minute is
- *  usually one you stopped on purpose, and the next ask() re-dials anyway. */
-const RECONNECT_DELAYS = [500, 1000, 2000, 4000, 8000, 8000]
+/** Backoff for the automatic re-dial, then every 8 s for as long as it takes. It used to give up
+ *  after half a minute, but in Gnosis.exe the bridge always comes back (after Settings restarts it,
+ *  a crash, or the laptop waking up) and takes about that long to start: the window was left
+ *  disconnected for good (2026-10-20). One quiet request every 8 s costs nothing. */
+const RECONNECT_DELAYS = [500, 1000, 2000, 4000, 8000]
 let attempt = 0
 let reconnectTimer = 0
 
 function scheduleReconnect() {
-  if (attempt >= RECONNECT_DELAYS.length) return
-  const delay = RECONNECT_DELAYS[attempt]
+  const delay = RECONNECT_DELAYS[Math.min(attempt, RECONNECT_DELAYS.length - 1)]
   attempt += 1
   clearTimeout(reconnectTimer)
   reconnectTimer = window.setTimeout(() => {
-    void connect().catch(() => {})
+    // A dial that fails (the bridge still starting) tries again; only a lost open session called
+    // this before, so one miss ended the chain.
+    void connect().catch(() => scheduleReconnect())
   }, delay)
 }
 
@@ -203,6 +205,9 @@ function dispatch(ws: WebSocket) {
     } else if (msg.type === 'notice' && typeof msg.text === 'string') {
       // A reminder, a routine's answer, a battery warning (bridge/schedule.mjs): say it now.
       onNotice?.(msg.text)
+    } else if (msg.type === 'settings') {
+      // The tray's Settings item.
+      onSettings?.()
     } else if (msg.type === 'camera' && typeof msg.id === 'string') {
       // look_through_camera (bridge/vision.mjs): one webcam frame, sent back as a JPEG.
       const id = msg.id
@@ -552,6 +557,11 @@ export function reportHearing(mode: 'push' | 'hands-free'): void {
 
 /** Something Gnosis says without being asked (a reminder, a routine's answer, a warning). */
 let onNotice: ((text: string) => void) | null = null
+let onSettings: (() => void) | null = null
+/** The tray asks for the Settings screen. */
+export function watchSettings(fn: () => void) {
+  onSettings = fn
+}
 export function watchNotice(fn: (text: string) => void) {
   onNotice = fn
 }

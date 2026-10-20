@@ -15,6 +15,8 @@
 
 import { existsSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
+import { loadSecrets } from './secrets.mjs'
+import { withSettings } from './settings.mjs'
 
 const root = (path) => fileURLToPath(new URL(`../${path}`, import.meta.url))
 
@@ -30,7 +32,11 @@ if (existsSync(envFile) && typeof process.loadEnvFile === 'function') {
 /** @type {{ name: string, wordmark: string, tagline: string, honorific: string, language: string,
  *           timezone: string, voice: { gender: 'female' | 'male', prefer: string[], elevenLabsId?: string },
  *           wake: { names: string[], prefixedOnly: string[] } }} */
-export const IDENTITY = JSON.parse(readFileSync(root('config/identity.json'), 'utf8'))
+export const IDENTITY = withSettings(JSON.parse(readFileSync(root('config/identity.json'), 'utf8')))
+
+// Keys saved through the Settings screen (Windows Credential Manager), for whatever the environment
+// doesn't already have. Not in tests, which must never see the owner's keys.
+if (!process.env.NODE_TEST_CONTEXT && !process.env.GNOSIS_NO_SAVED_KEYS) loadSecrets()
 
 /**
  * The bridge's settings, read as AYRA_<name>. One helper so every variable is

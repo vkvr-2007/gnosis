@@ -4,6 +4,7 @@ import { Hud } from './ui/Hud'
 import { Boot } from './ui/Boot'
 import { Ignition } from './ui/Ignition'
 import { Diagnostics } from './ui/Diagnostics'
+import { Settings } from './ui/Settings'
 import { useStore, MODE_KEY, modeLine, parseMode, type Hearing, type Mode, type Phase } from './store'
 import { startVoice, type Voice, type VoiceMode } from './lib/voice'
 import { createSpeaker, cycleVoice, currentVoiceName, prefetchLines } from './lib/tts'
@@ -900,6 +901,10 @@ export default function App() {
       }
     }
     window.addEventListener('keydown', onKey)
+    // In his own window (Gnosis.exe's WebView2) sound is allowed without a click and the microphone
+    // without a prompt, so he powers on by himself: no Start screen, and the tray's talk and
+    // Settings reach him at once. In a browser tab the Start click is still needed.
+    if ((window as unknown as { chrome?: { webview?: unknown } }).chrome?.webview) void powerOn()
 
     return () => {
       cancelAnimationFrame(raf)
@@ -917,6 +922,7 @@ export default function App() {
       <Hud />
       <Boot />
       <Diagnostics />
+      <Settings />
       <Ignition onStart={() => void powerOn()} />
     </>
   )

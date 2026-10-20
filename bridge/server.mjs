@@ -56,6 +56,8 @@ import { musicServer } from './spotify.mjs'
 import { adbRunner, createAppPhone, createPhone, createPhoneRouter, findAdb, phoneServer } from './phone.mjs'
 import { createDeviceHub } from './devices.mjs'
 import { teachServer } from './teach.mjs'
+import { keyStatus, KEYS, saveSecret, testKey } from './secrets.mjs'
+import { cleanSettings, readSettings, writeSettings } from './settings.mjs'
 import QRCode from 'qrcode'
 import { useImageDescriber } from './sdk.mjs'
 import { createJobStore, createNotifier, createWatchers, scheduleServer, setBriefing, startSchedule } from './schedule.mjs'
@@ -365,7 +367,7 @@ const handleRequest = async (req, res) => {
   // never grants — so no page can turn the microphone on.
   const trayCall =
     ((req.url === '/hearing' || req.url === '/face') && req.method === 'GET') ||
-    ((req.url === '/hearing' || req.url === '/talk') && req.method === 'POST')
+    ((req.url === '/hearing' || req.url === '/talk' || req.url === '/settings-open') && req.method === 'POST')
   if (trayCall) {
     if (origin || req.headers['x-ayra'] !== 'tray') {
       res.writeHead(403)
@@ -386,6 +388,12 @@ const handleRequest = async (req, res) => {
       for (const send of HEARING.faces) send({ type: 'talk', by: 'tray' })
       return reply(200, { ok: true })
     }
+    // The tray's Settings item: his window shows the Settings screen.
+    if (req.url === '/settings-open') {
+      if (!HEARING.faces.size) return reply(409, { error: "his window isn't open" })
+      for (const send of HEARING.faces) send({ type: 'settings' })
+      return reply(200, { ok: true })
+    }
     let body = ''
     for await (const chunk of req) {
       body += chunk
@@ -403,6 +411,66 @@ const handleRequest = async (req, res) => {
     for (const send of HEARING.faces) send({ type: 'hearing', mode, by: 'tray' })
     HEARING.mode = mode
     return reply(200, { mode })
+  }
+
+  // The Settings screen (src/ui/Settings.tsx): only from his own window, which always sends its
+  // Origin (checked above); never from another program, and never a key back out.
+  if (req.url === '/settings' || req.url === '/settings/test') {
+    if (!origin) {
+      res.writeHead(403, cors)
+      return res.end('forbidden')
+    }
+    const json = (code, body) => {
+      res.writeHead(code, { ...cors, 'content-type': 'application/json' })
+      res.end(JSON.stringify(body))
+    }
+    if (req.method === 'GET' && req.url === '/settings') {
+      const saved = readSettings()
+      let briefing = '08:00'
+      try {
+        briefing = BRIEFING_STATE.get('briefing') || env('BRIEFING', '08:00')
+      } catch { /* still starting */ }
+      return json(200, {
+        honorific: IDENTITY.honorific ?? '', voiceId: IDENTITY.voice?.elevenLabsId ?? '',
+        quietHours: saved.quietHours ?? '23:00-07:00', briefing, keys: keyStatus(),
+      })
+    }
+    if (req.method !== 'POST') return json(405, { error: 'POST' })
+    let body
+    try {
+      let raw = ''
+      for await (const chunk of req) {
+        raw += chunk
+        if (raw.length > 16 * 1024) throw new Error('too large')
+      }
+      body = JSON.parse(raw || '{}')
+    } catch {
+      return json(400, { error: 'That request was not readable.' })
+    }
+    if (req.url === '/settings/test') {
+      if (!KEYS.some((k) => k.name === body.name)) return json(400, { error: 'Unknown key.' })
+      return json(200, await testKey(body.name, body.value))
+    }
+    try {
+      const clean = cleanSettings(body)
+      const keys = body.keys && typeof body.keys === 'object' ? body.keys : {}
+      for (const [name, value] of Object.entries(keys)) saveSecret(name, value)
+      if (clean.briefing) {
+        BRIEFING_STATE.set('briefing', clean.briefing)
+        setBriefing(SCHEDULE, clean.briefing === 'off' ? null : clean.briefing)
+      }
+      const { briefing, ...rest } = clean
+      if (Object.keys(rest).length) writeSettings(rest)
+      // Name, voice, quiet hours and keys are read at start-up: the bridge starts again with them
+      // (Gnosis.exe restarts it at once; his window reconnects by itself).
+      const restart = Object.keys(rest).length > 0 || Object.keys(keys).length > 0
+      console.log(`[gnosis] settings changed: ${[...Object.keys(clean), ...Object.keys(keys).map((k) => `key ${k}`)].join(', ') || 'nothing'}`)
+      json(200, { ok: true, restart })
+      if (restart) setTimeout(() => process.exit(0), 600)
+      return
+    } catch (err) {
+      return json(400, { error: err.message })
+    }
   }
 
   if (req.method === 'GET' && req.url === '/health') {
@@ -1402,6 +1470,11 @@ wss.on('connection', (socket, req) => {
 const BRIEFING_STATE = createStore()
 
 NOTIFIER = createNotifier({
+  // The owner's quiet hours (Settings), 23:00-07:00 unless changed.
+  quietHours: (() => {
+    const q = readSettings().quietHours ?? '23:00-07:00'
+    return q === 'off' ? '' : q
+  })(),
   // Said aloud in every open window of his (the face shows it and speaks it); false with none open.
   speak: (text) => {
     let told = 0

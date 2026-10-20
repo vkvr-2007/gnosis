@@ -235,6 +235,7 @@ export function Hud() {
         <span><kbd>Esc</kbd> stop</span>
         <span><kbd>W</kbd> hands-free {handsFree ? 'on' : 'off'}</span>
         <span><kbd>R</kbd> research {researching ? 'on' : 'off'}</span>
+        <span><kbd>S</kbd> settings</span>
         <span><kbd>D</kbd> diagnostics</span>
         {voice && <span><kbd>V</kbd> {voice.replace(/\(.*?\)/g, '').trim()}</span>}
       </footer>

@@ -183,6 +183,7 @@ namespace Gnosis
         menu.Items.Add(bubbleItem);
       }
       if (config.Chrome != null) menu.Items.Add("Open Chrome (Gnosis)", null, delegate { window.OpenChrome(); });
+      menu.Items.Add("Settings", null, delegate { OpenSettings(); });
       menu.Items.Add(new ToolStripSeparator());
       menu.Items.Add("Restart Gnosis", null, delegate { ThreadPool.QueueUserWorkItem(delegate { bridge.Restart(); }); });
       menu.Items.Add("Show log", null, delegate { bridge.ShowLog(); });
@@ -245,6 +246,18 @@ namespace Gnosis
           for (int i = 0; i < 40 && faces == 0; i++) { Thread.Sleep(500); Hearing.Get(config, out faces); }
           if (faces > 0) Hearing.Talk(config);
         }
+      });
+    }
+
+    // His window, with the Settings screen showing (opened first when it is closed).
+    void OpenSettings()
+    {
+      ThreadPool.QueueUserWorkItem(delegate
+      {
+        Open(false);
+        int faces = 0;
+        for (int i = 0; i < 40 && faces == 0; i++) { Thread.Sleep(500); Hearing.Get(config, out faces); }
+        if (faces > 0) Hearing.Settings(config);
       });
     }
 
@@ -865,11 +878,16 @@ namespace Gnosis
     }
 
     // POST /talk: the HTTP status (409: her window isn't open), or 0 when unreachable.
-    public static int Talk(Config c)
+    public static int Talk(Config c) { return Press(c, c.TalkUrl); }
+
+    // The tray's Settings item: his window shows its Settings screen.
+    public static int Settings(Config c) { return Press(c, c.TalkUrl.Substring(0, c.TalkUrl.LastIndexOf('/')) + "/settings-open"); }
+
+    static int Press(Config c, string url)
     {
       try
       {
-        var req = (HttpWebRequest)WebRequest.Create(c.TalkUrl);
+        var req = (HttpWebRequest)WebRequest.Create(url);
         req.Method = "POST";
         req.Timeout = 3000;
         req.Proxy = null;

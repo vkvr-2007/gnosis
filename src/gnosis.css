@@ -348,3 +348,55 @@ html[data-cards='1'] .g-assistant .g-text { font-size: 18px; }
 .diag-ok { color: var(--ember) !important; }
 .diag-bad { color: var(--danger) !important; }
 .rs-rank { color: var(--ember) !important; }
+
+/* ---------------------------------------------------------------- settings (ui/Settings.tsx) */
+.settings-backdrop {
+  position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; padding: 16px;
+  background: color-mix(in srgb, var(--bg, #161514) 70%, transparent); backdrop-filter: blur(6px);
+}
+.settings {
+  width: min(560px, 100%); max-height: calc(100dvh - 32px); overflow: auto; padding: 22px 24px 18px;
+  background: #1d1b19; border: 1px solid rgba(239, 154, 76, 0.18); border-radius: 16px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45); color: var(--text, #edeae6);
+  font-family: 'Outfit Variable', system-ui, sans-serif; font-size: 14px; text-transform: none; letter-spacing: 0;
+}
+.settings * { text-transform: none; letter-spacing: 0; }
+.settings-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+.settings-head h2 { margin: 0; font-size: 20px; font-weight: 600; }
+.settings-x { background: none; border: 1px solid rgba(255, 255, 255, 0.12); color: var(--muted, #a39e98); border-radius: 8px; padding: 2px 8px; font: 12px 'Geist Mono', monospace; cursor: pointer; }
+.settings-lead { color: var(--muted, #a39e98); margin: 6px 0 4px; line-height: 1.5; }
+.settings-sec { margin: 18px 0 8px; color: var(--ember, #ef9a4c); font-size: 13px; font-weight: 600; }
+.settings-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 8px 0; }
+.settings-row > span:first-child { color: var(--muted, #a39e98); }
+.settings input[type='text'], .settings input:not([type]), .settings input[type='password'], .settings input[type='time'] {
+  background: #141312; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 9px; color: inherit;
+  padding: 7px 10px; font: 13px 'Geist Mono', monospace; min-width: 0; color-scheme: dark;
+}
+.settings-row input:not([type='checkbox']) { width: 240px; }
+.settings input:focus-visible { outline: 2px solid rgba(239, 154, 76, 0.55); outline-offset: 1px; }
+.settings input:disabled { opacity: 0.45; }
+.settings-check { display: flex; align-items: center; gap: 8px; color: var(--text, #edeae6) !important; }
+.settings-check input { accent-color: #ef9a4c; }
+.settings-pair { display: flex; align-items: center; gap: 8px; color: var(--muted, #a39e98); }
+.settings-pair input { width: 104px !important; }
+.settings-key { padding: 10px 0; border-top: 1px solid rgba(255, 255, 255, 0.06); }
+.settings-key-top { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; flex-wrap: wrap; }
+.settings-key-row { display: flex; gap: 8px; margin-top: 8px; }
+.settings-key-row input { flex: 1; }
+.settings-key-foot { margin-top: 6px; font-size: 12px; }
+.settings-key-foot a { color: var(--ember, #ef9a4c); }
+.settings-dim { color: var(--muted, #a39e98); }
+.settings-ok { color: var(--ember, #ef9a4c); }
+.settings-bad { color: var(--danger, #e5675a); }
+.settings-btn {
+  background: none; color: var(--ember, #ef9a4c); border: 1px solid rgba(239, 154, 76, 0.55); border-radius: 9px;
+  padding: 7px 14px; font: 600 13px 'Outfit Variable', system-ui, sans-serif; cursor: pointer; white-space: nowrap;
+}
+.settings-btn:active { transform: translateY(1px); }
+.settings-btn:disabled { opacity: 0.45; cursor: default; }
+.settings-primary { background: #ef9a4c; color: #161514; border-color: #ef9a4c; padding: 8px 20px; }
+.settings-foot { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 18px; }
+@media (max-width: 520px) {
+  .settings-row { flex-direction: column; align-items: stretch; }
+  .settings-row input:not([type='checkbox']) { width: 100%; }
+}
