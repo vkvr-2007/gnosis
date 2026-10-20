@@ -19,11 +19,11 @@
 
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
-import { fileURLToPath } from 'node:url'
 import { z } from 'zod'
 import { createSdkMcpServer, tool } from './sdk.mjs'
+import { dataPath } from './paths.mjs'
 
-export const MEMORY_FILE = fileURLToPath(new URL('../data/memory.json', import.meta.url))
+export const MEMORY_FILE = dataPath('memory.json')
 const MAX_EPISODES = 300
 
 const STOP = new Set(('the a an and or of to in on at for with is are was were be been my me i you your it this that ' +

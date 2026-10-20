@@ -20,9 +20,10 @@ import { fileURLToPath } from 'node:url'
 import { z } from 'zod'
 import { IDENTITY } from './identity.mjs'
 import { ACTION_HINTS, createSdkMcpServer, tool } from './sdk.mjs'
+import { dataDir } from './paths.mjs'
 
 const SCRIPT = join(dirname(fileURLToPath(import.meta.url)), 'teach.ps1')
-export const SKILLS_DIR = fileURLToPath(new URL('../data/skills/', import.meta.url))
+export const SKILLS_DIR = dataDir('skills')
 
 const NAME = /^[a-z0-9][a-z0-9-]{0,48}$/
 const PLACEHOLDER = /\{([a-z_][a-z0-9_]*)\}/g

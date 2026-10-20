@@ -87,7 +87,7 @@ namespace Gnosis
   // ayra.ini, written by scripts/shortcuts.mjs: key=value, one per line.
   class Config
   {
-    public string Exe, Icon, Root, Node, Chrome, FaceUrl, HealthUrl, HearingUrl, TalkUrl, Title, Hotkey, HandsFreeHotkey, TalkHotkey;
+    public string Exe, Icon, Root, Node, Data, Chrome, FaceUrl, HealthUrl, HearingUrl, TalkUrl, Title, Hotkey, HandsFreeHotkey, TalkHotkey;
     // The bubble on top of every app (AYRA_BUBBLE=off turns it off for good).
     public bool Bubble = true;
     public List<string> ChromeArgs = new List<string>();
@@ -115,6 +115,7 @@ namespace Gnosis
         {
           case "root": c.Root = value; break;
           case "node": c.Node = value; break;
+          case "data": c.Data = value; break;
           case "chrome": c.Chrome = value; break;
           case "chromeArg": c.ChromeArgs.Add(value); break;
           case "face": c.FaceUrl = value; break;
@@ -128,6 +129,8 @@ namespace Gnosis
       }
       if (c.Root == null || c.Node == null || c.FaceUrl == null || c.HealthUrl == null || c.Title == null)
         throw new Exception("gnosis.ini is incomplete. Run `npm run shortcuts` in the Gnosis folder again.");
+      // His data: beside the code in a checkout, in the owner's profile once installed (bridge/paths.mjs).
+      if (string.IsNullOrEmpty(c.Data)) c.Data = Path.Combine(c.Root, "data");
       // Push-to-talk or hands-free (bridge/server.mjs /hearing), beside /health.
       c.HearingUrl = c.HealthUrl.Substring(0, c.HealthUrl.LastIndexOf('/')) + "/hearing";
       c.TalkUrl = c.HealthUrl.Substring(0, c.HealthUrl.LastIndexOf('/')) + "/talk";
@@ -359,7 +362,7 @@ namespace Gnosis
     {
       this.config = config;
       this.notify = notify;
-      logPath = Path.Combine(config.Root, "data", "logs", "console.log");
+      logPath = Path.Combine(config.Data, "logs", "console.log");
     }
 
     public bool Running { get { lock (gate) return proc != null; } }
@@ -392,6 +395,7 @@ namespace Gnosis
         // --supervised: start.mjs stops when its input closes (see StopProcess).
         var psi = new ProcessStartInfo(config.Node, "scripts\\start.mjs --supervised");
         psi.WorkingDirectory = config.Root;
+        psi.EnvironmentVariables["GNOSIS_DATA"] = config.Data;
         psi.UseShellExecute = false;
         psi.CreateNoWindow = true;
         psi.RedirectStandardInput = true;
@@ -747,7 +751,7 @@ namespace Gnosis
       view.Dock = DockStyle.Fill;
       view.DefaultBackgroundColor = Graphite;
       var props = new Microsoft.Web.WebView2.WinForms.CoreWebView2CreationProperties();
-      props.UserDataFolder = Path.Combine(Path.Combine(config.Root, "data"), "webview2");
+      props.UserDataFolder = Path.Combine(config.Data, "webview2");
       // His voice plays the moment he speaks, as it did in Chrome after the first click.
       props.AdditionalBrowserArguments = "--autoplay-policy=no-user-gesture-required";
       view.CreationProperties = props;

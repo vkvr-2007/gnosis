@@ -17,11 +17,11 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, statfsSync, writeFileSync } from 'node:fs'
 import { spawn } from 'node:child_process'
 import { dirname } from 'node:path'
-import { fileURLToPath } from 'node:url'
 import { z } from 'zod'
 import { createSdkMcpServer, tool } from './sdk.mjs'
+import { dataPath } from './paths.mjs'
 
-export const SCHEDULE_FILE = fileURLToPath(new URL('../data/schedule.json', import.meta.url))
+export const SCHEDULE_FILE = dataPath('schedule.json')
 export const REPEATS = ['once', 'daily', 'weekdays', 'weekly', 'hourly', 'minutes']
 
 // ---- times ------------------------------------------------------------------------------

@@ -59,7 +59,6 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { mkdir, rename, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { fileURLToPath } from 'node:url'
 import { clip } from './audit.mjs'
 import { stamp } from './context.mjs'
 // A cycle (deep.mjs reuses this file's helpers): safe because deepTools is only called at run time.
@@ -69,12 +68,13 @@ import { fetchText, proxyError } from './net.mjs'
 import { readArticle } from './page.mjs'
 import { searchSources } from './sources.mjs'
 import { rankQuery } from './triage.mjs'
+import { dataDir } from './paths.mjs'
 import {
   classifySource, confidenceLabel, factConfidence, normalise, overallConfidence, questionKey,
   registrableDomain, sameFact, sameQuestion, scanInjection, scoreSource, supportsNumbers, verifyQuote,
 } from './trust.mjs'
 
-export const RESEARCH_DIR = fileURLToPath(new URL('../data/research/', import.meta.url))
+export const RESEARCH_DIR = dataDir('research')
 
 /**
  * calls: Claude calls per run · deadlineMs: the run's clock (the review has its own) ·

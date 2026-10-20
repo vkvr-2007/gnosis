@@ -12,9 +12,9 @@
 
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { dataPath } from './paths.mjs'
 
-export const STATE_FILE = fileURLToPath(new URL('../data/state.json', import.meta.url))
+export const STATE_FILE = dataPath('state.json')
 
 /** A store over one JSON file. Tests point it at a temporary path. */
 export function createStore(file = STATE_FILE) {

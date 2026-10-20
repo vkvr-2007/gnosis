@@ -23,13 +23,13 @@
 import { randomUUID } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { fileURLToPath } from 'node:url'
 import { z } from 'zod'
 import { BUILTINS } from './builtins.mjs'
 import { loadModels, modelFor } from './models.mjs'
 import { IDENTITY } from './identity.mjs'
 import { createMemory } from './memory.mjs'
 import { createPrivateMemory, findPII, privateAnswer, privateStatement, sensitiveRequest } from './privacy.mjs'
+import { dataDir } from './paths.mjs'
 
 // ---- tools -------------------------------------------------------------------------
 
@@ -113,7 +113,7 @@ export function collectTools({ mcpServers = {}, tools: builtins = [], disallowed
 
 // ---- sessions ------------------------------------------------------------------------
 
-const SESSIONS = fileURLToPath(new URL('../data/sessions/', import.meta.url))
+const SESSIONS = dataDir('sessions')
 
 function loadSession(id) {
   const file = `${SESSIONS}${id}.json`

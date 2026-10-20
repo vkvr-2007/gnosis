@@ -87,6 +87,8 @@ function newest(path) {
 
 /** Build the face if anything it is made from changed since the last build. */
 function buildFaceIfStale() {
+  // An installed Gnosis (scripts/package.mjs) has the built window and no sources to build it from.
+  if (!existsSync('src') || !existsSync('node_modules/vite')) return
   const built = newest('dist/index.html')
   const source = Math.max(
     ...['src', 'public', 'index.html', 'config/identity.json', 'vite.config.ts', 'package-lock.json'].map(newest),

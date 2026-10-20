@@ -23,8 +23,9 @@ import { networkInterfaces } from 'node:os'
 import { dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { WebSocketServer } from 'ws'
+import { dataPath } from './paths.mjs'
 
-export const DEVICES_FILE = fileURLToPath(new URL('../data/devices.json', import.meta.url))
+export const DEVICES_FILE = dataPath('devices.json')
 export const APK_FILE = fileURLToPath(new URL('../android/app/build/outputs/apk/debug/app-debug.apk', import.meta.url))
 export const DEVICE_PORT = 8790
 

@@ -15,10 +15,10 @@
 
 import { appendFile, mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
-import { fileURLToPath } from 'node:url'
 import { localDate } from './context.mjs'
+import { dataDir } from './paths.mjs'
 
-export const LOG_DIR = fileURLToPath(new URL('../data/logs/', import.meta.url))
+export const LOG_DIR = dataDir('logs')
 
 const MAX_TEXT = 500
 

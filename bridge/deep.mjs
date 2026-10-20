@@ -54,9 +54,9 @@ import { tool } from './sdk.mjs'
 import { z } from 'zod'
 import { mkdir, rename, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { fileURLToPath } from 'node:url'
 import { clip } from './audit.mjs'
 import { stamp } from './context.mjs'
+import { dataDir } from './paths.mjs'
 // Bindings only, used at run time: research.mjs imports this file too (researchServer).
 import {
   BOT_WALL, abortError, canonical, citedIn, cleanLine, coolAgents, dataLine, dedupeKey, defaultFetchPage,
@@ -67,7 +67,7 @@ import {
   sameFact, scanInjection, scoreSource, supportsNumbers, verifyQuote,
 } from './trust.mjs'
 
-export const DEEP_DIR = fileURLToPath(new URL('../data/research/', import.meta.url))
+export const DEEP_DIR = dataDir('research')
 
 /**
  * calls: Claude calls a run · deadlineMs: the run's clock (rank and final have their own) ·

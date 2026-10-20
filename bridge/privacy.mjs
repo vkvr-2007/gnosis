@@ -23,7 +23,7 @@
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { dataPath } from './paths.mjs'
 
 export const SENSITIVE_WORDS = new RegExp(String.raw`\b(?:` + [
   'private(?:ly)?', 'secret', 'confidential', 'pii',
@@ -110,7 +110,7 @@ export function privateAnswer(request, memories) {
   return `You told me privately: ${said.join('; and ')}.`
 }
 
-export const MEMORY_FILE = fileURLToPath(new URL('../data/private-memory.json', import.meta.url))
+export const MEMORY_FILE = dataPath('private-memory.json')
 
 /** The private memory: what the owner told Gnosis to keep privately. On the laptop only (data/ is never committed). */
 export function createPrivateMemory(file = MEMORY_FILE) {
