@@ -459,3 +459,69 @@ test("questions only a tool can answer are held for one, like actions (the phone
     "what's on my screen", 'do I have any reminders?', "what's my laptop battery?", 'how much free space is on C?']) assert.match(q, ASKS_LIVE, q)
   for (const q of ['what is a phone?', 'tell me a joke', 'how do screens work?']) assert.doesNotMatch(q, ASKS_LIVE, q)
 })
+
+test('a network blip before anything is said is tried again; never once the answer has started', async () => {
+  const sse = (lines) => new Response(new ReadableStream({
+    start(c) {
+      for (const l of lines) c.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(l)}\n\n`))
+      c.close()
+    },
+  }), { status: 200 })
+  const route = { baseUrl: 'https://x/v1', model: 'm' }
+  let calls = 0
+  const flaky = async () => {
+    if (++calls === 1) throw new TypeError('fetch failed')
+    return sse([{ choices: [{ delta: { content: 'Hello.' } }] }])
+  }
+  const said = []
+  const out = await streamChat({ route, messages: [], tools: [], fetchImpl: flaky, onText: (t) => said.push(t), retryWaits: [1] })
+  assert.equal(out.text, 'Hello.')
+  assert.equal(calls, 2)
+  assert.deepEqual(said, ['Hello.'])
+  // Busy: retried; a bad request: not.
+  let busy = 0
+  const tooMany = async () => (++busy < 2 ? new Response('busy', { status: 429 }) : sse([{ choices: [{ delta: { content: 'ok' } }] }]))
+  assert.equal((await streamChat({ route, messages: [], tools: [], fetchImpl: tooMany, retryWaits: [1] })).text, 'ok')
+  let bad = 0
+  await assert.rejects(streamChat({ route, messages: [], tools: [], retryWaits: [1, 1],
+    fetchImpl: async () => (bad++, new Response('no', { status: 400 })) }), /API Error: 400/)
+  assert.equal(bad, 1)
+  // Cut off after a word was said: not repeated.
+  let cut = 0
+  const halfway = async () => {
+    cut++
+    return new Response(new ReadableStream({
+      start(c) {
+        c.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ choices: [{ delta: { content: 'Halfway there. And' } }] })}\n\n`))
+        // A moment later, as a dropped connection does (an error at once would discard the piece).
+        setTimeout(() => c.error(new TypeError('terminated')), 20)
+      },
+    }), { status: 200 })
+  }
+  const shown = []
+  await assert.rejects(streamChat({ route, messages: [], tools: [], fetchImpl: halfway, onText: (t) => shown.push(t), retryWaits: [1] }), /terminated/)
+  assert.ok(shown.length > 0, 'something was shown')
+  assert.equal(cut, 1)
+})
+
+test('a model that never answers, or stalls, is given up on; Esc is still Esc', async () => {
+  const { STREAM_TIMEOUTS } = await import('../bridge/sdk.mjs')
+  const route = { baseUrl: 'https://x/v1', model: 'm' }
+  const hang = (url, init) => new Promise((_, reject) => init.signal.addEventListener('abort', () => reject(Object.assign(new Error('aborted'), { name: 'AbortError' }))))
+  const saved = { ...STREAM_TIMEOUTS }
+  try {
+    STREAM_TIMEOUTS.connect = 30
+    STREAM_TIMEOUTS.stall = 30
+    await assert.rejects(streamChat({ route, messages: [], tools: [], fetchImpl: hang, retryWaits: [] }), /didn't start answering/)
+    const stalls = async () => new Response(new ReadableStream({
+      start(c) { c.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ choices: [{ delta: { content: 'Hi' } }] })}\n\n`)) },
+    }), { status: 200 })
+    await assert.rejects(streamChat({ route, messages: [], tools: [], fetchImpl: stalls, onText: () => {}, retryWaits: [] }), /stalled mid-answer/)
+    const esc = new AbortController()
+    setTimeout(() => esc.abort(), 5)
+    STREAM_TIMEOUTS.connect = 5000
+    await assert.rejects(streamChat({ route, messages: [], tools: [], fetchImpl: hang, signal: esc.signal, retryWaits: [1] }), (err) => err.name === 'AbortError')
+  } finally {
+    Object.assign(STREAM_TIMEOUTS, saved)
+  }
+})

@@ -150,7 +150,67 @@ export function visibleText(raw) {
  * One streamed chat completion. Calls onText for each piece of answer text and onToolStart the first
  * time each tool call appears, and resolves with { text, toolCalls, usage }.
  */
-export async function streamChat({ route, messages, tools, signal, onText, onToolStart, toolChoice = 'auto', fetchImpl = fetch }) {
+export async function streamChat(opts) {
+  // A network blip (Wi-Fi dropping, the laptop just woken) or a busy server: tried again, a few
+  // seconds apart, but only while nothing has been said or started, so no reply is ever doubled.
+  // Seen 2026-10-19: the laptop slept mid-request and the turn ended in "fetch failed".
+  let started = false
+  const onText = opts.onText && ((piece) => ((started = true), opts.onText(piece)))
+  const onToolStart = opts.onToolStart && ((call) => ((started = true), opts.onToolStart(call)))
+  const waits = opts.retryWaits ?? RETRY_WAITS
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await streamOnce({ ...opts, onText, onToolStart })
+    } catch (err) {
+      if (started || opts.signal?.aborted || attempt >= waits.length || !retryable(err)) throw err
+      console.warn(`[gnosis] model call failed (${err?.message ?? err}); trying again in ${waits[attempt] / 1000} s`)
+      await new Promise((r) => setTimeout(r, waits[attempt]))
+    }
+  }
+}
+
+const RETRY_WAITS = [2000, 6000]
+/** How long to wait for the model to start answering, and for the next piece once it has. */
+export const STREAM_TIMEOUTS = { connect: 45_000, stall: 60_000 }
+
+/** Worth another try: no connection, a dropped one, a stall, or the server busy or briefly down. */
+export function retryable(err) {
+  if ([408, 429, 500, 502, 503, 504].includes(err?.status)) return true
+  const text = `${err?.name ?? ''} ${err?.message ?? ''} ${err?.cause?.code ?? ''}`
+  return /fetch failed|network|ECONNRESET|ECONNREFUSED|ETIMEDOUT|ENOTFOUND|EAI_AGAIN|socket hang up|terminated|stalled|didn't start answering/i.test(text)
+}
+
+async function streamOnce({ route, messages, tools, signal, onText, onToolStart, toolChoice = 'auto', fetchImpl = fetch, timeouts = STREAM_TIMEOUTS }) {
+  // Our own stop for a stall, alongside the owner's (Esc).
+  const watchdog = new AbortController()
+  let why = null
+  let timer = setTimeout(() => {
+    why = "The model didn't start answering in time."
+    watchdog.abort()
+  }, timeouts.connect)
+  const both = signal ? AbortSignal.any([signal, watchdog.signal]) : watchdog.signal
+  const failed = (err) => {
+    if (why && !signal?.aborted) return Object.assign(new Error(why), { stalled: true })
+    return err
+  }
+  try {
+    return await streamWith({ route, messages, tools, signal: both, onText, onToolStart, toolChoice, fetchImpl,
+      // Each piece that arrives resets the clock.
+      alive: () => {
+        clearTimeout(timer)
+        timer = setTimeout(() => {
+          why = 'The model stalled mid-answer.'
+          watchdog.abort()
+        }, timeouts.stall)
+      } })
+  } catch (err) {
+    throw failed(err)
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+async function streamWith({ route, messages, tools, signal, onText, onToolStart, toolChoice, fetchImpl, alive }) {
   const body = {
     model: route.model,
     messages,
@@ -171,16 +231,21 @@ export async function streamChat({ route, messages, tools, signal, onText, onToo
     err.status = res.status
     throw err
   }
+  alive()
   let text = ''
   let raw = ''
   const calls = []
   const reader = res.body.getReader()
+  // A stop (Esc, or the stall watchdog) ends a read that is waiting, whatever the stream does.
+  const stop = () => reader.cancel().catch(() => {})
+  signal?.addEventListener('abort', stop, { once: true })
   const decoder = new TextDecoder()
   let buffer = ''
   let usage = null
   for (;;) {
     const { value, done } = await reader.read()
     if (done) break
+    alive()
     buffer += decoder.decode(value, { stream: true })
     let nl
     while ((nl = buffer.indexOf('\n')) >= 0) {
@@ -220,6 +285,8 @@ export async function streamChat({ route, messages, tools, signal, onText, onToo
       }
     }
   }
+  signal?.removeEventListener('abort', stop)
+  if (signal?.aborted) throw Object.assign(new Error('The model call was stopped.'), { name: 'AbortError' })
   calls.forEach((c, i) => {
     c.id ||= `call_${i}_${randomUUID().slice(0, 8)}`
     if (!c.announced && c.name) onToolStart?.(c)
