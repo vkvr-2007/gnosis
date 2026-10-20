@@ -39,3 +39,4 @@ desktop/bin/
 
 # This laptop's own Claude Code permissions — personal, never committed.
 .claude/settings.local.json
+desktop/webview2/

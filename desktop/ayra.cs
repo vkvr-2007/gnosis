@@ -1,14 +1,14 @@
-// AYRA on the Windows desktop - AYRA.exe.
+// Gnosis on the Windows desktop - Gnosis.exe.
 //
-// A small tray app, and the one part of AYRA that starts with Windows. It
-//   - keeps her bridge running in the background, with no console window,
+// The app itself, and the part of Gnosis that starts with Windows. It
+//   - keeps his bridge running in the background, with no console window,
 //     and starts it again if it stops;
-//   - opens her window (the face, as an app window of "Chrome (AYRA)") from
+//   - shows his window (the face, in an Edge WebView2 inside this app) from
 //     the tray, the taskbar, the desktop or a hotkey - the hotkey also starts
-//     a turn, as Space does in her window;
-//   - puts that window under AYRA's own taskbar icon rather than Chrome's.
+//     a turn, as Space does in his window;
+//   - shows the bubble on the desktop.
 //
-// Her access to the laptop lives in the bridge, not here: this app only
+// His access to the laptop lives in the bridge, not here: this app only
 // starts, watches and shows. It opens no port and reads no secrets.
 //
 // Built by `npm run shortcuts` with the C# compiler that ships with Windows
@@ -160,12 +160,11 @@ namespace Gnosis
     public Tray(Config config, bool openWindow)
     {
       this.config = config;
-      window = new Window(config);
-
       var menu = new ContextMenuStrip();
       // Creating the first control installs the WinForms context; capture it so
       // background threads can update the tray safely.
       ui = SynchronizationContext.Current ?? new WindowsFormsSynchronizationContext();
+      window = new Window(config, ui);
       bridge = new Bridge(config, Notify);
 
       menu.Items.Add("Open Gnosis", null, delegate { Open(false); });
@@ -567,13 +566,26 @@ namespace Gnosis
     }
   }
 
-  // Her window: the face as a "Chrome (AYRA)" app window, titled with her wordmark.
+  // His window: the face in an Edge WebView2 inside this app, so Gnosis is one app with one taskbar
+  // icon and needs no Chrome window (the owner, 2026-10-20: "make it into a good windows app").
+  // When WebView2 can't start (no runtime), it falls back to a Chrome app window as before.
   class Window
   {
     readonly Config config;
-    public Window(Config config) { this.config = config; }
+    readonly SynchronizationContext ui;
+    FaceForm form;
+    volatile IntPtr handle = IntPtr.Zero;
+    volatile bool useChrome;
+    public Window(Config config, SynchronizationContext ui) { this.config = config; this.ui = ui; }
 
     public IntPtr Find()
+    {
+      var h = handle;
+      if (h != IntPtr.Zero && Native.IsWindowVisible(h)) return h;
+      return useChrome ? FindChrome() : IntPtr.Zero;
+    }
+
+    IntPtr FindChrome()
     {
       IntPtr found = IntPtr.Zero;
       Native.EnumWindows(delegate(IntPtr h, IntPtr l)
@@ -591,30 +603,56 @@ namespace Gnosis
       return found;
     }
 
-    // Brings her window forward, opening it if it isn't open. `talk` then
-    // presses Space in it, which starts a turn without the wake word.
+    // Brings his window forward, opening it if it isn't open. `talk` then presses Space in it, which
+    // starts a turn without the wake word. Called off the UI thread: opening may wait for the bridge.
     public void Show(bool talk)
     {
       var h = Find();
-      if (h != IntPtr.Zero)
+      if (h == IntPtr.Zero)
       {
-        Group(h);
-        Focus(h);
-        if (talk)
-        {
-          // The hotkey's own keys are still held; Space must arrive alone.
-          Native.WaitForModifiersUp(1500);
-          if (Native.GetForegroundWindow() == h) Native.Tap(0x20);
-        }
-        return;
+        // The bridge serves his face; when he is still starting, wait for it.
+        var ready = false;
+        for (int i = 0; i < 120 && !(ready = Bridge.Healthy(config, 1000)); i++) Thread.Sleep(500);
+        if (!ready) throw new Exception("Gnosis isn't answering yet, so his window wasn't opened. Try again in a minute, or open the log from the tray menu.");
+        if (useChrome) { OpenInChrome(); return; }
+        ui.Send(delegate { Open(); }, null);
+        for (int i = 0; i < 40 && (h = Find()) == IntPtr.Zero; i++) Thread.Sleep(100);
+        if (h == IntPtr.Zero) return;
       }
-      if (config.Chrome == null) throw new Exception("Chrome was not found when Gnosis was set up. Install it, then run npm run shortcuts again.");
-      // The bridge serves her face; when she is still starting, wait for it.
-      var ready = false;
-      for (int i = 0; i < 120 && !(ready = Bridge.Healthy(config, 1000)); i++) Thread.Sleep(500);
-      if (!ready) throw new Exception("Gnosis isn't answering yet, so her window wasn't opened. Try again in a minute, or open the log from the tray menu.");
-      h = Find();
-      if (h != IntPtr.Zero) { Group(h); Focus(h); return; }
+      ui.Send(delegate
+      {
+        var f = form;
+        if (f != null && !f.IsDisposed && f.WindowState == FormWindowState.Minimized) f.WindowState = FormWindowState.Normal;
+      }, null);
+      Focus(h);
+      if (talk)
+      {
+        // The hotkey's own keys are still held; Space must arrive alone.
+        Native.WaitForModifiersUp(1500);
+        if (Native.GetForegroundWindow() == h) Native.Tap(0x20);
+      }
+    }
+
+    // On the UI thread.
+    void Open()
+    {
+      if (form != null && !form.IsDisposed) { form.Show(); return; }
+      var f = new FaceForm(config, delegate(string why)
+      {
+        // WebView2 didn't start: Chrome from now on.
+        useChrome = true;
+        handle = IntPtr.Zero;
+        ThreadPool.QueueUserWorkItem(delegate { try { OpenInChrome(); } catch { } });
+      });
+      f.FormClosed += delegate { handle = IntPtr.Zero; form = null; };
+      form = f;
+      f.Show();
+      handle = f.Handle;
+    }
+
+    void OpenInChrome()
+    {
+      if (config.Chrome == null) throw new Exception("His window needs the Microsoft Edge WebView2 Runtime (or Chrome). Install it from Microsoft, then open Gnosis again.");
       var args = new List<string>(config.ChromeArgs);
       args.Add("--app=" + config.FaceUrl);
       args.Add("--window-size=960,720");
@@ -622,7 +660,7 @@ namespace Gnosis
       for (int i = 0; i < 80; i++)
       {
         Thread.Sleep(250);
-        h = Find();
+        var h = FindChrome();
         if (h == IntPtr.Zero) continue;
         Group(h);
         Focus(h);
@@ -660,8 +698,8 @@ namespace Gnosis
       Native.AttachThreadInput(me, them, false);
     }
 
-    // Gives her window AYRA's taskbar identity, so it sits under the pinned
-    // AYRA icon, and relaunches through AYRA.exe if pinned itself.
+    // Gives a Chrome window Gnosis's taskbar identity, so it sits under the pinned Gnosis icon and
+    // relaunches through Gnosis.exe if pinned itself. (His own window has it already: same process.)
     void Group(IntPtr h)
     {
       IPropertyStore store = null;
@@ -677,6 +715,105 @@ namespace Gnosis
       }
       catch { }
       finally { if (store != null) Marshal.ReleaseComObject(store); }
+    }
+  }
+
+  // The window his face lives in: a plain Windows window with the WebView2 filling it, in Gnosis's
+  // graphite while the page loads. Only his own face is shown in it; links open in the browser.
+  class FaceForm : Form
+  {
+    static readonly Color Graphite = Color.FromArgb(0x16, 0x15, 0x14);
+    readonly Config config;
+    readonly Microsoft.Web.WebView2.WinForms.WebView2 view;
+    readonly Action<string> failed;
+    readonly string origin;
+
+    public FaceForm(Config config, Action<string> failed)
+    {
+      this.config = config;
+      this.failed = failed;
+      var u = new Uri(config.FaceUrl);
+      origin = u.Scheme + "://" + u.Authority;
+      Text = config.Title;
+      try { Icon = new Icon(config.Icon, 32, 32); } catch { }
+      BackColor = Graphite;
+      StartPosition = FormStartPosition.CenterScreen;
+      AutoScaleMode = AutoScaleMode.None;
+      var scale = Native.Scale();
+      ClientSize = new Size((int)(960 * scale), (int)(700 * scale));
+      MinimumSize = new Size((int)(420 * scale), (int)(480 * scale));
+
+      view = new Microsoft.Web.WebView2.WinForms.WebView2();
+      view.Dock = DockStyle.Fill;
+      view.DefaultBackgroundColor = Graphite;
+      var props = new Microsoft.Web.WebView2.WinForms.CoreWebView2CreationProperties();
+      props.UserDataFolder = Path.Combine(Path.Combine(config.Root, "data"), "webview2");
+      // His voice plays the moment he speaks, as it did in Chrome after the first click.
+      props.AdditionalBrowserArguments = "--autoplay-policy=no-user-gesture-required";
+      view.CreationProperties = props;
+      view.CoreWebView2InitializationCompleted += Ready;
+      Controls.Add(view);
+      view.Source = new Uri(config.FaceUrl);
+    }
+
+    protected override void OnHandleCreated(EventArgs e)
+    {
+      base.OnHandleCreated(e);
+      Native.DarkTitleBar(Handle);
+    }
+
+    void Ready(object sender, Microsoft.Web.WebView2.Core.CoreWebView2InitializationCompletedEventArgs e)
+    {
+      if (!e.IsSuccess)
+      {
+        var why = e.InitializationException != null ? e.InitializationException.Message : "WebView2 didn't start";
+        BeginInvoke((Action)delegate { Close(); failed(why); });
+        return;
+      }
+      var core = view.CoreWebView2;
+      core.Settings.IsStatusBarEnabled = false;
+      core.Settings.IsZoomControlEnabled = false;
+      core.Settings.AreDefaultContextMenusEnabled = false;
+      core.Settings.IsPasswordAutosaveEnabled = false;
+      core.Settings.IsGeneralAutofillEnabled = false;
+      // The microphone (and the camera for look_through_camera) for his own face, without a prompt;
+      // anything else, or any other page, is refused.
+      core.PermissionRequested += delegate(object s, Microsoft.Web.WebView2.Core.CoreWebView2PermissionRequestedEventArgs p)
+      {
+        var own = p.Uri.StartsWith(origin, StringComparison.OrdinalIgnoreCase);
+        var kind = p.PermissionKind;
+        var wanted = kind == Microsoft.Web.WebView2.Core.CoreWebView2PermissionKind.Microphone
+          || kind == Microsoft.Web.WebView2.Core.CoreWebView2PermissionKind.Camera
+          || kind == Microsoft.Web.WebView2.Core.CoreWebView2PermissionKind.Notifications;
+        p.State = own && wanted ? Microsoft.Web.WebView2.Core.CoreWebView2PermissionState.Allow : Microsoft.Web.WebView2.Core.CoreWebView2PermissionState.Deny;
+        p.Handled = true;
+      };
+      // Links (sources, research) open in the owner's browser, never inside his window.
+      core.NewWindowRequested += delegate(object s, Microsoft.Web.WebView2.Core.CoreWebView2NewWindowRequestedEventArgs n)
+      {
+        n.Handled = true;
+        OpenOutside(n.Uri);
+      };
+      core.NavigationStarting += delegate(object s, Microsoft.Web.WebView2.Core.CoreWebView2NavigationStartingEventArgs n)
+      {
+        if (n.Uri.StartsWith(origin, StringComparison.OrdinalIgnoreCase) || n.Uri.StartsWith("about:", StringComparison.OrdinalIgnoreCase)) return;
+        n.Cancel = true;
+        OpenOutside(n.Uri);
+      };
+      // Gnosis's own name in the title, not the page's.
+      core.DocumentTitleChanged += delegate { Text = config.Title; };
+    }
+
+    static void OpenOutside(string uri)
+    {
+      if (!uri.StartsWith("http://", StringComparison.OrdinalIgnoreCase) && !uri.StartsWith("https://", StringComparison.OrdinalIgnoreCase)) return;
+      try
+      {
+        var psi = new ProcessStartInfo(uri);
+        psi.UseShellExecute = true;
+        Process.Start(psi);
+      }
+      catch { }
     }
   }
 
@@ -1461,6 +1598,21 @@ namespace Gnosis
 
     [DllImport("user32.dll")] public static extern bool EnumWindows(EnumWindowsProc proc, IntPtr lParam);
     [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr hWnd);
+    [DllImport("dwmapi.dll")] static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int value, int size);
+    [DllImport("user32.dll")] static extern uint GetDpiForSystem();
+
+    // His window's title bar in Windows' dark style, to match the graphite face.
+    public static void DarkTitleBar(IntPtr h)
+    {
+      int on = 1;
+      try { DwmSetWindowAttribute(h, 20, ref on, 4); } catch { } // DWMWA_USE_IMMERSIVE_DARK_MODE
+    }
+
+    // The display's scale (1.0 at 100%, 1.25 at 125%…): this app sizes in real pixels.
+    public static float Scale()
+    {
+      try { return GetDpiForSystem() / 96f; } catch { return 1f; }
+    }
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern int GetClassName(IntPtr hWnd, StringBuilder name, int max);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern int GetWindowText(IntPtr hWnd, StringBuilder text, int max);
     [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr hWnd);

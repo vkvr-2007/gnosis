@@ -27,6 +27,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { chromeArgs, chromePath } from '../bridge/browser.mjs'
 import { env } from '../bridge/identity.mjs'
+import { FILES as WEBVIEW2_FILES, ensureWebView2 } from './webview2.mjs'
 
 if (process.platform !== 'win32') {
   console.log('The desktop app is for Windows; on this system run `npm start` and open http://localhost:5173.')
@@ -54,13 +55,16 @@ const trayRunning = () =>
 // Built beside the old exe first: if the build fails, the AYRA that is running
 // is left exactly as it was.
 mkdirSync(HOME, { recursive: true })
+// His window is an Edge WebView2 inside Gnosis.exe (Microsoft's SDK, fetched once by webview2.mjs).
+const WEBVIEW2 = await ensureWebView2()
 const NEXT = join(HOME, 'Gnosis.next.exe')
 const build = spawnSync(
   csc,
   [
-    '/nologo', '/target:winexe', '/optimize+', `/out:${NEXT}`,
+    '/nologo', '/target:winexe', '/optimize+', '/platform:x64', `/out:${NEXT}`,
     `/win32icon:${join(ROOT, 'desktop', 'ayra.ico')}`,
     '/r:System.Windows.Forms.dll', '/r:System.Drawing.dll',
+    `/r:${join(WEBVIEW2, 'Microsoft.Web.WebView2.Core.dll')}`, `/r:${join(WEBVIEW2, 'Microsoft.Web.WebView2.WinForms.dll')}`,
     join(ROOT, 'desktop', 'ayra.cs'),
   ],
   { encoding: 'utf8' },
@@ -83,6 +87,7 @@ if (wasRunning) {
 }
 
 renameSync(NEXT, EXE)
+for (const f of Object.keys(WEBVIEW2_FILES)) copyFileSync(join(WEBVIEW2, f), join(HOME, f))
 copyFileSync(join(ROOT, 'desktop', 'ayra.ico'), join(HOME, 'ayra.ico'))
 console.log(`built ${EXE}`)
 
