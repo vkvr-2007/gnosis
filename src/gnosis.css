@@ -136,6 +136,8 @@ kbd {
   mask-image: linear-gradient(to bottom, transparent 0, #000 64px);
   transition: right 0.5s cubic-bezier(0.16, 1, 0.3, 1), width 0.5s cubic-bezier(0.16, 1, 0.3, 1);
 }
+/* Only the hint, nothing to scroll away yet: no fade over its first line. */
+.g-convo:has(.g-empty) { -webkit-mask-image: none; mask-image: none; }
 .g-turn { display: flex; flex-direction: column; gap: 4px; transition: opacity 0.4s ease; }
 .g-who { font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; color: var(--faint); }
 .g-text { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
@@ -317,6 +319,8 @@ html[data-cards='1'] .g-assistant .g-text { font-size: 18px; }
   .g-keys span { flex-direction: row; }
   .blades-stack { right: 16px; }
   .g-keys span:nth-child(n + 4) { display: none; }
+  /* The conversation is at the bottom here, where the suggestion line sits: the hint above it says the same. */
+  .suggest { display: none; }
   .g-start, .g-boot { place-items: center; place-content: center; padding: 16px; }
   .g-start-card { align-items: center; text-align: center; }
 }
