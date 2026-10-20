@@ -59,6 +59,21 @@ const jsonSchemaOf = (shape) => {
  * server.mjs): (result, request, { signal }) → result. Without it a picture stays a note.
  */
 let describeImages = null
+/**
+ * Private mode (the P key and button): every request stays on the laptop while it's on, whatever it
+ * says. server.mjs sets it from the window; () => false when not set.
+ */
+let privateModeOn = () => false
+export function usePrivateMode(fn) {
+  privateModeOn = fn
+}
+
+/** Starts the on-laptop model when a private request needs it (localmodel.mjs); none set, nothing to do. */
+let startLocal = null
+export function useLocalModel(fn) {
+  startLocal = fn
+}
+
 export function useImageDescriber(fn) {
   describeImages = fn
 }
@@ -349,6 +364,17 @@ export function ownWords(request) {
   return end >= 0 ? text.slice(end + 2).trim() || text : text
 }
 
+/**
+ * The last `n` exchanges of a history, starting at a user message so no tool result is left without
+ * the call it answers. For the small on-laptop model, which overflowed on the whole history (4,555
+ * tokens against 4,096, 2026-10-20).
+ */
+export function recentTurns(history, n = 3) {
+  const users = history.map((m, i) => (m.role === 'user' ? i : -1)).filter((i) => i >= 0)
+  if (users.length <= n) return history
+  return history.slice(users[users.length - n])
+}
+
 /** A reply that says it is about to do something rather than doing it. */
 export const PROMISES = /^\W*(?:(?:sure|okay|ok|got it|on it)\W+)?(?:i['’]?ll|i will|let me|i['’]?m going to|fetching|checking|looking (?:that )?up|one moment|give me a (?:sec|second|moment))\b/i
 
@@ -481,7 +507,7 @@ export function query({ prompt, options = {} }) {
     let checked = false
     // Private (privacy.mjs): a sensitive request, or once a tool has brought back the owner's personal
     // data. From then on this turn thinks on the laptop, and nothing from it is sent to the cloud later.
-    const why = privacy.why(request)
+    const why = privacy.why(request) || (privateModeOn() ? 'private mode is on' : null)
     let isPrivate = Boolean(why)
     const turnStart = history.length - 1
     const goPrivate = (reason) => {
@@ -521,10 +547,15 @@ export function query({ prompt, options = {} }) {
         const hold = asksAction && !acted && !checked
         let toolCalls
         try {
-          ({ toolCalls } = await streamChat({
+          // The on-laptop model is started when a private request first needs it.
+          if (route.onDevice && startLocal) await startLocal()
+          ;({ toolCalls } = await streamChat({
           route,
           messages: [{ role: 'system', content: withMemory(route.onDevice ? privateSystem(privacy, request) : system,
-            memory?.recallText(request, { includeSensitive: route.onDevice, actionRequest: asksAction })) }, ...history],
+            memory?.recallText(request, { includeSensitive: route.onDevice, actionRequest: asksAction })) },
+            // The small on-laptop model gets only the last few exchanges: the whole history overflowed it.
+            // Earlier private turns are only a placeholder now; the small model copied it, so it is left out.
+            ...(route.onDevice ? recentTurns(history.filter((m) => m.content !== PRIVATE_NOTE), 3) : history)],
           tools,
           // After the claim check's nudge the model must call a tool: with the full persona and some
           // fifty tools, Nemotron answered "Remind me in 1 minute…" in words twice (2026-10-18).
@@ -586,6 +617,8 @@ export function query({ prompt, options = {} }) {
             function: { name: c.name, arguments: c.arguments || '{}' } })) } : {}) })
         if (!toolCalls.length) {
           answer = text
+          // The small on-laptop model can stop before saying anything: never a silent reply.
+          if (route.onDevice && !answer.trim()) answer = "I thought about that on the laptop but came up empty. Could you ask it another way?"
           break
         }
         for (const [i, call] of toolCalls.entries()) {

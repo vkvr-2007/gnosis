@@ -513,7 +513,7 @@ export async function ask(
     arm()
 
     try {
-      ws.send(JSON.stringify(askFrame(prompt, id, mode, useStore.getState().takeAttachments())))
+      ws.send(JSON.stringify({ ...askFrame(prompt, id, mode, useStore.getState().takeAttachments()), private: useStore.getState().privateMode }))
     } catch (err) {
       // The socket can go into CLOSING between connect() resolving and here.
       fail(err instanceof Error ? err : new Error(String(err)))
@@ -552,6 +552,11 @@ export function watchHearing(fn: (mode: 'push' | 'hands-free') => void) {
 /** Her phase and one line of caption, for the bubble on top of every app (lib/glance.ts). */
 export function reportFace(g: { phase: string; text: string; who: string; by: string }): void {
   if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: 'face', ...g }))
+}
+
+/** Private mode switched (the P key): the bridge keeps every request on the laptop and warms its model. */
+export function reportPrivate(on: boolean): void {
+  if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: 'private', on }))
 }
 
 export function reportHearing(mode: 'push' | 'hands-free'): void {

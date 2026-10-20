@@ -30,6 +30,7 @@ import {
   reportHearing,
   reportFace,
   bridgeServers,
+  reportPrivate,
 } from './lib/bridge'
 import { inputLevel } from './lib/listen'
 import { glance, sameGlance, type Glance } from './lib/glance'
@@ -814,6 +815,18 @@ export default function App() {
             )
           }
         })
+        return
+      }
+
+      // P: private mode on or off: while it's on, every request is handled on this laptop only.
+      if (e.key === 'p' && !e.repeat && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        e.preventDefault()
+        const on = !store.getState().privateMode
+        store.getState().setPrivateMode(on)
+        reportPrivate(on)
+        const line = createSpeaker()
+        line.say(on ? 'Private mode on. Everything stays on this laptop.' : 'Private mode off.')
+        void line.end()
         return
       }
 

@@ -550,3 +550,16 @@ test("history keeps only the owner's own words, not the notes put in front of th
   assert.equal(ownWords('[The owner attached the file "a":\n<<<\nmilk]\n>>>]\nwhat is on it?'), 'what is on it?')
   assert.equal(ownWords('open notepad [now]'), 'open notepad [now]')
 })
+
+test('the on-laptop model gets only the last few exchanges, starting at a question', async () => {
+  const { recentTurns } = await import('../bridge/sdk.mjs')
+  const h = [
+    { role: 'user', content: 'q1' }, { role: 'assistant', content: 'a1' },
+    { role: 'user', content: 'q2' }, { role: 'assistant', tool_calls: [{ id: 't' }] }, { role: 'tool', content: 'r' }, { role: 'assistant', content: 'a2' },
+    { role: 'user', content: 'q3' }, { role: 'assistant', content: 'a3' },
+    { role: 'user', content: 'q4' },
+  ]
+  assert.deepEqual(recentTurns(h, 2).map((m) => m.content ?? 'call'), ['q3', 'a3', 'q4'])
+  assert.deepEqual(recentTurns(h, 3)[0], { role: 'user', content: 'q2' })
+  assert.equal(recentTurns(h.slice(0, 2), 3).length, 2)
+})

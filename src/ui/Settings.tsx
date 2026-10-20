@@ -21,7 +21,7 @@ type Loaded = {
   keys: Record<string, KeyState>
   startWithWindows?: boolean
   voice?: { enrolled: boolean; seconds?: number; at?: string }
-  privateModel?: boolean
+  privateModel?: 'running' | 'starting' | 'off' | 'missing'
 }
 
 /** Presses a key, so a switch here does exactly what its key does (App.tsx). */
@@ -47,6 +47,7 @@ export function Settings() {
   const [saving, setSaving] = useState(false)
   const handsFree = useStore((st) => st.hearing === 'hands-free')
   const researching = useStore((st) => st.mode === 'research')
+  const privateMode = useStore((st) => st.privateMode)
 
   const load = useCallback(async () => {
     try {
@@ -250,7 +251,10 @@ export function Settings() {
             <div className="settings-sec">Privacy</div>
             <div className="settings-row">
               <span>Passwords, card and bank numbers, health details and anything you call "private" are handled on this laptop, never in the cloud.
-                The on-laptop model is <b className={loaded?.privateModel ? 'settings-ok' : 'settings-bad'}>{loaded?.privateModel ? 'running' : 'not running'}</b>{loaded?.privateModel ? '.' : ', so those requests are refused for now.'}</span>
+                The on-laptop model is <b className={loaded?.privateModel === 'missing' ? 'settings-bad' : 'settings-ok'}>{({ running: 'running', starting: 'starting', off: 'off, and starts when needed', missing: 'not set up, so those requests are refused' } as Record<string, string>)[loaded?.privateModel ?? 'off']}</b>.</span>
+            </div>
+            <div className="settings-row">
+              <label className="settings-check"><input type="checkbox" checked={privateMode} onChange={() => press('p', 'KeyP')} /> Private mode: everything you ask stays on this laptop (slower, fewer abilities)</label>
             </div>
             <div className="settings-row">
               <span>See and delete everything he has stored about you.</span>

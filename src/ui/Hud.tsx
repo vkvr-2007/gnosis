@@ -160,6 +160,7 @@ export function Hud() {
   const error = useStore((s) => s.error)
 
   const handsFree = hearing === 'hands-free'
+  const privateMode = useStore((s) => s.privateMode)
   const status = researching && (phase === 'thinking' || phase === 'tooling') ? 'Researching' : statusText[phase]
   const hint = phase === 'dormant' && handsFree ? `Say "${IDENTITY.name}" or press Space` : hintFor[phase]
 
@@ -180,6 +181,7 @@ export function Hud() {
         </div>
         <div className="g-modes">
           {handsFree && <span className="g-chip">Hands-free</span>}
+          {privateMode && <span className="g-chip" title="Private mode, P to turn it off">Private: on this laptop</span>}
           {researching && (
             <span className="g-chip" title="Researcher mode, R to turn it off">
               Researcher
@@ -251,6 +253,7 @@ export function Hud() {
         <KeyButton k="Escape" code="Escape" kbd="Esc" label="Stop" />
         <KeyButton k="w" code="KeyW" kbd="W" label={`Hands-free ${handsFree ? 'on' : 'off'}`} on={handsFree} />
         <KeyButton k="r" code="KeyR" kbd="R" label={`Researcher ${researching ? 'on' : 'off'}`} on={researching} />
+        <KeyButton k="p" code="KeyP" kbd="P" label={`Private ${privateMode ? 'on' : 'off'}`} on={privateMode} />
         <KeyButton k="s" code="KeyS" kbd="S" label="Settings" />
         <KeyButton k="y" code="KeyY" kbd="Y" label="Your data" />
         <KeyButton k="d" code="KeyD" kbd="D" label="Diagnostics" />

@@ -127,6 +127,8 @@ export type Attachment = { id: string; name: string; kind: 'text' | 'image' | 'o
 type State = {
   phase: Phase
   hearing: Hearing
+  /** Private mode (P): every request stays on the laptop while it's on. */
+  privateMode: boolean
   /** Normal, or researcher mode (R). */
   mode: Mode
   /** 0..1 loudness — the mic, or AYRA's own voice while she speaks. */
@@ -170,6 +172,7 @@ type State = {
   setPhase: (p: Phase) => void
   setHearing: (h: Hearing) => void
   setMode: (m: Mode) => void
+  setPrivateMode: (on: boolean) => void
   setLevel: (l: number) => void
   setCaption: (c: string) => void
   setActiveTool: (t: string | null) => void
@@ -281,6 +284,13 @@ export function bladeLife(blade: Blade): number | null {
 export const useStore = create<State>((set, get) => ({
   phase: 'offline',
   hearing: 'push',
+  privateMode: (() => {
+    try {
+      return localStorage.getItem('gnosis.private') === '1'
+    } catch {
+      return false
+    }
+  })(),
   mode: 'normal',
   level: 0,
   caption: '',
@@ -360,6 +370,12 @@ export const useStore = create<State>((set, get) => ({
   setPhase: (phase) => set({ phase }),
   setHearing: (hearing) => set({ hearing }),
   setMode: (mode) => set({ mode: parseMode(mode) }),
+  setPrivateMode: (privateMode) => {
+    try {
+      localStorage.setItem('gnosis.private', privateMode ? '1' : '0')
+    } catch { /* remembered for this window only */ }
+    set({ privateMode })
+  },
   setLevel: (level) => set({ level }),
   setCaption: (caption) => set({ caption }),
   setActiveTool: (activeTool) => set({ activeTool }),

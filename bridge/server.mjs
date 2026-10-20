@@ -62,6 +62,8 @@ import { createDataView } from './yourdata.mjs'
 import { createPrivateMemory } from './privacy.mjs'
 import { createSkillStore } from './teach.mjs'
 import { startWithWindows, setStartWithWindows } from './startup.mjs'
+import { createLocalModel } from './localmodel.mjs'
+import { useLocalModel, usePrivateMode } from './sdk.mjs'
 import { keyStatus, KEYS, saveSecret, testKey } from './secrets.mjs'
 import { cleanSettings, readSettings, writeSettings } from './settings.mjs'
 import QRCode from 'qrcode'
@@ -984,17 +986,23 @@ function showPassage(title, words) {
 
 /** Files and pictures dropped on his window (attachments.mjs); a week old and they go. */
 const ATTACHMENTS = createAttachments()
+/**
+ * Private requests think on the laptop (localmodel.mjs): the model starts when one first needs it and
+ * stops after 15 idle minutes, and with Gnosis. Private mode (the P key and button in his window)
+ * makes every request private while it's on.
+ */
+const LOCAL = createLocalModel()
+useLocalModel(() => LOCAL.ensure())
+let PRIVATE_MODE = false
+usePrivateMode(() => PRIVATE_MODE)
+for (const sig of ['exit', 'SIGINT', 'SIGTERM']) process.on(sig, () => LOCAL.stop())
+
 /** Everything he keeps, for the Your data screen (yourdata.mjs). DEVICES is filled in once it exists. */
 let DATA = null
-/** Whether the on-laptop model for private requests (config/models.json "local") answers. */
+/** The on-laptop model, for Settings: 'running', 'starting', 'off' (starts when needed) or 'missing'. */
 async function privateModelUp() {
-  try {
-    const url = modelFor('local').baseUrl.replace(/\/v1\/?$/, '')
-    const r = await fetch(`${url}/health`, { signal: AbortSignal.timeout(1500) })
-    return r.ok
-  } catch {
-    return false
-  }
+  if (!LOCAL.available()) return 'missing'
+  return LOCAL.state()
 }
 try {
   ATTACHMENTS.cleanUp()
@@ -1532,6 +1540,7 @@ wss.on('connection', (socket, req) => {
     if (msg.type === 'ask' && typeof msg.text === 'string') {
       const id = typeof msg.id === 'string' ? msg.id : null
       latest = id
+      if (typeof msg.private === 'boolean') PRIVATE_MODE = msg.private
       void (async () => {
       // Voice ID (voiceid.mjs): the words were heard a moment ago, and judged as they finished.
       const heard = await heardFor(msg.text)
@@ -1600,6 +1609,13 @@ wss.on('connection', (socket, req) => {
       APPROVALS.answer(msg.id, msg.ok === true, 'hud', msg.always === true)
     }
     if (msg.type === 'halt') halt('hud')
+
+    // Private mode switched in his window: every request stays on the laptop; the model warms up now.
+    if (msg.type === 'private') {
+      PRIVATE_MODE = msg.on === true
+      console.log(`[gnosis] private mode ${PRIVATE_MODE ? 'on' : 'off'}`)
+      if (PRIVATE_MODE) void LOCAL.ensure().catch((err) => console.warn(`[gnosis] private model: ${err.message}`))
+    }
 
     // The face says how it is listening now (on connect and on every switch).
     if (msg.type === 'hearing' && HEARING_MODES.has(msg.mode)) HEARING.mode = msg.mode

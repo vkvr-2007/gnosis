@@ -72,7 +72,26 @@
         "mcp__ayra_browser__browser_open",
         "mcp__ayra_browser__browser_read"
       ],
-      "systemPrefix": "detailed thinking off"
+      "systemPrefix": "detailed thinking off",
+      "_server": "The on-laptop model is started by the bridge when a private request (or private mode) needs it, and stopped after 15 idle minutes (bridge/localmodel.mjs). The files are large, so they stay in Gnosis v1's local-models folder.",
+      "server": {
+        "exe": "C:/education/projects/gnosis/local-models/llama/llama-server.exe",
+        "model": "C:/education/projects/gnosis/local-models/nemotron-nano-4b-q4.gguf",
+        "template": "C:/education/projects/gnosis/config/templates/nemotron-nano-4b-v1.1.jinja",
+        "context": 8192,
+        "gpuLayers": 99
+      },
+      "_extraBody": "A short answer that stops where it should: the 4B model, given a long history, went on inventing more turns for two minutes, copying markers it saw there (2026-10-20).",
+      "extraBody": {
+        "max_tokens": 400,
+        "stop": [
+          "[private, kept on the laptop]",
+          "[Now:",
+          "**[Gnosis]**",
+          "[Gnosis]",
+          "\nUser:"
+        ]
+      }
     }
   },
   "private": {
