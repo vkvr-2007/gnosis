@@ -1,4 +1,4 @@
-import { askFrame, bladeIsCurrent, type Approval, type Blade, type Mode } from '../store'
+import { askFrame, bladeIsCurrent, useStore, type Approval, type Blade, type Mode } from '../store'
 import { BRIDGE_WS_URL } from '../config'
 import { withHonorific } from '../identity'
 
@@ -510,7 +510,7 @@ export async function ask(
     arm()
 
     try {
-      ws.send(JSON.stringify(askFrame(prompt, id, mode)))
+      ws.send(JSON.stringify(askFrame(prompt, id, mode, useStore.getState().takeAttachments())))
     } catch (err) {
       // The socket can go into CLOSING between connect() resolving and here.
       fail(err instanceof Error ? err : new Error(String(err)))

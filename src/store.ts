@@ -112,9 +112,17 @@ export function askFrame(
   text: string,
   id: string,
   mode: Mode = 'normal',
-): { type: 'ask'; text: string; id: string; mode?: 'research' } {
-  return mode === 'research' ? { type: 'ask', text, id, mode: 'research' } : { type: 'ask', text, id }
+  attachments: string[] = [],
+): { type: 'ask'; text: string; id: string; mode?: 'research'; attachments?: string[] } {
+  const frame: { type: 'ask'; text: string; id: string; mode?: 'research'; attachments?: string[] } =
+    mode === 'research' ? { type: 'ask', text, id, mode: 'research' } : { type: 'ask', text, id }
+  // Files and pictures dropped on his window, sent with the next question (bridge/attachments.mjs).
+  if (attachments.length) frame.attachments = attachments
+  return frame
 }
+
+/** A file or picture waiting to go with the next question. */
+export type Attachment = { id: string; name: string; kind: 'text' | 'image' | 'other'; size: number }
 
 type State = {
   phase: Phase
@@ -127,6 +135,8 @@ type State = {
   caption: string
   turns: Turn[]
   activeTool: string | null
+  /** Dropped or pasted on his window, waiting for the next question. */
+  attachments: Attachment[]
   error: string | null
   connected: string[]
   /** Name of the speech-synthesis voice in use, shown in the HUD. */
@@ -163,6 +173,9 @@ type State = {
   setLevel: (l: number) => void
   setCaption: (c: string) => void
   setActiveTool: (t: string | null) => void
+  addAttachment: (a: Attachment) => void
+  removeAttachment: (id: string) => void
+  takeAttachments: () => string[]
   setError: (e: string | null) => void
   setConnected: (c: string[]) => void
   pushTurn: (t: Turn) => void
@@ -265,7 +278,7 @@ export function bladeLife(blade: Blade): number | null {
   return TURN_MS
 }
 
-export const useStore = create<State>((set) => ({
+export const useStore = create<State>((set, get) => ({
   phase: 'offline',
   hearing: 'push',
   mode: 'normal',
@@ -273,6 +286,7 @@ export const useStore = create<State>((set) => ({
   caption: '',
   turns: [],
   activeTool: null,
+  attachments: [],
   error: null,
   connected: [],
   voice: '',
@@ -349,6 +363,13 @@ export const useStore = create<State>((set) => ({
   setLevel: (level) => set({ level }),
   setCaption: (caption) => set({ caption }),
   setActiveTool: (activeTool) => set({ activeTool }),
+  addAttachment: (a) => set((s) => ({ attachments: [...s.attachments.filter((x) => x.id !== a.id), a].slice(-6) })),
+  removeAttachment: (id) => set((s) => ({ attachments: s.attachments.filter((x) => x.id !== id) })),
+  takeAttachments: () => {
+    const ids = get().attachments.map((a) => a.id)
+    if (ids.length) set({ attachments: [] })
+    return ids
+  },
   setError: (error) => set({ error }),
   setConnected: (connected) => set({ connected }),
   pushTurn: (turn) => set((s) => ({ turns: [...s.turns.slice(-40), turn] })),

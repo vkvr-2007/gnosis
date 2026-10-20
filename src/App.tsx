@@ -5,6 +5,7 @@ import { Boot } from './ui/Boot'
 import { Ignition } from './ui/Ignition'
 import { Diagnostics } from './ui/Diagnostics'
 import { Settings } from './ui/Settings'
+import { Attachments } from './ui/Attachments'
 import { useStore, MODE_KEY, modeLine, parseMode, type Hearing, type Mode, type Phase } from './store'
 import { startVoice, type Voice, type VoiceMode } from './lib/voice'
 import { createSpeaker, cycleVoice, currentVoiceName, prefetchLines } from './lib/tts'
@@ -923,6 +924,7 @@ export default function App() {
       <Boot />
       <Diagnostics />
       <Settings />
+      <Attachments />
       <Ignition onStart={() => void powerOn()} />
     </>
   )

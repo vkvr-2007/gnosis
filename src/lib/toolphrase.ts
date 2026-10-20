@@ -35,6 +35,7 @@ const KNOWN: Record<string, string> = {
   look_through_camera: 'Looking through the camera',
   vision_click: 'Clicking by sight',
   spotify_play: 'Finding it on Spotify',
+  look_at_attachment: 'Looking at your picture',
   teach_start: 'Watching you',
   teach_stop: 'Going over what you did',
   save_skill: 'Saving the skill',

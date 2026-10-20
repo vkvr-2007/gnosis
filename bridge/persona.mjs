@@ -111,6 +111,9 @@ const HANDS = `Your hands — the owner gave you their Windows laptop to work on
   steps briefly, ask what changes each time, and save_skill (the owner approves it). "Save that as a
   skill" after a task saves the steps you just did. run_skill runs one: then do its steps with your
   tools. list_skills, delete_skill.
+- Attachments: what the owner drops on your window comes with their question, read or looked at
+  already. look_at_attachment looks at a picture again for a follow-up. Don't claim to have read
+  a file you were told you can't read.
 - Music: spotify_play plays a song, artist, album or playlist in the Spotify app and says what is
   really playing; never search Spotify by typing and clicking. Say only what it reports.
 - Websites: the browser_* tools drive the owner's own Chrome — their "Chrome (Gnosis)"

@@ -56,6 +56,7 @@ import { musicServer } from './spotify.mjs'
 import { adbRunner, createAppPhone, createPhone, createPhoneRouter, findAdb, phoneServer } from './phone.mjs'
 import { createDeviceHub } from './devices.mjs'
 import { teachServer } from './teach.mjs'
+import { attachmentNote, attachmentServer, createAttachments } from './attachments.mjs'
 import { keyStatus, KEYS, saveSecret, testKey } from './secrets.mjs'
 import { cleanSettings, readSettings, writeSettings } from './settings.mjs'
 import QRCode from 'qrcode'
@@ -411,6 +412,34 @@ const handleRequest = async (req, res) => {
     for (const send of HEARING.faces) send({ type: 'hearing', mode, by: 'tray' })
     HEARING.mode = mode
     return reply(200, { mode })
+  }
+
+  // A file or picture dropped on his window (attachments.mjs): only from his own window, which always
+  // sends its Origin. The bytes are the body; the name comes in a header.
+  if (req.url === '/attach' && req.method === 'POST') {
+    const json = (code, body) => {
+      res.writeHead(code, { ...cors, 'content-type': 'application/json' })
+      res.end(JSON.stringify(body))
+    }
+    if (!origin) return json(403, { error: 'forbidden' })
+    const chunks = []
+    let size = 0
+    for await (const chunk of req) {
+      size += chunk.length
+      if (size > 20 * 1024 * 1024) return json(413, { error: 'That file is over 20 MB, too big to attach.' })
+      chunks.push(chunk)
+    }
+    try {
+      let name = 'file'
+      try {
+        name = decodeURIComponent(String(req.headers['x-file-name'] ?? 'file'))
+      } catch { /* keep the default */ }
+      const saved = ATTACHMENTS.save({ name, type: String(req.headers['content-type'] ?? ''), bytes: Buffer.concat(chunks) })
+      console.log(`[gnosis] attached ${saved.kind} "${saved.name}" (${Math.round(saved.size / 1024)} KB)`)
+      return json(200, saved)
+    } catch (err) {
+      return json(400, { error: err.message })
+    }
   }
 
   // The Settings screen (src/ui/Settings.tsx): only from his own window, which always sends its
@@ -862,6 +891,12 @@ const RESEARCHER_ASK =
   '[Researcher mode is on: answer this with deep_research, passing the question made self-contained ' +
   '(resolve "it" or "that" from our conversation). Then say the verdict in one or two sentences.]'
 
+/** Files and pictures dropped on his window (attachments.mjs); a week old and they go. */
+const ATTACHMENTS = createAttachments()
+try {
+  ATTACHMENTS.cleanUp()
+} catch { /* nothing to clean */ }
+
 /**
  * The webcam, through the face: its window asks the browser for one frame (src/lib/bridge.ts) and
  * sends it back. Pending asks by id; ten seconds for the first-time camera prompt.
@@ -957,6 +992,7 @@ const BRAIN = createBrain({
     ayra_vision: visionServer({ camera: cameraFrame }),
     ayra_music: musicServer(),
     ayra_teach: teachServer(),
+    ayra_attachments: attachmentServer({ store: ATTACHMENTS }),
     ayra_phone: phoneServer(createPhoneRouter({
       app: createAppPhone(DEVICES),
       adb: createPhone({ run: findAdb() ? adbRunner(findAdb()) : null }),
@@ -1345,7 +1381,7 @@ wss.on('connection', (socket, req) => {
    * microseconds, no model): a complex question gets the depth line in front
    * of it, and the research planner is started while the brain reads it.
    */
-  const askBrain = (text, id) => {
+  const askBrain = (text, id, attached = '') => {
     const rank = rankQuery(text)
     if (rank.level === 'complex') {
       // A warm-up only: whatever goes wrong there, the question still goes.
@@ -1356,7 +1392,7 @@ wss.on('connection', (socket, req) => {
       }
     }
     const note = noteFor(done.splice(0))
-    conversation.ask(`${note}${text}`, id, note ? { rank, text } : { rank })
+    conversation.ask(`${note}${attached}${text}`, id, note || attached ? { rank, text } : { rank })
   }
 
   /** The fast path (fastpath.mjs): done and said in code, or the brain's after all. */
@@ -1402,6 +1438,15 @@ wss.on('connection', (socket, req) => {
       }
       // "Open YouTube", "pause the music": done in code at once (fastpath.mjs),
       // or handed to the brain after all.
+      // Files or pictures he was given with this question: read or looked at first (attachments.mjs).
+      const ids = Array.isArray(msg.attachments) ? msg.attachments.filter((x) => typeof x === 'string') : []
+      if (ids.length) {
+        void attachmentNote(ids, msg.text, { store: ATTACHMENTS })
+          .catch((err) => `[The owner attached files, but they couldn't be read: ${err?.message ?? err}. Say so.]
+`)
+          .then((attached) => askBrain(msg.text, id, attached))
+        return
+      }
       const fast = ALLOW_WRITES && WINDOWS ? parseFast(msg.text) : null
       if (fast) {
         void quick(fast, msg.text, id)

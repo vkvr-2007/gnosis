@@ -479,6 +479,9 @@ export function createGate({ allowWrites, laptop = false, connectors = DEFAULT_C
       // Music (spotify.mjs): Spotify's search, and its play button for the result that matches.
       if (server === 'ayra_music') return true
 
+      // Another look at a picture the owner attached (attachments.mjs): his own data folder only.
+      if (server === 'ayra_attachments') return true
+
       // The owner's phone over ADB (phone.mjs). Calls and messages are asked about in review().
       if (server === 'ayra_phone') return true
 

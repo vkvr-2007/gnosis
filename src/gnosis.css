@@ -404,3 +404,30 @@ html[data-cards='1'] .g-assistant .g-text { font-size: 18px; }
   .settings-row { flex-direction: column; align-items: stretch; }
   .settings-row input:not([type='checkbox']) { width: 100%; }
 }
+
+/* ------------------------------------------------------- attachments (ui/Attachments.tsx) */
+.attach-drop {
+  position: fixed; inset: 12px; z-index: 50; display: grid; place-items: center; pointer-events: none;
+  border: 2px dashed rgba(239, 154, 76, 0.7); border-radius: 18px;
+  background: color-mix(in srgb, var(--bg, #161514) 75%, transparent);
+  font-family: 'Outfit Variable', system-ui, sans-serif; font-size: 20px; color: var(--ember, #ef9a4c);
+}
+.attach-tray {
+  position: fixed; left: 24px; bottom: 24px; z-index: 30; max-width: min(560px, calc(100vw - 220px));
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  font-family: 'Outfit Variable', system-ui, sans-serif; text-transform: none; letter-spacing: 0;
+}
+.attach-tray * { text-transform: none; letter-spacing: 0; }
+.attach-chip {
+  display: inline-flex; align-items: center; gap: 8px; max-width: 260px; padding: 5px 6px 5px 8px;
+  background: #1f1d1b; border: 1px solid rgba(239, 154, 76, 0.3); border-radius: 10px; color: var(--text, #edeae6); font-size: 13px;
+}
+.attach-kind { font: 600 10px 'Geist Mono', monospace; color: var(--ember, #ef9a4c); }
+.attach-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.attach-x { background: none; border: 0; color: var(--muted, #a39e98); font-size: 16px; line-height: 1; cursor: pointer; padding: 0 4px; }
+.attach-x:hover { color: var(--text, #edeae6); }
+.attach-note { font-size: 13px; color: var(--muted, #a39e98); }
+.attach-bad { color: var(--danger, #e5675a); }
+@media (max-width: 760px) {
+  .attach-tray { left: 16px; right: 16px; bottom: 44px; max-width: none; }
+}
