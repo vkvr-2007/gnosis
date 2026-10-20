@@ -167,8 +167,8 @@ namespace Gnosis
       // Creating the first control installs the WinForms context; capture it so
       // background threads can update the tray safely.
       ui = SynchronizationContext.Current ?? new WindowsFormsSynchronizationContext();
-      window = new Window(config, ui);
       bridge = new Bridge(config, Notify);
+      window = new Window(config, ui, bridge.Log);
 
       menu.Items.Add("Open Gnosis", null, delegate { Open(false); });
       menu.Items.Add("Talk to Gnosis   " + Pretty(config.Hotkey), null, delegate { Open(true); });
@@ -211,6 +211,13 @@ namespace Gnosis
 
       // Only once the session is really ending: a cancelled shutdown leaves her running.
       Microsoft.Win32.SystemEvents.SessionEnded += delegate { bridge.Stop(); };
+      // The laptop woke up: check on him now rather than at the next tick, and give him another go
+      // if he had been paused. His window reconnects by itself, and model calls retry a lost network.
+      Microsoft.Win32.SystemEvents.PowerModeChanged += delegate(object s, Microsoft.Win32.PowerModeChangedEventArgs e)
+      {
+        if (e.Mode != Microsoft.Win32.PowerModes.Resume) return;
+        ThreadPool.QueueUserWorkItem(delegate { Thread.Sleep(3000); bridge.TryAgainIfPaused(true); Check(); });
+      };
       quitSignal = new EventWaitHandle(false, EventResetMode.AutoReset, Program.QuitEvent);
       ThreadPool.RegisterWaitForSingleObject(quitSignal, delegate { ui.Post(delegate { Quit(); }, null); }, null, -1, true);
       openSignal = new EventWaitHandle(false, EventResetMode.AutoReset, Program.OpenEvent);
@@ -228,7 +235,7 @@ namespace Gnosis
         // One at a time: a second click while she is still opening would open a second window.
         if (!Monitor.TryEnter(opening)) return;
         try { window.Show(talk); }
-        catch (Exception e) { Notify(e.Message); }
+        catch (Exception e) { bridge.Log("--- his window did not open: " + e.Message); Notify(e.Message); }
         finally { Monitor.Exit(opening); }
       });
     }
@@ -277,7 +284,7 @@ namespace Gnosis
           {
             Open(false);
             for (int i = 0; i < 40 && faces == 0; i++) { Thread.Sleep(500); Hearing.Get(config, out faces); }
-            if (faces == 0) { Notify("Hands-free needs her window open. Open Gnosis and try again."); return; }
+            if (faces == 0) { Notify("Hands-free needs his window open. Open Gnosis and try again."); return; }
           }
           var mode = Hearing.Post(config, "toggle");
           if (mode != null) ui.Post(delegate { handsFreeItem.Checked = mode == "hands-free"; }, null);
@@ -292,6 +299,7 @@ namespace Gnosis
       if (Interlocked.Exchange(ref busy, 1) == 1) return;
       try
       {
+        bridge.TryAgainIfPaused(false);
         var healthy = Bridge.Healthy(config, 2000);
         if (!healthy && !bridge.Running && !bridge.Waiting && !bridge.Stopping && !bridge.GaveUp) bridge.Start();
         var text = healthy ? "Gnosis - ready"
@@ -370,6 +378,22 @@ namespace Gnosis
     // Set after repeated crashes or when node can't start: she is left off
     // (and nobody is pestered every few seconds) until Restart AYRA.
     public volatile bool GaveUp;
+    // When it last gave up: after 10 minutes, or when the laptop wakes, it tries again by itself.
+    DateTime gaveUpAt = DateTime.MinValue;
+
+    // A fresh start after a pause, or after the laptop wakes: the crash count starts over.
+    public void TryAgainIfPaused(bool now)
+    {
+      lock (gate)
+      {
+        if (!GaveUp || quitting) return;
+        if (!now && (DateTime.Now - gaveUpAt).TotalMinutes < 10) return;
+        GaveUp = false;
+        failures = 0;
+      }
+      Write("--- trying again at " + DateTime.Now.ToString("HH:mm:ss"));
+      Start();
+    }
 
     public Bridge(Config config, Action<string> notify)
     {
@@ -452,7 +476,8 @@ namespace Gnosis
         if (failures >= 5)
         {
           GaveUp = true;
-          notify("Gnosis keeps stopping, so she has been left off. Open the log from the tray menu, then choose Restart Gnosis.");
+          notify("Gnosis keeps stopping, so he is paused for 10 minutes and will try again by himself. The tray menu has the log, and Restart Gnosis to try now.");
+          gaveUpAt = DateTime.Now;
           return;
         }
         wait = Math.Min(60, 1 << failures);
@@ -473,7 +498,7 @@ namespace Gnosis
       lock (gate) external = proc == null && Healthy(config, 1500);
       if (external)
       {
-        notify("Gnosis was started from a console window. Close that window, and she will start here by herself.");
+        notify("Gnosis was started from a console window. Close that window, and he will start here by himself.");
         return;
       }
       Stopping = true;
@@ -561,6 +586,9 @@ namespace Gnosis
 
     static readonly Regex Ansi = new Regex("\x1b\\[[0-9;]*m");
 
+    // A line in the log from the tray itself (a window that would not open, say).
+    public void Log(string line) { Write(line); }
+
     void Write(string line)
     {
       if (line == null) return;
@@ -590,10 +618,11 @@ namespace Gnosis
   {
     readonly Config config;
     readonly SynchronizationContext ui;
+    readonly Action<string> log;
     FaceForm form;
     volatile IntPtr handle = IntPtr.Zero;
     volatile bool useChrome;
-    public Window(Config config, SynchronizationContext ui) { this.config = config; this.ui = ui; }
+    public Window(Config config, SynchronizationContext ui, Action<string> log) { this.config = config; this.ui = ui; this.log = log; }
 
     public IntPtr Find()
     {
@@ -657,6 +686,7 @@ namespace Gnosis
       var f = new FaceForm(config, delegate(string why)
       {
         // WebView2 didn't start: Chrome from now on.
+        log("--- his window's Edge WebView2 did not start (" + why + "), so Chrome is used");
         useChrome = true;
         handle = IntPtr.Zero;
         ThreadPool.QueueUserWorkItem(delegate { try { OpenInChrome(); } catch { } });
