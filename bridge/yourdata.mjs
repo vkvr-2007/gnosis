@@ -45,7 +45,7 @@ export function sizeOf(path) {
  * @param {{ memory, privateMemory, schedule, skills, attachments, voice, devices?, readSettings, dir?: string,
  *           openFolder?: (path: string) => void }} deps
  */
-export function createDataView({ memory, privateMemory, schedule, skills, attachments, voice, devices = null, readSettings,
+export function createDataView({ memory, privateMemory, schedule, skills, attachments, voice, devices = null, coder = null, readSettings,
   dir = DATA_DIR, openFolder = (p) => spawn('explorer.exe', [p], { detached: true, stdio: 'ignore' }).unref() }) {
   const folder = (name) => ({ ...sizeOf(join(dir, name)), path: join(dir, name) })
 
@@ -63,6 +63,7 @@ export function createDataView({ memory, privateMemory, schedule, skills, attach
       voice: voice.status(),
       devices: devices ? devices.list().map((d) => ({ id: d.id, name: d.name, model: d.model, paired: d.paired, online: d.online })) : [],
       settings: readSettings(),
+      coding: coder ? coder.list().map((j) => ({ id: j.id, task: j.task, folder: j.folder, status: j.status, started: j.started ?? null })) : [],
       conversations: folder('sessions'),
       research: folder('research'),
       logs: folder('logs'),

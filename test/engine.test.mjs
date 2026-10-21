@@ -455,8 +455,7 @@ test('a reply that only promises to act is nudged, and the retry must call a too
 
 test("questions only a tool can answer are held for one, like actions (the phone that wasn't paired)", async () => {
   const { ASKS_LIVE } = await import('../bridge/sdk.mjs')
-  for (const q of ['is my phone connected?', "what's my phone's battery?", 'any notifications on the phone?',
-    "what's on my screen", 'do I have any reminders?', "what's my laptop battery?", 'how much free space is on C?']) assert.match(q, ASKS_LIVE, q)
+  for (const q of ["what's on my screen", 'do I have any reminders?', "what's my laptop battery?", 'how much free space is on C?']) assert.match(q, ASKS_LIVE, q)
   for (const q of ['what is a phone?', 'tell me a joke', 'how do screens work?']) assert.doesNotMatch(q, ASKS_LIVE, q)
 })
 

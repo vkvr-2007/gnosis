@@ -344,7 +344,8 @@ export const ASKS_ACTION = new RegExp(
  * 36%." with no tool run, and "what's my laptop battery?" got a made-up 73% (it was 100%), 2026-10-19:
  * these are held for a tool like an action is.
  */
-export const ASKS_LIVE = /\b(?:my|the) phone(?:'s)?\b|\bphone (?:battery|notifications?)\b|\bwhat(?:'s| is) on (?:my|the) screen\b|\b(?:my|any) reminders?\b|\b(?:battery|charging|disk space|free space|storage|cpu|ram|memory usage|wi-?fi|volume|brightness)\b/i
+// The phone is off for now (2026-10-21), so its questions are answered in words ("not connected").
+export const ASKS_LIVE = /\bwhat(?:'s| is) on (?:my|the) screen\b|\b(?:my|any) reminders?\b|\b(?:battery|charging|disk space|free space|storage|cpu|ram|memory usage|wi-?fi|volume|brightness)\b/i
 
 /**
  * More requests that need a tool, depending on what is going on: a tool server adds one (teach.mjs:

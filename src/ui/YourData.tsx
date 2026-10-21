@@ -21,6 +21,7 @@ type View = {
   voice: { enrolled: boolean; seconds?: number; at?: string }
   devices: { id: string; name: string; model: string; online: boolean }[]
   settings: Record<string, unknown>
+  coding: { id: number; task: string; folder: string; status: string; started: number | null }[]
   conversations: { bytes: number; files: number }
   research: { bytes: number; files: number }
   logs: { bytes: number; files: number; path: string }
@@ -247,6 +248,17 @@ export function YourData() {
                 </ul>
               </Section>
             )}
+
+            <Section title="Coding jobs (Claude Code)" count={`${view.coding.length}`} empty="None yet. Ask him to build something.">
+              {view.coding.length ? (
+                <ul className="yd-list">
+                  {view.coding.slice(0, 20).map((j) => (
+                    <li key={j.id}><span><b>#{j.id}</b> {j.status} · “{j.task.length > 100 ? `${j.task.slice(0, 100)}…` : j.task}” <span className="settings-dim">· {j.folder}{j.started ? ` · ${when(j.started)}` : ''}</span></span></li>
+                  ))}
+                  <li className="settings-dim">The projects are your work: they stay in their folders, and nothing here deletes them.</li>
+                </ul>
+              ) : undefined}
+            </Section>
 
             <Section title="Your settings">
               <ul className="yd-list">

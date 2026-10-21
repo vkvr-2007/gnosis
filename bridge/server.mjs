@@ -63,6 +63,7 @@ import { createPrivateMemory } from './privacy.mjs'
 import { createSkillStore } from './teach.mjs'
 import { startWithWindows, setStartWithWindows } from './startup.mjs'
 import { createLocalModel } from './localmodel.mjs'
+import { coderServer, createCoder } from './coder.mjs'
 import { useLocalModel, usePrivateMode } from './sdk.mjs'
 import { keyStatus, KEYS, saveSecret, testKey } from './secrets.mjs'
 import { cleanSettings, readSettings, writeSettings } from './settings.mjs'
@@ -997,6 +998,18 @@ let PRIVATE_MODE = false
 usePrivateMode(() => PRIVATE_MODE)
 for (const sig of ['exit', 'SIGINT', 'SIGTERM']) process.on(sig, () => LOCAL.stop())
 
+/**
+ * The coding agent (coder.mjs): Claude Code on the owner's Claude Pro plan, one job at a time in the
+ * background; when a job ends he says so, in his window and as a notification.
+ */
+const CODER = createCoder({
+  onEnd: (job) => {
+    const body = job.status === 'done' ? `Coding job #${job.id} is done. ${job.result ?? ''}`
+      : job.status === 'limit' ? job.result : `Coding job #${job.id} ${job.status}: ${job.result ?? ''}`
+    void NOTIFIER?.notify({ title: 'Coding job', body: body.slice(0, 600), urgency: 'high' })
+  },
+})
+
 /** Everything he keeps, for the Your data screen (yourdata.mjs). DEVICES is filled in once it exists. */
 let DATA = null
 /** The on-laptop model, for Settings: 'running', 'starting', 'off' (starts when needed) or 'missing'. */
@@ -1082,7 +1095,7 @@ const DEVICES = createDeviceHub({ onAsk: askFromDevice })
 // app first"): the device link opens a port on the home network, so it only starts when asked for.
 const DEVICES_ON = env('DEVICES', '') === '1' || process.env.GNOSIS_DEVICES === '1'
 DATA = createDataView({ memory: MEMORY, privateMemory: createPrivateMemory(), schedule: SCHEDULE, skills: createSkillStore(),
-  attachments: ATTACHMENTS, voice: VOICE, devices: DEVICES_ON ? DEVICES : null, readSettings })
+  attachments: ATTACHMENTS, voice: VOICE, devices: DEVICES_ON ? DEVICES : null, coder: CODER, readSettings })
 if (DEVICES_ON) DEVICES.start()
 
 /** A QR code in every open window of his (set_up_phone), kept up for two minutes. */
@@ -1107,10 +1120,13 @@ const BRAIN = createBrain({
     ayra_teach: teachServer(),
     ayra_attachments: attachmentServer({ store: ATTACHMENTS }),
     ayra_voice: voiceIdServer(VOICE, { showText: showPassage }),
-    ayra_phone: phoneServer(createPhoneRouter({
+    ayra_code: coderServer(CODER),
+    // The phone (phone.mjs, devices.mjs) is off for now (the owner, 2026-10-21: "remove the phone
+    // connection for now"); GNOSIS_PHONE=1 brings it back.
+    ...(process.env.GNOSIS_PHONE === '1' ? { ayra_phone: phoneServer(createPhoneRouter({
       app: createAppPhone(DEVICES),
       adb: createPhone({ run: findAdb() ? adbRunner(findAdb()) : null }),
-    }), { hub: DEVICES_ON ? DEVICES : null, showQr }),
+    }), { hub: DEVICES_ON ? DEVICES : null, showQr }) } : {}),
     ayra_schedule: scheduleServer({
       store: SCHEDULE,
       get notifier() { return NOTIFIER },

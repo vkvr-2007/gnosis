@@ -485,6 +485,9 @@ export function createGate({ allowWrites, laptop = false, connectors = DEFAULT_C
       // Voice ID (voiceid.mjs): learning and forgetting the owner's voice print; forgetting asks first.
       if (server === 'ayra_voice') return true
 
+      // The coding agent (coder.mjs): Claude Code in one project folder; starting and continuing ask first.
+      if (server === 'ayra_code') return true
+
       // The owner's phone over ADB (phone.mjs). Calls and messages are asked about in review().
       if (server === 'ayra_phone') return true
 
@@ -524,6 +527,10 @@ export function createGate({ allowWrites, laptop = false, connectors = DEFAULT_C
       // Calling and sending from the owner's phone are "sending as you": asked every time.
       detail = `Call ${input?.who ?? ''}`
       reason = 'calls someone from your phone'
+    } else if (name === 'mcp__ayra_code__code_start' || name === 'mcp__ayra_code__code_continue') {
+      const where = input?.folder ? ` in ${input.folder}` : input?.name ? ` (new project "${input.name}")` : ''
+      detail = `Claude Code${where}: ${String(input?.task ?? input?.instruction ?? '').slice(0, 300)}`
+      reason = 'runs Claude Code on your Pro plan to write code'
     } else if (name === 'mcp__ayra_voice__forget_my_voice') {
       detail = 'Forget your voice print (voice ID off)'
       reason = 'turns voice ID off'
